@@ -1,0 +1,17 @@
+enabled: true
+
+replace-number:
+  enabled: true
+  default: group1
+  group:
+    group1:
+      - '〇'
+      - '①'
+      - '②'
+      - '③'
+      - '④'
+      - '⑤'
+      - '⑥'
+      - '⑦'
+      - '⑧'
+      - '⑨'
