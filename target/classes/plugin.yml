@@ -1,0 +1,4 @@
+name: StrikeView
+version: '1.0'
+main: cn.strikeView.Main
+api-version: '1.21'
