@@ -24,7 +24,7 @@ public final class Main extends JavaPlugin {
         SpigotEntityLibPlatform platform = new SpigotEntityLibPlatform(this);
         APIConfig settings = new APIConfig(PacketEvents.getAPI());
         EntityLib.init(platform, settings);
-        Bukkit.getServer().getPluginManager().registerEvents(new EntityDamageOther(this),this);
+        Bukkit.getServer().getPluginManager().registerEvents(new EntityDamageOther(this), this);
 
     }
 

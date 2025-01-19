@@ -26,7 +26,10 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 public class EntityDamageOther implements Listener {
     private final Main plugin;
@@ -51,29 +54,30 @@ public class EntityDamageOther implements Listener {
         boolean isCritical = event.isCritical();
 
         if (damager instanceof LivingEntity attacker) {
+            if (attacker instanceof Player p) {
+                player = p;
+            }
             isProject = false;
             velocity = null;
             attackerLocation = attacker.getEyeLocation();
-            if(attacker instanceof Player p) {
-                player = p;
-            }
         } else {
             if (damager instanceof Projectile attacker) {
+                if (attacker.getShooter() instanceof Player p) {
+                    player = p;
+                }
                 isProject = true;
                 attackerLocation = attacker.getLocation();
                 velocity = attacker.getVelocity();
-                if(attacker.getShooter() instanceof Player p) {
-                    player = p;
-                }
             } else {
                 return;
             }
         }
 
-        Set<Player> players = new HashSet<>(entityLocation.getNearbyPlayers(16));
-        if(player != null) {
+        Set<Player> players = new HashSet<>();
+        if (player != null) {
             players.add(player);
         }
+        players.addAll(entityLocation.getNearbyPlayers(16));
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
 
@@ -91,8 +95,8 @@ public class EntityDamageOther implements Listener {
 
             int id = PacketUtil.getAutoEntityId();
             TextDisplayMeta meta = (TextDisplayMeta) EntityMeta.createMeta(id, EntityTypes.TEXT_DISPLAY);
-            meta.setText(Component.text(String.format("\uD83D\uDDE1%.1f",damage)));
-            if(isCritical){
+            meta.setText(Component.text(String.format("\uD83D\uDDE1%.1f", damage)));
+            if (isCritical) {
                 meta.setScale(new Vector3f(1.5F, 1.5F, 1.5F));
             }
             meta.setBillboardConstraints(AbstractDisplayMeta.BillboardConstraints.CENTER);
@@ -117,7 +121,7 @@ public class EntityDamageOther implements Listener {
 
                 @Override
                 public void run() {
-                    Vector3d tpLocation = location.add(0, (count+1) * changeY, 0);
+                    Vector3d tpLocation = location.add(0, (count + 1) * changeY, 0);
                     PacketUtil.sendPacketListPlayer(new WrapperPlayServerEntityTeleport(
                             id,
                             tpLocation,
