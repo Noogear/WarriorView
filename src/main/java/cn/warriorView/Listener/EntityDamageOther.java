@@ -82,14 +82,14 @@ public class EntityDamageOther implements Listener {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
 
             Location damageLocation;
-            if (!isProject) {
+            if (isProject) {
+                damageLocation = attackerLocation.add(velocity);
+            } else {
                 if (cause == EntityDamageEvent.DamageCause.ENTITY_SWEEP_ATTACK) {
                     damageLocation = entityLocation;
                 } else {
                     damageLocation = attackerLocation.add(attackerLocation.getDirection().normalize().multiply(attackerLocation.distance(entityLocation)));
                 }
-            } else {
-                damageLocation = attackerLocation.add(velocity);
             }
             damageLocation = damageLocation.add(0, 0.25, 0);
 
