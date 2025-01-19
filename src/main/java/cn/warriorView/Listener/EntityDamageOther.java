@@ -123,7 +123,7 @@ public class EntityDamageOther implements Listener {
 
                 @Override
                 public void run() {
-                    Vector3d tpLocation = location.add(0, count * changeY, 0);
+                    Vector3d tpLocation = location.add(0, (count+1) * changeY, 0);
                     PacketUtil.sendPacketListPlayer(new WrapperPlayServerEntityTeleport(
                             id,
                             tpLocation,

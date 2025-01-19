@@ -41,6 +41,21 @@ regain-health:
       remove-count: 8
       only-player: true
 
+animation:
+  1:
+    mode: up-and-down
+    # damage, foot, eye
+    from: damage
+    y:
+      max: 1
+      speed: 0.17
+  2:
+    mode: up
+    # foot, eye
+    from: foot
+    y:
+      speed: 0.15
+
 replacement-group:
   test:
     number:
