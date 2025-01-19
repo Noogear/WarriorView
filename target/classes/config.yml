@@ -1,0 +1,58 @@
+enabled: true
+
+damage-entity:
+  enabled: true
+  basic:
+    shadow: true
+    view-range: 1.0
+    view-marge: 16
+  cause:
+    default:
+      text-format: "-%.2f"
+      scale: 1.5
+      remove-count: 8
+      only-player: true
+    critical:
+      text-format: "💥%.2f"
+      scale: 1.5
+      remove-count: 8
+      only-player: true
+    ENTITY_ATTACK:
+      text-format: "🗡%.2f"
+      scale: 1.5
+      remove-count: 8
+      only-player: false
+      replacement: test
+    PROJECTILE:
+      text-format: "🏹%.2f"
+      scale: 1.5
+      remove-count: 8
+      only-player: false
+
+regain-health:
+  basic:
+    shadow: true
+    view-range: 1.0
+    view-marge: 16
+  reason:
+    default:
+      text-format: "+%.2f"
+      scale: 1.5
+      remove-count: 8
+      only-player: true
+
+replacement-group:
+  test:
+    number:
+      - '〇'
+      - '①'
+      - '②'
+      - '③'
+      - '④'
+      - '⑤'
+      - '⑥'
+      - '⑦'
+      - '⑧'
+      - '⑨'
+    char:
+      - '.#点'
