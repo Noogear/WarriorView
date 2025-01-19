@@ -48,7 +48,7 @@ public class EntityDamageOther implements Listener {
         Player player = null;
         Vector velocity;
         boolean isProject;
-        boolean isCritical;
+        boolean isCritical = false;
         if (damager instanceof LivingEntity attacker) {
             isProject = false;
             velocity = null;
@@ -57,20 +57,19 @@ public class EntityDamageOther implements Listener {
                 player = p;
                 if(event.isCritical()){
                     isCritical = true;
-                } else {
-                    isCritical = false;
                 }
-            } else {
-                isCritical = false;
             }
         } else {
-            isCritical = false;
+
             if (damager instanceof Projectile attacker) {
                 isProject = true;
                 attackerLocation = attacker.getLocation();
                 velocity = attacker.getVelocity();
                 if(attacker.getShooter() instanceof Player p) {
                     player = p;
+                    if(event.isCritical()){
+                        isCritical = true;
+                    }
                 }
             } else {
                 return;
@@ -81,6 +80,7 @@ public class EntityDamageOther implements Listener {
             players.add(player);
         }
 
+        boolean finalIsCritical = isCritical;
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
 
             Location damageLocation;
@@ -98,8 +98,8 @@ public class EntityDamageOther implements Listener {
             int id = PacketUtil.getAutoEntityId();
             TextDisplayMeta meta = (TextDisplayMeta) EntityMeta.createMeta(id, EntityTypes.TEXT_DISPLAY);
             meta.setText(Component.text(String.format("\uD83D\uDDE1%.1f",damage)));
-            if(isCritical){
-                meta.setScale(new Vector3f(2F, 2F, 2F));
+            if(finalIsCritical){
+                meta.setScale(new Vector3f(1.5F, 1.5F, 1.5F));
             }
             meta.setBillboardConstraints(AbstractDisplayMeta.BillboardConstraints.CENTER);
             meta.setPositionRotationInterpolationDuration(10);
