@@ -121,6 +121,14 @@ public class EntityDamageOther implements Listener {
 
                 @Override
                 public void run() {
+
+                    if (count >= 9) {
+                        PacketUtil.sendPacketListPlayer(new WrapperPlayServerDestroyEntities(id), players);
+                        cancel();
+                        players.clear();
+                        return;
+                    }
+
                     Vector3d tpLocation = location.add(0, (count + 1) * changeY, 0);
                     PacketUtil.sendPacketListPlayer(new WrapperPlayServerEntityTeleport(
                             id,
@@ -130,12 +138,6 @@ public class EntityDamageOther implements Listener {
                             false
                     ), players);
 
-                    if (count >= 9) {
-                        PacketUtil.sendPacketListPlayer(new WrapperPlayServerDestroyEntities(id), players);
-                        cancel();
-                        players.clear();
-                        return;
-                    }
                     count++;
                     changeY -= 0.17;
                 }

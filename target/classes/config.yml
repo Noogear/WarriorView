@@ -6,6 +6,7 @@ damage-entity:
     shadow: true
     view-range: 1.0
     view-marge: 16
+    background-color:
   cause:
     default:
       text-format: "-%.2f"
