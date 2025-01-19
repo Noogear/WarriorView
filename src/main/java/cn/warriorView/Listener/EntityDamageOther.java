@@ -48,39 +48,33 @@ public class EntityDamageOther implements Listener {
         Player player = null;
         Vector velocity;
         boolean isProject;
-        boolean isCritical = false;
+        boolean isCritical = event.isCritical();
+
         if (damager instanceof LivingEntity attacker) {
             isProject = false;
             velocity = null;
             attackerLocation = attacker.getEyeLocation();
             if(attacker instanceof Player p) {
                 player = p;
-                if(event.isCritical()){
-                    isCritical = true;
-                }
             }
         } else {
-
             if (damager instanceof Projectile attacker) {
                 isProject = true;
                 attackerLocation = attacker.getLocation();
                 velocity = attacker.getVelocity();
                 if(attacker.getShooter() instanceof Player p) {
                     player = p;
-                    if(event.isCritical()){
-                        isCritical = true;
-                    }
                 }
             } else {
                 return;
             }
         }
+
         Set<Player> players = new HashSet<>(entityLocation.getNearbyPlayers(16));
         if(player != null) {
             players.add(player);
         }
 
-        boolean finalIsCritical = isCritical;
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
 
             Location damageLocation;
@@ -98,7 +92,7 @@ public class EntityDamageOther implements Listener {
             int id = PacketUtil.getAutoEntityId();
             TextDisplayMeta meta = (TextDisplayMeta) EntityMeta.createMeta(id, EntityTypes.TEXT_DISPLAY);
             meta.setText(Component.text(String.format("\uD83D\uDDE1%.1f",damage)));
-            if(finalIsCritical){
+            if(isCritical){
                 meta.setScale(new Vector3f(1.5F, 1.5F, 1.5F));
             }
             meta.setBillboardConstraints(AbstractDisplayMeta.BillboardConstraints.CENTER);
