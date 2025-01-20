@@ -1,19 +1,13 @@
 package cn.warriorView.Util;
 
-import cn.warriorView.View.DamageOtherView;
+import cn.warriorView.View.DamageView.DamageOtherView;
 import cn.warriorView.View.ViewDisplay;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.manager.player.PlayerManager;
 import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import org.bukkit.Location;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Projectile;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -42,7 +36,7 @@ public class PacketUtil {
 
     }
 
-    public static void spawnDisplay(DamageOtherView viewDisplay, Location entityLocation, Location attackerLocation,  Set<Player> players) {
+    public static void spawnDisplay(DamageOtherView viewDisplay, Location entityLocation, Location attackerLocation, Set<Player> players) {
 
 
 

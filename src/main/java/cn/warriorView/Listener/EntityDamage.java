@@ -1,9 +1,10 @@
 package cn.warriorView.Listener;
 
 import cn.warriorView.Main;
-import cn.warriorView.View.DamageOtherView;
-import cn.warriorView.View.DamageView;
-import cn.warriorView.View.ProjectileView;
+
+import cn.warriorView.View.DamageView.DamageOtherView;
+import cn.warriorView.View.DamageView.DamageView;
+import cn.warriorView.View.DamageView.ProjectileView;
 import cn.warriorView.View.ViewDisplay;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;

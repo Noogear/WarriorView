@@ -1,6 +1,6 @@
 package cn.warriorView.Manager;
 
-import cn.warriorView.View.DamageView;
+import cn.warriorView.View.DamageView.DamageView;
 import org.bukkit.event.entity.EntityDamageEvent;
 
 import java.util.HashMap;

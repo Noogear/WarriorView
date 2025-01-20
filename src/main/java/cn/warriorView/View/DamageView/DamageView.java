@@ -1,7 +1,8 @@
-package cn.warriorView.View;
+package cn.warriorView.View.DamageView;
 
 import cn.warriorView.Object.Range;
 import cn.warriorView.Object.Replacement;
+import cn.warriorView.View.ViewDisplay;
 
 public class DamageView extends ViewDisplay {
 
