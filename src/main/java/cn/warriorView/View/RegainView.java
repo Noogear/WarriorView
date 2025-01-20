@@ -5,13 +5,24 @@ import cn.warriorView.Object.Replacement;
 
 public class RegainView extends ViewDisplay {
 
-    private Position position;
+    private final Position position;
+    private final boolean onlyPlayer;
 
-    public RegainView(String textFormat, Range scale, byte removeCount, boolean onlyPlayer, Replacement replacement, boolean shadow, double viewRange, byte viewMarge, int backgroundColor) {
-        super(textFormat, scale, removeCount, onlyPlayer, replacement, shadow, viewRange, viewMarge, backgroundColor);
+    public RegainView(String textFormat, Range scale, byte removeCount, boolean onlyPlayer, Replacement replacement, boolean shadow, double viewRange, byte viewMarge, int backgroundColor, Position position) {
+        super(textFormat, scale, removeCount, replacement, shadow, viewRange, viewMarge, backgroundColor);
+        this.position = position;
+        this.onlyPlayer = onlyPlayer;
     }
 
-    enum Position{
+    public Position getPosition() {
+        return position;
+    }
+
+    public boolean isOnlyPlayer() {
+        return onlyPlayer;
+    }
+
+    public enum Position {
         EYE,
         FOOT
     }

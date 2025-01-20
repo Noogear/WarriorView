@@ -8,7 +8,6 @@ public class ViewDisplay {
     private final String textFormat;
     private final Range scale;
     private final byte removeCount;
-    private final boolean onlyPlayer;
     private final Replacement replacement;
     private final boolean shadow;
     private final double viewRange;
@@ -16,11 +15,10 @@ public class ViewDisplay {
     private final int backgroundColor;
 
 
-    public ViewDisplay(String textFormat, Range scale, byte removeCount, boolean onlyPlayer, Replacement replacement,boolean shadow, double viewRange, byte viewMarge, int backgroundColor) {
+    public ViewDisplay(String textFormat, Range scale, byte removeCount, Replacement replacement,boolean shadow, double viewRange, byte viewMarge, int backgroundColor) {
         this.textFormat = textFormat;
         this.scale = scale;
         this.removeCount = removeCount;
-        this.onlyPlayer = onlyPlayer;
         this.replacement = replacement;
         this.shadow = shadow;
         this.viewRange = viewRange;
@@ -39,10 +37,6 @@ public class ViewDisplay {
 
     public byte getRemoveCount() {
         return removeCount;
-    }
-
-    public boolean isOnlyPlayer() {
-        return onlyPlayer;
     }
 
     public Replacement getReplacement() {

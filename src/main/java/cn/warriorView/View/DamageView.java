@@ -5,15 +5,21 @@ import cn.warriorView.Object.Replacement;
 
 public class DamageView extends ViewDisplay {
 
-    private Position position;
+    private final Position position;
 
-    public DamageView(String textFormat, Range scale, byte removeCount, boolean onlyPlayer, Replacement replacement, boolean shadow, double viewRange, byte viewMarge, int backgroundColor) {
-        super(textFormat, scale, removeCount, onlyPlayer, replacement, shadow, viewRange, viewMarge, backgroundColor);
+    public DamageView(String textFormat, Range scale, byte removeCount, Replacement replacement, boolean shadow, double viewRange, byte viewMarge, int backgroundColor, Position position) {
+        super(textFormat, scale, removeCount, replacement, shadow, viewRange, viewMarge, backgroundColor);
+        this.position = position;
     }
 
-    enum Position{
+    public Position getPosition() {
+        return position;
+    }
+
+    public enum Position {
         EYE,
         FOOT
     }
+
 
 }
