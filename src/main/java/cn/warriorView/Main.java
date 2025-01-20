@@ -1,6 +1,7 @@
 package cn.warriorView;
 
 import cn.warriorView.Listener.EntityDamageOther;
+import cn.warriorView.Util.XLogger;
 import com.github.retrooper.packetevents.PacketEvents;
 import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
 import me.tofaa.entitylib.APIConfig;
@@ -19,7 +20,7 @@ public final class Main extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        // Plugin startup logic
+        new XLogger(this);
         PacketEvents.getAPI().init();
         SpigotEntityLibPlatform platform = new SpigotEntityLibPlatform(this);
         APIConfig settings = new APIConfig(PacketEvents.getAPI());
@@ -30,7 +31,6 @@ public final class Main extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        // Plugin shutdown logic
         PacketEvents.getAPI().terminate();
     }
 }

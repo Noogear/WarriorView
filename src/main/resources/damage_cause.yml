@@ -1,0 +1,19 @@
+ENTITY_ATTACK:
+  text-format: "🗡%.2f"
+  position: damage
+  scale: 1.5
+  remove-count: 8
+  only-player: false
+  replacement: test
+PROJECTILE:
+  text-format: "🏹%.2f"
+  position: damage
+  scale: 1
+  remove-count: 8
+  only-player: false
+ENTITY_SWEEP_ATTACK:
+  text-format: "🗡%.2f"
+  position: eye
+  scale: 0.8
+  remove-count: 8
+  only-player: false
