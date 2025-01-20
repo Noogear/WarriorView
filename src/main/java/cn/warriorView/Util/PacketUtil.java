@@ -38,9 +38,6 @@ public class PacketUtil {
 
     public static void spawnDisplay(DamageOtherView viewDisplay, Location entityLocation, Location attackerLocation, Set<Player> players) {
 
-
-
-
     }
 
 

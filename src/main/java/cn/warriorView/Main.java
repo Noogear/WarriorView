@@ -40,4 +40,5 @@ public final class Main extends JavaPlugin {
     public ViewManager getViewManager() {
         return viewManager;
     }
+
 }
