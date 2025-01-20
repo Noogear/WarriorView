@@ -2,28 +2,31 @@ package cn.warriorView.View;
 
 import cn.warriorView.Object.Range;
 import cn.warriorView.Object.Replacement;
+import cn.warriorView.View.Animation.Animation;
 
 public class ViewDisplay {
 
     private final String textFormat;
     private final Range scale;
-    private final byte removeCount;
+    private final Animation animation;
     private final Replacement replacement;
     private final boolean shadow;
-    private final double viewRange;
+    private final float viewRange;
     private final byte viewMarge;
     private final int backgroundColor;
+    private final boolean seeThrough;
 
 
-    public ViewDisplay(String textFormat, Range scale, byte removeCount, Replacement replacement,boolean shadow, double viewRange, byte viewMarge, int backgroundColor) {
+    public ViewDisplay(String textFormat, Range scale, Animation animation, Replacement replacement, boolean shadow, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough) {
         this.textFormat = textFormat;
         this.scale = scale;
-        this.removeCount = removeCount;
+        this.animation = animation;
         this.replacement = replacement;
         this.shadow = shadow;
         this.viewRange = viewRange;
         this.viewMarge = viewMarge;
         this.backgroundColor = backgroundColor;
+        this.seeThrough = seeThrough;
 
     }
 
@@ -31,12 +34,12 @@ public class ViewDisplay {
         return textFormat;
     }
 
-    public double getScale() {
+    public float getScale() {
         return scale.getRandom();
     }
 
-    public byte getRemoveCount() {
-        return removeCount;
+    public Animation getAnimation() {
+        return animation;
     }
 
     public Replacement getReplacement() {
@@ -47,7 +50,7 @@ public class ViewDisplay {
         return shadow;
     }
 
-    public double getViewRange() {
+    public float getViewRange() {
         return viewRange;
     }
 
@@ -57,6 +60,10 @@ public class ViewDisplay {
 
     public int getBackgroundColor() {
         return backgroundColor;
+    }
+
+    public boolean isSeeThrough() {
+        return seeThrough;
     }
 
 

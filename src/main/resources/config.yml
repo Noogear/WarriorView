@@ -6,22 +6,23 @@ damage-entity:
     shadow: true
     view-range: 1.0
     view-marge: 16
-    # ARGB
     background-color:
+    see-through: true
   default:
     text-format: "-%.2f"
     position: eye
     scale: 0.9, 1.0, 1.1
-    remove-count: 8
+    move-count: 8
     only-player: true
+    animation: UP_AND_DOWN
   critical:
     text-format: "💥%.2f"
     position: damage
     scale: 1.5
-    remove-count: 8
+    move-count: 8
     only-player: true
+    animation: UP_AND_DOWN
   other: damage_cause.yml
-
 
 regain-health:
   basic:
@@ -29,27 +30,16 @@ regain-health:
     view-range: 1.0
     view-marge: 16
     background-color:
+    see-through: false
   default:
     text-format: "+%.2f"
-    position: eye
+    position: foot
     scale: 1
-    remove-count: 8
+    move-count: 8
     only-player: true
+    animation: UP
   other: regain_reason.yml
 
-animation:
-  1:
-    mode: up-and-down
-    # damage, foot, eye
-    from: damage
-    y:
-      max: 1
-      speed: 0.17
-  2:
-    mode: up
-    # foot, eye
-    from: foot
-    y:
-      speed: 0.15
+animation: animation.yml
 
 replacement: replacement_group.yml

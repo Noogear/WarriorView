@@ -2,7 +2,8 @@ package cn.warriorView.View.DamageView;
 
 import cn.warriorView.Object.Range;
 import cn.warriorView.Object.Replacement;
-import cn.warriorView.Util.PacketUtil;
+import cn.warriorView.View.DisplayManager;
+import cn.warriorView.View.Animation.Animation;
 import cn.warriorView.View.ViewDisplay;
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
@@ -17,8 +18,8 @@ public class DamageOtherView extends ViewDisplay {
     private final Position position;
     private final boolean onlyPlayer;
 
-    public DamageOtherView(String textFormat, Range scale, byte removeCount, boolean onlyPlayer, Replacement replacement, boolean shadow, double viewRange, byte viewMarge, int backgroundColor, Position position) {
-        super(textFormat, scale, removeCount, replacement, shadow, viewRange, viewMarge, backgroundColor);
+    public DamageOtherView(String textFormat, Range scale, Animation animation, boolean onlyPlayer, Replacement replacement, boolean shadow, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, Position position) {
+        super(textFormat, scale, animation, replacement, shadow, viewRange, viewMarge, backgroundColor, seeThrough);
         this.onlyPlayer = onlyPlayer;
         this.position = position;
     }
@@ -32,6 +33,8 @@ public class DamageOtherView extends ViewDisplay {
     }
 
     public void spawn(EntityDamageByEntityEvent event) {
+        double damage = event.getFinalDamage();
+        if(damage <= 0.01) return;
         LivingEntity attacker = (LivingEntity) event.getDamager();
         Set<Player> players = new HashSet<>();
         if (attacker instanceof Player p) {
@@ -46,7 +49,7 @@ public class DamageOtherView extends ViewDisplay {
         Location damageLocation;
         switch (this.getPosition()) {
             case DAMAGE:
-                PacketUtil.spawnDisplay(this, entityEyeLocation, attacker.getEyeLocation(), players);
+                DisplayManager.spawnDisplay(this, entityEyeLocation, attacker.getEyeLocation(), players,damage);
                 return;
             case EYE:
                 damageLocation = entityEyeLocation;
@@ -55,7 +58,7 @@ public class DamageOtherView extends ViewDisplay {
                 damageLocation = entity.getLocation();
                 break;
         }
-        PacketUtil.spawnDisplay(this, damageLocation, players);
+        DisplayManager.spawnDisplay(this, damageLocation, players,damage);
     }
 
     public enum Position {

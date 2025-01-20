@@ -2,6 +2,10 @@ package cn.warriorView;
 
 import cn.warriorView.Listener.EntityDamageOther;
 import cn.warriorView.Manager.ViewManager;
+import cn.warriorView.Util.Scheduler.BukkitScheduler;
+import cn.warriorView.Util.Scheduler.FoliaScheduler;
+import cn.warriorView.Util.Scheduler.IScheduler;
+import cn.warriorView.Util.Scheduler.XRunnable;
 import cn.warriorView.Util.XLogger;
 import com.github.retrooper.packetevents.PacketEvents;
 import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
@@ -13,6 +17,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Main extends JavaPlugin {
     private ViewManager viewManager;
+    private IScheduler scheduler;
 
     @Override
     public void onLoad() {
@@ -28,7 +33,12 @@ public final class Main extends JavaPlugin {
         APIConfig settings = new APIConfig(PacketEvents.getAPI());
         EntityLib.init(platform, settings);
         viewManager = new ViewManager();
-        Bukkit.getServer().getPluginManager().registerEvents(new EntityDamageOther(this), this);
+        try {
+            Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
+            scheduler = new FoliaScheduler(this);
+        } catch (ClassNotFoundException e) {
+            scheduler = new BukkitScheduler(this);
+        }
 
     }
 
@@ -39,6 +49,10 @@ public final class Main extends JavaPlugin {
 
     public ViewManager getViewManager() {
         return viewManager;
+    }
+
+    public IScheduler scheduler() {
+        return scheduler;
     }
 
 }
