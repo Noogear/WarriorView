@@ -1,6 +1,5 @@
 package cn.warriorView.Util.Scheduler;
 
-import cn.warriorView.Main;
 import cn.warriorView.Util.Scheduler.task.ITaskWrapper;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
@@ -12,64 +11,64 @@ public abstract class XRunnable implements Runnable {
     @Override
     public abstract void run();
 
-    public ITaskWrapper sync(Main main) {
+    public ITaskWrapper sync() {
         checkTaskNotNull();
-        return setTaskWrapper(main.scheduler().sync(this));
+        return setTaskWrapper(XScheduler.get().sync(this));
     }
 
-    public ITaskWrapper syncLater(Main main, long delayTicks) {
+    public ITaskWrapper syncLater(long delayTicks) {
         checkTaskNotNull();
-        return setTaskWrapper(main.scheduler().syncLater(this, delayTicks));
+        return setTaskWrapper(XScheduler.get().syncLater(this, delayTicks));
     }
 
-    public ITaskWrapper syncTimer(Main main, long delayTicks, long periodTicks) {
+    public ITaskWrapper syncTimer(long delayTicks, long periodTicks) {
         checkTaskNotNull();
-        return setTaskWrapper(main.scheduler().syncTimer(this, delayTicks, periodTicks));
+        return setTaskWrapper(XScheduler.get().syncTimer(this, delayTicks, periodTicks));
     }
 
-    public ITaskWrapper async(Main main) {
+    public ITaskWrapper async() {
         checkTaskNotNull();
-        return setTaskWrapper(main.scheduler().async(this));
+        return setTaskWrapper(XScheduler.get().async(this));
     }
 
-    public ITaskWrapper asyncLater(Main main, long delayTicks) {
+    public ITaskWrapper asyncLater(long delayTicks) {
         checkTaskNotNull();
-        return setTaskWrapper(main.scheduler().asyncLater(this, delayTicks));
+        return setTaskWrapper(XScheduler.get().asyncLater(this, delayTicks));
     }
 
-    public ITaskWrapper asyncTimer(Main main, long delayTicks, long periodTicks) {
+    public ITaskWrapper asyncTimer(long delayTicks, long periodTicks) {
         checkTaskNotNull();
-        return setTaskWrapper(main.scheduler().asyncTimer(this, delayTicks, periodTicks));
+        return setTaskWrapper(XScheduler.get().asyncTimer(this, delayTicks, periodTicks));
     }
 
-    public ITaskWrapper runOnLocation(Main main, Location location) {
+    public ITaskWrapper runOnLocation(Location location) {
         checkTaskNotNull();
-        return setTaskWrapper(main.scheduler().runOnLocation(location, this));
+        return setTaskWrapper(XScheduler.get().runOnLocation(location, this));
     }
 
-    public ITaskWrapper runOnLocationLater(Main main, Location location, long delayTicks) {
+    public ITaskWrapper runOnLocationLater(Location location, long delayTicks) {
         checkTaskNotNull();
-        return setTaskWrapper(main.scheduler().runOnLocationLater(location, this, delayTicks));
+        return setTaskWrapper(XScheduler.get().runOnLocationLater(location, this, delayTicks));
     }
 
-    public ITaskWrapper runOnLocationTimer(Main main, Location location, long delayTicks, long periodTicks) {
+    public ITaskWrapper runOnLocationTimer(Location location, long delayTicks, long periodTicks) {
         checkTaskNotNull();
-        return setTaskWrapper(main.scheduler().runOnLocationTimer(location, this, delayTicks, periodTicks));
+        return setTaskWrapper(XScheduler.get().runOnLocationTimer(location, this, delayTicks, periodTicks));
     }
 
-    public ITaskWrapper runOnEntity(Main main, Entity entity) {
+    public ITaskWrapper runOnEntity(Entity entity) {
         checkTaskNotNull();
-        return setTaskWrapper(main.scheduler().runOnEntity(entity, this, this));
+        return setTaskWrapper(XScheduler.get().runOnEntity(entity, this, this));
     }
 
-    public ITaskWrapper runOnEntityLater(Main main, Entity entity, long delayTicks) {
+    public ITaskWrapper runOnEntityLater(Entity entity, long delayTicks) {
         checkTaskNotNull();
-        return setTaskWrapper(main.scheduler().runOnEntityLater(entity, this, this, delayTicks));
+        return setTaskWrapper(XScheduler.get().runOnEntityLater(entity, this, this, delayTicks));
     }
 
-    public ITaskWrapper runOnEntityTimer(Main main, Entity entity, long delayTicks, long periodTicks) {
+    public ITaskWrapper runOnEntityTimer(Entity entity, long delayTicks, long periodTicks) {
         checkTaskNotNull();
-        return setTaskWrapper(main.scheduler().runOnEntityTimer(entity, this, this, delayTicks, periodTicks));
+        return setTaskWrapper(XScheduler.get().runOnEntityTimer(entity, this, this, delayTicks, periodTicks));
     }
 
     public void cancel() {

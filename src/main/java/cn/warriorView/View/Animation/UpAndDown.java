@@ -12,8 +12,8 @@ import java.util.Set;
 
 public class UpAndDown extends Animation {
 
-    public UpAndDown(Main main, byte moveCount, float max, float speed) {
-        super(main, moveCount, max, speed);
+    public UpAndDown(byte moveCount, float max, float speed) {
+        super(moveCount, max, speed);
     }
 
     @Override
@@ -45,7 +45,7 @@ public class UpAndDown extends Animation {
                 changeY -= speed;
 
             }
-        }.asyncTimer(plugin, 2, 2);
+        }.asyncTimer(2, 2);
     }
 
 }

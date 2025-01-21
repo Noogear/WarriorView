@@ -21,10 +21,8 @@ import java.util.UUID;
 
 public class DisplayManager {
     public static DisplayManager instance;
-    private final Main plugin;
 
-    public DisplayManager(Main main) {
-        plugin = main;
+    public DisplayManager() {
         instance = this;
     }
 
@@ -38,7 +36,7 @@ public class DisplayManager {
                 instance.spawnEntity(viewDisplay, entityId, location, players, damage);
                 viewDisplay.getAnimation().play(entityId, PacketUtil.locationToV3d(location), players);
             }
-        }.async(instance.plugin);
+        }.async();
 
     }
 
@@ -52,7 +50,7 @@ public class DisplayManager {
                 instance.spawnEntity(viewDisplay, entityId, damageLocation, players, damage);
                 viewDisplay.getAnimation().play(entityId, PacketUtil.locationToV3d(damageLocation), players);
             }
-        }.async(instance.plugin);
+        }.async();
 
     }
 

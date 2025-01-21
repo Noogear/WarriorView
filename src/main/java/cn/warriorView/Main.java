@@ -1,9 +1,8 @@
 package cn.warriorView;
 
 import cn.warriorView.Manager.ViewManager;
-import cn.warriorView.Util.Scheduler.BukkitScheduler;
-import cn.warriorView.Util.Scheduler.FoliaScheduler;
 import cn.warriorView.Util.Scheduler.IScheduler;
+import cn.warriorView.Util.Scheduler.XScheduler;
 import cn.warriorView.Util.XLogger;
 import com.github.retrooper.packetevents.PacketEvents;
 import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
@@ -32,10 +31,11 @@ public final class Main extends JavaPlugin {
         viewManager = new ViewManager();
         try {
             Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
-            scheduler = new FoliaScheduler(this);
+            new XScheduler(this, true);
         } catch (ClassNotFoundException e) {
-            scheduler = new BukkitScheduler(this);
+            new XScheduler(this, false);
         }
+
 
     }
 
