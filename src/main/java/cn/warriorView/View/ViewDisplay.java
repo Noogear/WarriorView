@@ -4,7 +4,7 @@ import cn.warriorView.Object.Range;
 import cn.warriorView.Object.Replacement;
 import cn.warriorView.View.Animation.Animation;
 
-public class ViewDisplay {
+public abstract class ViewDisplay {
 
     private final String textFormat;
     private final Range scale;

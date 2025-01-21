@@ -2,43 +2,37 @@ enabled: true
 
 damage-entity:
   enabled: true
-  basic:
+  default:
     shadow: true
     view-range: 1.0
     view-marge: 16
     background-color:
     see-through: true
-  default:
     text-format: "-%.2f"
     position: eye
     scale: 0.9, 1.0, 1.1
     move-count: 8
     only-player: true
-    animation: UP_AND_DOWN
-  critical:
-    text-format: "💥%.2f"
-    position: damage
-    scale: 1.5
-    move-count: 8
-    only-player: true
-    animation: UP_AND_DOWN
-  other: damage_cause.yml
+    animation: 1
+    replacement: ""
+  apply: damage_cause.yml
 
 regain-health:
-  basic:
+  enabled: true
+  default:
     shadow: true
     view-range: 1.0
     view-marge: 16
     background-color:
     see-through: false
-  default:
     text-format: "+%.2f"
     position: foot
     scale: 1
     move-count: 8
     only-player: true
-    animation: UP
-  other: regain_reason.yml
+    animation: 2
+    replacement: ""
+  apply: regain_reason.yml
 
 animation: animation.yml
 

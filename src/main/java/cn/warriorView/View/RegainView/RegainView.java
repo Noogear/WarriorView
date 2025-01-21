@@ -4,6 +4,7 @@ import cn.warriorView.Object.Range;
 import cn.warriorView.Object.Replacement;
 import cn.warriorView.View.Animation.Animation;
 import cn.warriorView.View.ViewDisplay;
+import org.bukkit.event.entity.EntityRegainHealthEvent;
 
 public class RegainView extends ViewDisplay {
 
@@ -14,6 +15,10 @@ public class RegainView extends ViewDisplay {
         super(textFormat, scale, animation, replacement, shadow, viewRange, viewMarge, backgroundColor, seeThrough);
         this.position = position;
         this.onlyPlayer = onlyPlayer;
+    }
+
+    public void spawn(EntityRegainHealthEvent event){
+
     }
 
     public Position getPosition() {

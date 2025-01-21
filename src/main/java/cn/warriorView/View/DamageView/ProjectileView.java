@@ -31,7 +31,6 @@ public class ProjectileView extends DamageOtherView {
             if (this.isOnlyPlayer()) return;
         }
         LivingEntity entity = (LivingEntity) event.getEntity();
-        boolean isCritical = event.isCritical();
         Location damageLocation;
         damageLocation = switch (this.getPosition()) {
             case DAMAGE -> attacker.getLocation().add(attacker.getVelocity());

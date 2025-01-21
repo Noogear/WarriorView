@@ -44,7 +44,6 @@ public class DamageOtherView extends ViewDisplay {
         }
         LivingEntity entity = (LivingEntity) event.getEntity();
         Location entityEyeLocation = entity.getEyeLocation();
-        boolean isCritical = event.isCritical();
         players.addAll(entityEyeLocation.getNearbyPlayers(this.getViewMarge()));
         Location damageLocation;
         switch (this.getPosition()) {
