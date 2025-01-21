@@ -36,6 +36,4 @@ public class PacketUtil {
         return new HashSet<>(location.getNearbyPlayers(marge));
     }
 
-
-
 }
