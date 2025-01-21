@@ -7,7 +7,7 @@ import java.util.Map;
 public class Replacement {
     private final char[] numbers;
     private final Map<String, String> chars;
-    private boolean enabled;
+    private final boolean enabled;
 
     public Replacement(char[] numbers, List<String> list) {
         this.numbers = numbers;
@@ -19,11 +19,7 @@ public class Replacement {
             }
         }
         this.chars = replaceChar;
-        if(numbers.length==0 && chars.isEmpty()){
-            this.enabled = false;
-        } else{
-            this.enabled = true;
-        }
+        this.enabled = numbers.length != 0 || !chars.isEmpty();
     }
 
     public String replaceNumber(String text) {
@@ -44,7 +40,7 @@ public class Replacement {
     }
 
     public String replaceAll(String text) {
-        if(enabled){
+        if (enabled) {
             String replace = replaceNumber(text);
             replace = replaceChar(replace);
             return replace;

@@ -30,6 +30,7 @@ public class EntityDamage implements Listener {
             if (event instanceof EntityDamageByEntityEvent damageOtherEvent) {
                 if(damageOtherEvent.isCritical()) {
                     plugin.getViewManager().getCriticalView().spawn(damageOtherEvent);
+                    return;
                 }
                 if (damageOtherView instanceof ProjectileView projectileView) {
                     projectileView.spawn(damageOtherEvent);

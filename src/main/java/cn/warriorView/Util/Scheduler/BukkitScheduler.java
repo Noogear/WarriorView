@@ -8,7 +8,7 @@ import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.jetbrains.annotations.NotNull;
 
-public class BukkitScheduler implements IScheduler{
+public class BukkitScheduler implements IScheduler {
     private final Main plugin;
 
     public BukkitScheduler(Main main) {

@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-public class FoliaScheduler implements IScheduler{
+public class FoliaScheduler implements IScheduler {
 
     private final Main plugin;
 

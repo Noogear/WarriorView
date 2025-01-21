@@ -1,10 +1,11 @@
 package cn.warriorView.Util.Scheduler;
+
 import cn.warriorView.Util.Scheduler.task.ITaskWrapper;
-import org.jetbrains.annotations.NotNull;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.scheduler.BukkitTask;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * 平台调度器接口
@@ -14,14 +15,14 @@ public interface IScheduler {
     /**
      * 执行一个任务
      *
-     * @param task   需要执行的任务
+     * @param task 需要执行的任务
      */
     ITaskWrapper sync(@NotNull Runnable task);
 
     /**
      * 异步执行一个任务
      *
-     * @param task   需要执行的任务
+     * @param task 需要执行的任务
      */
     ITaskWrapper async(@NotNull Runnable task);
 
@@ -113,8 +114,8 @@ public interface IScheduler {
      * 在指定坐标的调度器上执行任务
      * 当平台为非Folia时，效果等同于runTask
      *
-     * @param location    执行载体
-     * @param task        执行的任务
+     * @param location 执行载体
+     * @param task     执行的任务
      */
     ITaskWrapper runOnLocation(Location location, Runnable task);
 
@@ -123,9 +124,9 @@ public interface IScheduler {
      * 在指定实体的调度器上延迟执行任务
      * 当平台为非Folia时，效果等同于runTaskLater
      *
-     * @param location    执行载体
-     * @param task        执行的任务
-     * @param delayTicks  延迟执行的时间
+     * @param location   执行载体
+     * @param task       执行的任务
+     * @param delayTicks 延迟执行的时间
      */
     ITaskWrapper runOnLocationLater(Location location, Runnable task, long delayTicks);
 
