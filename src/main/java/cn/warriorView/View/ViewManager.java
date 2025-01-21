@@ -44,5 +44,4 @@ public class ViewManager {
         this.criticalView = criticalView;
     }
 
-
 }

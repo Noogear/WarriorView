@@ -5,14 +5,14 @@ critical:
 ENTITY_ATTACK:
   text-format: "🗡%.2f"
   position: damage
-  only-player: false
+  only-player: true
   replacement: test
 PROJECTILE:
   text-format: "🏹%.2f"
   position: damage
-  only-player: false
+  only-player: true
 ENTITY_SWEEP_ATTACK:
   text-format: "🗡%.2f"
   position: eye
   scale: 0.8
-  only-player: false
+  only-player: true

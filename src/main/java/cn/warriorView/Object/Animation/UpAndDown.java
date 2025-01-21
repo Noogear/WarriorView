@@ -28,14 +28,14 @@ public class UpAndDown extends Animation {
             public void run() {
 
                 if (count >= moveCount) {
-                    PacketUtil.sendPacketListPlayer(new WrapperPlayServerDestroyEntities(entityId), players);
+                    PacketUtil.sendPacketSetPlayer(new WrapperPlayServerDestroyEntities(entityId), players);
                     players.clear();
                     cancel();
                     return;
                 }
 
                 Vector3d tpLocation = location.withY((count + 1) * changeY);
-                PacketUtil.sendPacketListPlayer(new WrapperPlayServerEntityTeleport(
+                PacketUtil.sendPacketSetPlayer(new WrapperPlayServerEntityTeleport(
                         entityId,
                         tpLocation,
                         0f,

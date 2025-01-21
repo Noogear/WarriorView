@@ -11,6 +11,8 @@ public class CriticalView extends DamageOtherView {
         super(textFormat, replacement, scale, shadow, viewRange, viewMarge, backgroundColor, seeThrough, onlyPlayer, animation, position);
     }
 
-    public void spawn(EntityDamageByEntityEvent event){}
+    public void spawn(EntityDamageByEntityEvent event){
+        super.spawn(event);
+    }
 
 }

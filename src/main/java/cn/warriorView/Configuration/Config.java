@@ -65,9 +65,8 @@ public class Config extends ConfigurationFile {
 
         }
 
-        @Comments("其他配置")
+        @Comments("其他配置文件")
         public String apply = "damage_cause.yml";
-
 
     }
 
@@ -124,15 +123,15 @@ public class Config extends ConfigurationFile {
 
         }
 
-        @Comments("其他配置")
+        @Comments("其他配置文件")
         public String apply = "regain_reason.yml";
 
     }
 
-    @Comments("动画配置")
+    @Comments("动画配置文件")
     public static String animation = "animation.yml";
 
-    @Comments("字符替换配置")
+    @Comments("字符替换配置文件")
     public static String replacement = "replacement.yml";
 
 }

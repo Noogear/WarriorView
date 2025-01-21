@@ -1,8 +1,8 @@
 package cn.warriorView.View;
 
+import cn.warriorView.Object.Animation.Animation;
 import cn.warriorView.Object.Range;
 import cn.warriorView.Object.Replacement;
-import cn.warriorView.Object.Animation.Animation;
 
 public abstract class ViewDisplay {
 
@@ -33,7 +33,6 @@ public abstract class ViewDisplay {
     public boolean isOnlyPlayer() {
         return onlyPlayer;
     }
-
 
     public String getTextFormat() {
         return textFormat;
@@ -70,6 +69,5 @@ public abstract class ViewDisplay {
     public boolean isSeeThrough() {
         return seeThrough;
     }
-
 
 }

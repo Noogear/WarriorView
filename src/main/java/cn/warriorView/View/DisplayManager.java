@@ -26,8 +26,9 @@ public class DisplayManager {
         instance = this;
     }
 
-
-    public static void spawnDisplay(ViewDisplay viewDisplay, Location location, Set<Player> players, double damage) {
+    public static void spawnDisplay(ViewDisplay viewDisplay, Location location, Player player, double damage) {
+        Set<Player> players = PacketUtil.getNearbyPlayer(location, viewDisplay.getViewMarge());
+        players.add(player);
         new XRunnable() {
 
             @Override
@@ -40,7 +41,9 @@ public class DisplayManager {
 
     }
 
-    public static void spawnDisplay(DamageOtherView viewDisplay, Location entityLocation, Location attackerLocation, Set<Player> players, double damage) {
+    public static void spawnDisplay(DamageOtherView viewDisplay, Location entityLocation, Location attackerLocation, Player player, double damage) {
+        Set<Player> players = PacketUtil.getNearbyPlayer(entityLocation, viewDisplay.getViewMarge());
+        players.add(player);
         new XRunnable() {
 
             @Override
@@ -80,8 +83,8 @@ public class DisplayManager {
                 new Vector3d(location.getX(), location.getY(), location.getZ()),
                 0f, 0f, 0f, 0, Optional.empty()
         );
-        PacketUtil.sendPacketListPlayer(packet, players);
-        PacketUtil.sendPacketListPlayer(meta.createPacket(), players);
+        PacketUtil.sendPacketSetPlayer(packet, players);
+        PacketUtil.sendPacketSetPlayer(meta.createPacket(), players);
 
     }
 

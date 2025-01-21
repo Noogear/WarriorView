@@ -12,7 +12,7 @@ damage-entity:
     position: eye
     scale: 0.9, 1.0, 1.1
     move-count: 8
-    only-player: true
+    only-player: false
     animation: 1
     replacement: ""
   apply: damage_cause.yml
