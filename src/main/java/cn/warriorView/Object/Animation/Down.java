@@ -32,7 +32,8 @@ public class Down extends Animation {
                     return;
                 }
 
-                Vector3d tpLocation = location.withY(-(count + 1) * changeY);
+                count++;
+                Vector3d tpLocation = location.withY(-count * changeY);
                 PacketUtil.sendPacketSetPlayer(new WrapperPlayServerEntityTeleport(
                         entityId,
                         tpLocation,
@@ -40,8 +41,6 @@ public class Down extends Animation {
                         0f,
                         false
                 ), players);
-
-                count++;
                 changeY += speed;
 
             }
