@@ -20,11 +20,6 @@ import java.util.Set;
 import java.util.UUID;
 
 public class DisplayManager {
-    public static DisplayManager instance;
-
-    public DisplayManager() {
-        instance = this;
-    }
 
     public static void spawnDisplay(ViewDisplay viewDisplay, Location location, Player player, double damage) {
         Set<Player> players = PacketUtil.getNearbyPlayer(location, viewDisplay.getViewMarge());
@@ -34,7 +29,7 @@ public class DisplayManager {
             @Override
             public void run() {
                 int entityId = PacketUtil.getAutoEntityId();
-                instance.spawnEntity(viewDisplay, entityId, location, players, damage);
+                spawnEntity(viewDisplay, entityId, location, players, damage);
                 viewDisplay.getAnimation().play(entityId, PacketUtil.locationToV3d(location), players);
             }
         }.async();
@@ -50,14 +45,14 @@ public class DisplayManager {
             public void run() {
                 Location damageLocation = attackerLocation.add(attackerLocation.getDirection().normalize().multiply(attackerLocation.distance(entityLocation)));
                 int entityId = PacketUtil.getAutoEntityId();
-                instance.spawnEntity(viewDisplay, entityId, damageLocation, players, damage);
+                spawnEntity(viewDisplay, entityId, damageLocation, players, damage);
                 viewDisplay.getAnimation().play(entityId, PacketUtil.locationToV3d(damageLocation), players);
             }
         }.async();
 
     }
 
-    private void spawnEntity(ViewDisplay viewDisplay, int entityId, Location location, Set<Player> players, double damage) {
+    public static void spawnEntity(ViewDisplay viewDisplay, int entityId, Location location, Set<Player> players, double damage) {
 
         Offset offset = viewDisplay.getAnimation().Offset();
         location = location.add(offset.getX(), offset.getY(), offset.getZ());

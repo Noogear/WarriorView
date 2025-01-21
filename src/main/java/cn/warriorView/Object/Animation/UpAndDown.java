@@ -12,7 +12,6 @@ import java.util.Set;
 
 public class UpAndDown extends Animation {
 
-
     public UpAndDown(byte moveCount, float max, float speed, long delay, Offset offset) {
         super(moveCount, max, speed, delay, offset);
     }
