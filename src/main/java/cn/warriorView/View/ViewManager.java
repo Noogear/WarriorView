@@ -24,7 +24,7 @@ public class ViewManager {
         return damageViews;
     }
 
-    public void setDamageViews(EntityDamageEvent.DamageCause cause, DamageView damageView) {
+    public void putDamageViews(EntityDamageEvent.DamageCause cause, DamageView damageView) {
         this.damageViews.put(cause, damageView);
     }
 
@@ -32,7 +32,7 @@ public class ViewManager {
         return regainViews;
     }
 
-    public void setRegainViews(EntityRegainHealthEvent.RegainReason reason, RegainView regainView) {
+    public void putRegainViews(EntityRegainHealthEvent.RegainReason reason, RegainView regainView) {
         this.regainViews.put(reason, regainView);
     }
 
