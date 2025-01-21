@@ -16,6 +16,7 @@ public class ProjectileView extends DamageOtherView {
         super(textFormat, replacement, scale, shadow, viewRange, viewMarge, backgroundColor, seeThrough, onlyPlayer, animation, position);
     }
 
+    @Override
     public void spawn(EntityDamageByEntityEvent event) {
         double damage = event.getFinalDamage();
         if (damage <= 0.01) return;

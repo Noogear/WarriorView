@@ -24,7 +24,7 @@ public abstract class Animation {
 
     public abstract void play(int entityId, Vector3d location, Set<Player> players);
 
-    public Offset Offset() {
+    public Offset offset() {
         return offset;
     }
 

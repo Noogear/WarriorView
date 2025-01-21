@@ -1,9 +1,10 @@
 package cn.warriorView;
 
-import cn.warriorView.Configuration.FileManager;
+import cn.warriorView.Manager.AnimationManager;
+import cn.warriorView.Manager.ReplacementManager;
 import cn.warriorView.Util.Scheduler.XScheduler;
 import cn.warriorView.Util.XLogger;
-import cn.warriorView.View.ViewManager;
+import cn.warriorView.Manager.ViewManager;
 import com.github.retrooper.packetevents.PacketEvents;
 import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
 import me.tofaa.entitylib.APIConfig;
@@ -13,6 +14,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Main extends JavaPlugin {
     private ViewManager viewManager;
+    private AnimationManager animationManager;
+    private ReplacementManager replacementManager;
 
     @Override
     public void onLoad() {
@@ -29,6 +32,8 @@ public final class Main extends JavaPlugin {
         APIConfig settings = new APIConfig(PacketEvents.getAPI());
         EntityLib.init(platform, settings);
 
+        animationManager = new AnimationManager();
+        replacementManager = new ReplacementManager();
         viewManager = new ViewManager();
         try {
             Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
@@ -36,7 +41,6 @@ public final class Main extends JavaPlugin {
         } catch (ClassNotFoundException e) {
             new XScheduler(this, false);
         }
-        new FileManager(this);
 
 
     }
@@ -48,6 +52,14 @@ public final class Main extends JavaPlugin {
 
     public ViewManager getViewManager() {
         return viewManager;
+    }
+
+    public AnimationManager getAnimationManager() {
+        return animationManager;
+    }
+
+    public ReplacementManager getReplacementManager() {
+        return replacementManager;
     }
 
 }
