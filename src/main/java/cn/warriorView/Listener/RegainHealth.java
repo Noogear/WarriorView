@@ -21,6 +21,8 @@ public class RegainHealth implements Listener {
         if (!(event.getEntity() instanceof LivingEntity)) return;
         EntityRegainHealthEvent.RegainReason reason = event.getRegainReason();
         ViewDisplay viewDisplay = plugin.getViewManager().getRegainViews().get(reason);
+        if (viewDisplay == null) return;
+
         if(viewDisplay instanceof RegainView regainView){
             regainView.spawn(event);
         }

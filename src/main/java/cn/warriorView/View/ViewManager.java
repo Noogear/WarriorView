@@ -20,6 +20,12 @@ public class ViewManager {
         this.regainViews = new HashMap<>();
     }
 
+    public void clearView() {
+        damageViews.clear();
+        regainViews.clear();
+        criticalView = null;
+    }
+
     public Map<EntityDamageEvent.DamageCause, DamageView> getDamageViews() {
         return damageViews;
     }

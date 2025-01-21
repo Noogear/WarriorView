@@ -25,6 +25,7 @@ public class EntityDamage implements Listener {
         if (!(event.getEntity() instanceof LivingEntity)) return;
         EntityDamageEvent.DamageCause cause = event.getCause();
         ViewDisplay viewDisplay = plugin.getViewManager().getDamageViews().get(cause);
+        if (viewDisplay == null) return;
 
         if (viewDisplay instanceof DamageOtherView damageOtherView) {
             if (event instanceof EntityDamageByEntityEvent damageOtherEvent) {
