@@ -3,7 +3,7 @@ package cn.warriorView.View.DamageView;
 import cn.warriorView.Object.Range;
 import cn.warriorView.Object.Replacement;
 import cn.warriorView.View.DisplayManager;
-import cn.warriorView.View.Animation.Animation;
+import cn.warriorView.Object.Animation.Animation;
 import cn.warriorView.View.ViewDisplay;
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
@@ -16,11 +16,9 @@ import java.util.Set;
 public class DamageOtherView extends ViewDisplay {
 
     private final Position position;
-    private final boolean onlyPlayer;
 
-    public DamageOtherView(String textFormat, Range scale, Animation animation, boolean onlyPlayer, Replacement replacement, boolean shadow, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, Position position) {
-        super(textFormat, scale, animation, replacement, shadow, viewRange, viewMarge, backgroundColor, seeThrough);
-        this.onlyPlayer = onlyPlayer;
+    protected DamageOtherView(String textFormat, Replacement replacement, Range scale, boolean shadow, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, Animation animation, Position position) {
+        super(textFormat, replacement, scale, shadow, viewRange, viewMarge, backgroundColor, seeThrough, onlyPlayer, animation);
         this.position = position;
     }
 
@@ -28,9 +26,6 @@ public class DamageOtherView extends ViewDisplay {
         return position;
     }
 
-    public boolean isOnlyPlayer() {
-        return onlyPlayer;
-    }
 
     public void spawn(EntityDamageByEntityEvent event) {
         double damage = event.getFinalDamage();

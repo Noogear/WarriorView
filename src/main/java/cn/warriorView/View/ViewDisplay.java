@@ -2,33 +2,38 @@ package cn.warriorView.View;
 
 import cn.warriorView.Object.Range;
 import cn.warriorView.Object.Replacement;
-import cn.warriorView.View.Animation.Animation;
+import cn.warriorView.Object.Animation.Animation;
 
 public abstract class ViewDisplay {
 
     private final String textFormat;
-    private final Range scale;
-    private final Animation animation;
     private final Replacement replacement;
+    private final Range scale;
     private final boolean shadow;
     private final float viewRange;
     private final byte viewMarge;
     private final int backgroundColor;
     private final boolean seeThrough;
+    private final boolean onlyPlayer;
+    private final Animation animation;
 
-
-    public ViewDisplay(String textFormat, Range scale, Animation animation, Replacement replacement, boolean shadow, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough) {
+    protected ViewDisplay(String textFormat, Replacement replacement, Range scale, boolean shadow, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, Animation animation) {
         this.textFormat = textFormat;
-        this.scale = scale;
-        this.animation = animation;
         this.replacement = replacement;
+        this.scale = scale;
         this.shadow = shadow;
         this.viewRange = viewRange;
         this.viewMarge = viewMarge;
         this.backgroundColor = backgroundColor;
         this.seeThrough = seeThrough;
-
+        this.onlyPlayer = onlyPlayer;
+        this.animation = animation;
     }
+
+    public boolean isOnlyPlayer() {
+        return onlyPlayer;
+    }
+
 
     public String getTextFormat() {
         return textFormat;

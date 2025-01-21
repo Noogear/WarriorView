@@ -39,8 +39,4 @@ public class PacketUtil {
         return new Vector3d(location.getX(), location.getY(), location.getZ());
     }
 
-
-
-
-
 }

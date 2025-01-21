@@ -1,4 +1,4 @@
-package cn.warriorView.Manager;
+package cn.warriorView.View;
 
 import cn.warriorView.View.DamageView.CriticalView;
 import cn.warriorView.View.DamageView.DamageView;

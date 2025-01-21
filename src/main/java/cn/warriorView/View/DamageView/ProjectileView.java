@@ -2,7 +2,7 @@ package cn.warriorView.View.DamageView;
 
 import cn.warriorView.Object.Range;
 import cn.warriorView.Object.Replacement;
-import cn.warriorView.View.Animation.Animation;
+import cn.warriorView.Object.Animation.Animation;
 import cn.warriorView.View.DisplayManager;
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
@@ -15,8 +15,8 @@ import java.util.Set;
 
 public class ProjectileView extends DamageOtherView {
 
-    public ProjectileView(String textFormat, Range scale, Animation animation, boolean onlyPlayer, Replacement replacement, boolean shadow, float viewRange, byte viewMarge, int backgroundColor, Position position, boolean seeThrough) {
-        super(textFormat, scale, animation, onlyPlayer, replacement, shadow, viewRange, viewMarge, backgroundColor, seeThrough, position);
+    protected ProjectileView(String textFormat, Replacement replacement, Range scale, boolean shadow, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, Animation animation, Position position) {
+        super(textFormat, replacement, scale, shadow, viewRange, viewMarge, backgroundColor, seeThrough, onlyPlayer, animation, position);
     }
 
     @Override

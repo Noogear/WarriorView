@@ -1,6 +1,6 @@
 package cn.warriorView;
 
-import cn.warriorView.Manager.ViewManager;
+import cn.warriorView.View.ViewManager;
 import cn.warriorView.Util.Scheduler.IScheduler;
 import cn.warriorView.Util.Scheduler.XScheduler;
 import cn.warriorView.Util.XLogger;

@@ -2,7 +2,7 @@ package cn.warriorView.View.RegainView;
 
 import cn.warriorView.Object.Range;
 import cn.warriorView.Object.Replacement;
-import cn.warriorView.View.Animation.Animation;
+import cn.warriorView.Object.Animation.Animation;
 import cn.warriorView.View.ViewDisplay;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 

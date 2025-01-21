@@ -1,6 +1,6 @@
-package cn.warriorView.View.Animation;
+package cn.warriorView.Object.Animation;
 
-import cn.warriorView.Main;
+import cn.warriorView.Object.Offset;
 import cn.warriorView.Util.PacketUtil;
 import cn.warriorView.Util.Scheduler.XRunnable;
 import com.github.retrooper.packetevents.util.Vector3d;
@@ -12,8 +12,9 @@ import java.util.Set;
 
 public class UpAndDown extends Animation {
 
-    public UpAndDown(byte moveCount, float max, float speed) {
-        super(moveCount, max, speed);
+
+    public UpAndDown(byte moveCount, float max, float speed, long delay, Offset offset) {
+        super(moveCount, max, speed, delay, offset);
     }
 
     @Override
@@ -30,6 +31,7 @@ public class UpAndDown extends Animation {
                     PacketUtil.sendPacketListPlayer(new WrapperPlayServerDestroyEntities(entityId), players);
                     players.clear();
                     cancel();
+                    return;
                 }
 
                 Vector3d tpLocation = location.withY((count + 1) * changeY);
@@ -45,7 +47,7 @@ public class UpAndDown extends Animation {
                 changeY -= speed;
 
             }
-        }.asyncTimer(2, 2);
+        }.asyncTimer(delay, delay);
     }
 
 }
