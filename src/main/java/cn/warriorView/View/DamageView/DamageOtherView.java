@@ -1,10 +1,8 @@
 package cn.warriorView.View.DamageView;
 
-import cn.warriorView.Object.Animation.Animation;
-import cn.warriorView.Object.Range;
-import cn.warriorView.Object.Replacement;
 import cn.warriorView.View.DisplayManager;
 import cn.warriorView.View.ViewDisplay;
+import cn.warriorView.View.ViewParams;
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -14,9 +12,9 @@ public class DamageOtherView extends ViewDisplay {
 
     private final Position position;
 
-    public DamageOtherView(String textFormat, Replacement replacement, Range scale, boolean shadow, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, Animation animation, String position) {
-        super(textFormat, replacement, scale, shadow, viewRange, viewMarge, backgroundColor, seeThrough, onlyPlayer, animation);
-        this.position = Position.valueOf(position.toUpperCase()) ;
+    public DamageOtherView(ViewParams params) {
+        super(params);
+        this.position = Position.valueOf(params.position().toUpperCase());
     }
 
     public Position getPosition() {

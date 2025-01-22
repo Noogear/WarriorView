@@ -17,17 +17,17 @@ public abstract class ViewDisplay {
     private final boolean onlyPlayer;
     private final Animation animation;
 
-    protected ViewDisplay(String textFormat, Replacement replacement, Range scale, boolean shadow, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, Animation animation) {
-        this.textFormat = textFormat;
-        this.replacement = replacement;
-        this.scale = scale;
-        this.shadow = shadow;
-        this.viewRange = viewRange;
-        this.viewMarge = viewMarge;
-        this.backgroundColor = backgroundColor;
-        this.seeThrough = seeThrough;
-        this.onlyPlayer = onlyPlayer;
-        this.animation = animation;
+    protected ViewDisplay(ViewParams params) {
+        this.textFormat =  params.textFormat();
+        this.replacement = params.replacement();
+        this.scale = params.scale();
+        this.shadow = params.shadow();
+        this.viewRange = params.viewRange();
+        this.viewMarge = params.viewMarge();
+        this.backgroundColor = params.backgroundColor();
+        this.seeThrough = params.seeThrough();
+        this.onlyPlayer = params.onlyPlayer();
+        this.animation = params.animation();
     }
 
     public boolean isOnlyPlayer() {

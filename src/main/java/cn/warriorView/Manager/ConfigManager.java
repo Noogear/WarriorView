@@ -59,7 +59,7 @@ public class ConfigManager {
                 viewManager.setCriticalView(viewFactory.createCritical(viewParams));
                 continue;
             }
-            viewFactory.createDamage(viewParams, cause);
+            viewManager.addDamageViews(cause, viewFactory.createDamage(viewParams, cause));
         }
     }
 

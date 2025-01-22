@@ -11,40 +11,18 @@ public class ViewFactory {
 
     public ViewDisplay createDamage(ViewParams params, EntityDamageEvent.DamageCause cause) {
         return switch (cause) {
-            case PROJECTILE -> new ProjectileView(
-                    params.textFormat(), params.replacement(), params.scale(),
-                    params.shadow(), params.viewRange(), params.viewMarge(),
-                    params.backgroundColor(), params.seeThrough(), params.onlyPlayer(),
-                    params.animation(), params.position()
-            );
-            case ENTITY_ATTACK -> new DamageOtherView(
-                    params.textFormat(), params.replacement(), params.scale(),
-                    params.shadow(), params.viewRange(), params.viewMarge(),
-                    params.backgroundColor(), params.seeThrough(), params.onlyPlayer(),
-                    params.animation(), params.position()
-            );
-            default -> new DamageView(
-                    params.textFormat(), params.replacement(), params.scale(),
-                    params.shadow(), params.viewRange(), params.viewMarge(),
-                    params.backgroundColor(), params.seeThrough(), params.onlyPlayer(),
-                    params.animation(), params.position());
+            case PROJECTILE -> new ProjectileView(params);
+            case ENTITY_ATTACK -> new DamageOtherView(params);
+            default -> new DamageView(params);
         };
     }
 
     public CriticalView createCritical(ViewParams params) {
-        return new CriticalView(
-                params.textFormat(), params.replacement(), params.scale(),
-                params.shadow(), params.viewRange(), params.viewMarge(),
-                params.backgroundColor(), params.seeThrough(), params.onlyPlayer(),
-                params.animation(), params.position());
+        return new CriticalView(params);
     }
 
     public RegainView createRegain(ViewParams params) {
-        return new RegainView(
-                params.textFormat(), params.replacement(), params.scale(),
-                params.shadow(), params.viewRange(), params.viewMarge(),
-                params.backgroundColor(), params.seeThrough(), params.onlyPlayer(),
-                params.animation(), params.position());
+        return new RegainView(params);
     }
 
 }
