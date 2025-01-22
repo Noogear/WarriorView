@@ -6,7 +6,6 @@ import cn.warriorView.Object.Range;
 import cn.warriorView.Util.MathUtil;
 import cn.warriorView.Util.RegistryUtil;
 import cn.warriorView.Util.XLogger;
-import cn.warriorView.View.ViewFactory;
 import cn.warriorView.View.ViewParams;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -21,14 +20,12 @@ public class ConfigManager {
     private final AnimationManager animationManager;
     private final ReplacementManager replacementManager;
     private final Main plugin;
-    private final ViewFactory viewFactory;
     private ViewManager viewManager;
 
     public ConfigManager(Main main) {
         this.plugin = main;
         animationManager = new AnimationManager();
         replacementManager = new ReplacementManager();
-        viewFactory = new ViewFactory();
         load();
     }
 
@@ -56,10 +53,10 @@ public class ConfigManager {
             }
             ViewParams viewParams = buildDamageViewParams(section);
             if (isCritical) {
-                viewManager.setCriticalView(viewFactory.createCritical(viewParams));
+                viewManager.setCriticalView(viewParams);
                 continue;
             }
-            viewManager.addDamageViews(cause, viewFactory.createDamage(viewParams, cause));
+            viewManager.addDamageViews(cause, viewParams);
         }
     }
 
@@ -73,7 +70,7 @@ public class ConfigManager {
                 continue;
             }
             ViewParams viewParams = buildRegainViewParams(section);
-            viewManager.addRegainViews(reason, viewFactory.createRegain(viewParams));
+            viewManager.addRegainViews(reason, viewParams);
         }
     }
 
