@@ -14,7 +14,7 @@ public class RegainView extends ViewDisplay {
 
     private final Position position;
 
-    protected RegainView(String textFormat, Replacement replacement, Range scale, boolean shadow, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, Animation animation, Position position) {
+    public RegainView(String textFormat, Replacement replacement, Range scale, boolean shadow, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, Animation animation, Position position) {
         super(textFormat, replacement, scale, shadow, viewRange, viewMarge, backgroundColor, seeThrough, onlyPlayer, animation);
         this.position = position;
     }
@@ -33,6 +33,7 @@ public class RegainView extends ViewDisplay {
         DisplayManager.spawnDisplay(this, regainLocation, player, regain);
 
     }
+
 
     public Position getPosition() {
         return position;

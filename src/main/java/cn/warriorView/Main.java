@@ -1,6 +1,7 @@
 package cn.warriorView;
 
 import cn.warriorView.Manager.AnimationManager;
+import cn.warriorView.Manager.ConfigManager;
 import cn.warriorView.Manager.ReplacementManager;
 import cn.warriorView.Util.Scheduler.XScheduler;
 import cn.warriorView.Util.XLogger;
@@ -14,8 +15,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Main extends JavaPlugin {
     private ViewManager viewManager;
-    private AnimationManager animationManager;
-    private ReplacementManager replacementManager;
+
 
     @Override
     public void onLoad() {
@@ -32,8 +32,6 @@ public final class Main extends JavaPlugin {
         APIConfig settings = new APIConfig(PacketEvents.getAPI());
         EntityLib.init(platform, settings);
 
-        animationManager = new AnimationManager();
-        replacementManager = new ReplacementManager();
         viewManager = new ViewManager();
         try {
             Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
@@ -41,6 +39,7 @@ public final class Main extends JavaPlugin {
         } catch (ClassNotFoundException e) {
             new XScheduler(this, false);
         }
+        new ConfigManager(this);
 
 
     }
@@ -48,18 +47,13 @@ public final class Main extends JavaPlugin {
     @Override
     public void onDisable() {
         PacketEvents.getAPI().terminate();
+        XScheduler.get().cancelTasks();
     }
 
     public ViewManager getViewManager() {
         return viewManager;
     }
 
-    public AnimationManager getAnimationManager() {
-        return animationManager;
-    }
 
-    public ReplacementManager getReplacementManager() {
-        return replacementManager;
-    }
 
 }

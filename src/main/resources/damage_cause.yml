@@ -1,4 +1,4 @@
-critical:
+CRITICAL:
   text-format: "💥%.2f"
   position: damage
   scale: 1.5

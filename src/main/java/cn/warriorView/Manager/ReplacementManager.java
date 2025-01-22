@@ -14,14 +14,11 @@ public class ReplacementManager {
         load();
     }
 
-    private void load() {
+    public void load() {
     }
 
     public Replacement getReplacement(String groupId) {
         return replacements.get(groupId);
     }
-    
-    public void addReplacement(String groupId, Replacement replacement) {
-        this.replacements.put(groupId, replacement);
-    }
+
 }

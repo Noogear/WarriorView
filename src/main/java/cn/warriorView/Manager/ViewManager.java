@@ -1,9 +1,7 @@
 package cn.warriorView.Manager;
 
 import cn.warriorView.View.DamageView.CriticalView;
-import cn.warriorView.View.DamageView.DamageView;
-import cn.warriorView.View.DefaultView;
-import cn.warriorView.View.RegainView.RegainView;
+import cn.warriorView.View.ViewDisplay;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 
@@ -11,32 +9,30 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ViewManager {
-    
-    private DefaultView defaultDamageView;
-    private DefaultView defaultRegainView;
-    private final Map<EntityDamageEvent.DamageCause, DamageView> damageViews;
-    private final Map<EntityRegainHealthEvent.RegainReason, RegainView> regainViews;
+
     private CriticalView criticalView;
+    private final Map<EntityDamageEvent.DamageCause, ViewDisplay> damageViews;
+    private final Map<EntityRegainHealthEvent.RegainReason, ViewDisplay> regainViews;
 
     public ViewManager() {
         this.damageViews = new HashMap<>();
         this.regainViews = new HashMap<>();
-        load();
+        init();
     }
 
-    public Map<EntityDamageEvent.DamageCause, DamageView> getDamageViews() {
+    public Map<EntityDamageEvent.DamageCause, ViewDisplay> getDamageViews() {
         return damageViews;
     }
 
-    public void addDamageViews(EntityDamageEvent.DamageCause cause, DamageView damageView) {
+    public void addDamageViews(EntityDamageEvent.DamageCause cause, ViewDisplay damageView) {
         this.damageViews.put(cause, damageView);
     }
 
-    public Map<EntityRegainHealthEvent.RegainReason, RegainView> getRegainViews() {
+    public Map<EntityRegainHealthEvent.RegainReason, ViewDisplay> getRegainViews() {
         return regainViews;
     }
 
-    public void addRegainViews(EntityRegainHealthEvent.RegainReason reason, RegainView regainView) {
+    public void addRegainViews(EntityRegainHealthEvent.RegainReason reason, ViewDisplay regainView) {
         this.regainViews.put(reason, regainView);
     }
 
@@ -48,23 +44,8 @@ public class ViewManager {
         this.criticalView = criticalView;
     }
 
-    public DefaultView getDefaultDamageView() {
-        return defaultDamageView;
-    }
-
-    public void setDefaultDamageView(DefaultView defaultDamageView) {
-        this.defaultDamageView = defaultDamageView;
-    }
-
-    public DefaultView getDefaultRegainView() {
-        return defaultRegainView;
-    }
-
-    public void setDefaultRegainView(DefaultView defaultRegainView) {
-        this.defaultRegainView = defaultRegainView;
-    }
-
-    private void load() {
-
+    public void init() {
+        damageViews.clear();
+        regainViews.clear();
     }
 }
