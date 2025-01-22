@@ -14,6 +14,7 @@ public class ReplacementManager {
     }
 
     public void load() {
+        replacements.clear();
     }
 
     public Replacement getReplacement(String groupId) {

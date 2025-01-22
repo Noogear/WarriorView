@@ -14,6 +14,9 @@ public class AnimationManager {
     }
 
     public void load() {
+        animations.clear();
+
+
     }
 
     public Animation getAnimation(String groupId) {
