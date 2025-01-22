@@ -59,7 +59,7 @@ public class ConfigManager {
                 defaults.seeThrough,
                 defaults.onlyPlayer,
                 animationManager.getAnimation(defaults.animation),
-                DamageView.Position.valueOf(defaults.position.toUpperCase())
+                defaults.position
         );
         for (String key : topKeys) {
             ConfigurationSection section = viewFile.getConfigurationSection(key);
@@ -84,7 +84,7 @@ public class ConfigManager {
                             defaults.seeThrough,
                             defaults.onlyPlayer,
                             animationManager.getAnimation(defaults.animation),
-                            DamageOtherView.Position.valueOf(defaults.position.toUpperCase())
+                            defaults.position
                     );
                     viewManager.setCriticalView(criticalView);
                     continue;
@@ -101,9 +101,9 @@ public class ConfigManager {
             int backgroundColor = section.getInt("background-color", defaults.backgroundColor);
             boolean seeThrough = section.getBoolean("see-through", defaults.onlyPlayer);
             boolean onlyPlayer = section.getBoolean("only-player", defaults.onlyPlayer);
+            String position = section.getString("position", defaults.position);
             Animation animation = animationManager.getAnimation(section.getString("animation", defaults.animation));
             if (isCritical) {
-                DamageOtherView.Position position = DamageOtherView.Position.valueOf(section.getString("position", defaults.position).toUpperCase());
                 CriticalView criticalView = new CriticalView(
                         textFormat,
                         replacement,
@@ -121,7 +121,6 @@ public class ConfigManager {
                 continue;
             }
             if (cause == EntityDamageEvent.DamageCause.PROJECTILE) {
-                DamageOtherView.Position position = DamageOtherView.Position.valueOf(section.getString("position", defaults.position).toUpperCase());
                 viewManager.addDamageViews(cause, new ProjectileView(
                         textFormat,
                         replacement,
@@ -136,7 +135,6 @@ public class ConfigManager {
                         position
                 ));
             } else if (cause == EntityDamageEvent.DamageCause.ENTITY_ATTACK) {
-                DamageOtherView.Position position = DamageOtherView.Position.valueOf(section.getString("position", defaults.position).toUpperCase());
                 viewManager.addDamageViews(cause, new DamageOtherView(
                         textFormat,
                         replacement,
@@ -151,7 +149,6 @@ public class ConfigManager {
                         position
                 ));
             } else {
-                DamageView.Position position = DamageView.Position.valueOf(section.getString("position", defaults.position).toUpperCase());
                 viewManager.addDamageViews(cause, new DamageView(
                         textFormat,
                         replacement,
@@ -183,7 +180,7 @@ public class ConfigManager {
                 defaults.seeThrough,
                 defaults.onlyPlayer,
                 animationManager.getAnimation(defaults.animation),
-                DamageView.Position.valueOf(defaults.position.toUpperCase())
+                defaults.position
         );
         for (String key : topKeys) {
             ConfigurationSection section = viewFile.getConfigurationSection(key);
@@ -206,7 +203,7 @@ public class ConfigManager {
             boolean seeThrough = section.getBoolean("see-through", defaults.onlyPlayer);
             boolean onlyPlayer = section.getBoolean("only-player", defaults.onlyPlayer);
             Animation animation = animationManager.getAnimation(section.getString("animation", defaults.animation));
-            RegainView.Position position = RegainView.Position.valueOf(section.getString("position", defaults.position).toUpperCase());
+            String position = section.getString("position", defaults.position);
             viewManager.addRegainViews(reason, new RegainView(
                     textFormat,
                     replacement,

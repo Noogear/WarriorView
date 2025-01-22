@@ -17,7 +17,6 @@ public class ViewManager {
     public ViewManager() {
         this.damageViews = new HashMap<>();
         this.regainViews = new HashMap<>();
-        init();
     }
 
     public Map<EntityDamageEvent.DamageCause, ViewDisplay> getDamageViews() {

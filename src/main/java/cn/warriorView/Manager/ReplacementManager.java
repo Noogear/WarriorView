@@ -11,7 +11,6 @@ public class ReplacementManager {
 
     public ReplacementManager() {
         this.replacements = new HashMap<>();
-        load();
     }
 
     public void load() {

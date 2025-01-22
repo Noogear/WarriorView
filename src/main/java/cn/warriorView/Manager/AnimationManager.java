@@ -11,7 +11,6 @@ public class AnimationManager {
     
     public AnimationManager() {
         this.animations = new HashMap<>();
-        load();
     }
 
     public void load() {
