@@ -6,9 +6,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class AnimationManager {
-    
+
     private final Map<String, Animation> animations;
-    
+
     public AnimationManager() {
         this.animations = new HashMap<>();
     }

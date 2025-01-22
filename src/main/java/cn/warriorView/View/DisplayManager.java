@@ -53,7 +53,6 @@ public class DisplayManager {
     }
 
     public static void spawnEntity(ViewDisplay viewDisplay, int entityId, Location location, Set<Player> players, double damage) {
-
         Offset offset = viewDisplay.getAnimation().offset();
         location = location.add(offset.getX(), offset.getY(), offset.getZ());
         TextDisplayMeta meta = (TextDisplayMeta) EntityMeta.createMeta(entityId, EntityTypes.TEXT_DISPLAY);
@@ -80,7 +79,6 @@ public class DisplayManager {
         );
         PacketUtil.sendPacketSetPlayer(packet, players);
         PacketUtil.sendPacketSetPlayer(meta.createPacket(), players);
-
     }
 
 

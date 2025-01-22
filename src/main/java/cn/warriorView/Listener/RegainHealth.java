@@ -23,7 +23,7 @@ public class RegainHealth implements Listener {
         ViewDisplay viewDisplay = plugin.getViewManager().getRegainViews().get(reason);
         if (viewDisplay == null) return;
 
-        if(viewDisplay instanceof RegainView regainView){
+        if (viewDisplay instanceof RegainView regainView) {
             regainView.spawn(event);
         }
     }

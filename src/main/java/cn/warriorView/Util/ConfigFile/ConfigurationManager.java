@@ -1,4 +1,5 @@
 package cn.warriorView.Util.ConfigFile;
+
 import cn.warriorView.Util.XLogger;
 import org.bukkit.configuration.file.YamlConfiguration;
 

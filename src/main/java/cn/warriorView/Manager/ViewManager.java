@@ -10,9 +10,9 @@ import java.util.Map;
 
 public class ViewManager {
 
-    private CriticalView criticalView;
     private final Map<EntityDamageEvent.DamageCause, ViewDisplay> damageViews;
     private final Map<EntityRegainHealthEvent.RegainReason, ViewDisplay> regainViews;
+    private CriticalView criticalView;
 
     public ViewManager() {
         this.damageViews = new HashMap<>();

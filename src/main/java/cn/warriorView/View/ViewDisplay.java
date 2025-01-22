@@ -18,7 +18,7 @@ public abstract class ViewDisplay {
     private final Animation animation;
 
     protected ViewDisplay(ViewParams params) {
-        this.textFormat =  params.textFormat();
+        this.textFormat = params.textFormat();
         this.replacement = params.replacement();
         this.scale = params.scale();
         this.shadow = params.shadow();

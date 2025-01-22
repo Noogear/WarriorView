@@ -6,7 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ReplacementManager {
-    
+
     private final Map<String, Replacement> replacements;
 
     public ReplacementManager() {
