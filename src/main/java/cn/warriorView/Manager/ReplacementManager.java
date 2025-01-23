@@ -5,7 +5,6 @@ import cn.warriorView.Util.XLogger;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
-import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,14 +22,13 @@ public class ReplacementManager {
         replacements.clear();
     }
 
-    public void load(File file) {
-        YamlConfiguration groups = YamlConfiguration.loadConfiguration(file);
-        Set<String> topKeys = groups.getKeys(false);
+    public void load(YamlConfiguration yamlConfiguration) {
+        Set<String> topKeys = yamlConfiguration.getKeys(false);
         for (String topKey : topKeys) {
-            ConfigurationSection section = groups.getConfigurationSection(topKey);
+            ConfigurationSection section = yamlConfiguration.getConfigurationSection(topKey);
             if (section == null) continue;
-            String[] numbers = section.getStringList("numbers").toArray(new String[0]);
-            List<String> chars = section.getStringList("chars");
+            String[] numbers = section.getStringList("number").toArray(new String[0]);
+            List<String> chars = section.getStringList("char");
             replacements.put(topKey, new Replacement(numbers, chars));
         }
         XLogger.info("Successfully load " + replacements.size() + " replacement(s)");

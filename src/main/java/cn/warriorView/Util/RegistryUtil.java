@@ -6,7 +6,7 @@ import org.bukkit.event.entity.EntityRegainHealthEvent;
 public class RegistryUtil {
     public static EntityDamageEvent.DamageCause toDamageCause(String string) {
         try {
-            return EntityDamageEvent.DamageCause.valueOf(string.toLowerCase());
+            return EntityDamageEvent.DamageCause.valueOf(string.toUpperCase());
         } catch (Exception e) {
             return null;
         }
@@ -14,7 +14,7 @@ public class RegistryUtil {
 
     public static EntityRegainHealthEvent.RegainReason toRegainReason(String string) {
         try {
-            return EntityRegainHealthEvent.RegainReason.valueOf(string.toLowerCase());
+            return EntityRegainHealthEvent.RegainReason.valueOf(string.toUpperCase());
         } catch (Exception e) {
             return null;
         }

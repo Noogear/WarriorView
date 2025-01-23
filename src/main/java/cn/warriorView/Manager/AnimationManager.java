@@ -8,7 +8,6 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.util.Vector;
 
-import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -25,11 +24,10 @@ public class AnimationManager {
         animations.clear();
     }
 
-    public void load(File file) {
-        YamlConfiguration groups = YamlConfiguration.loadConfiguration(file);
-        Set<String> topKeys = groups.getKeys(false);
+    public void load(YamlConfiguration yamlConfiguration) {
+        Set<String> topKeys = yamlConfiguration.getKeys(false);
         for (String topKey : topKeys) {
-            ConfigurationSection section = groups.getConfigurationSection(topKey);
+            ConfigurationSection section = yamlConfiguration.getConfigurationSection(topKey);
             if (section == null) continue;
             Animation.type type = Animation.type.valueOf(section.getString("type"));
             float max = MathUtil.round(section.getDouble("max"), 2);

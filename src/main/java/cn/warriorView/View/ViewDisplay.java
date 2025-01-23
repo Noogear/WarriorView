@@ -1,14 +1,15 @@
 package cn.warriorView.View;
 
 import cn.warriorView.Animation.Animation;
-import cn.warriorView.Object.Range;
+import cn.warriorView.Object.Scale;
 import cn.warriorView.Object.Replacement;
+import com.github.retrooper.packetevents.util.Vector3f;
 
 public abstract class ViewDisplay {
 
     private final String textFormat;
     private final Replacement replacement;
-    private final Range scale;
+    private final Scale scale;
     private final boolean shadow;
     private final float viewRange;
     private final byte viewMarge;
@@ -38,7 +39,7 @@ public abstract class ViewDisplay {
         return textFormat;
     }
 
-    public float getScale() {
+    public Vector3f getScale() {
         return scale.getRandom();
     }
 

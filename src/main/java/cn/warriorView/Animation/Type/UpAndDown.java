@@ -8,7 +8,6 @@ import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
 import org.bukkit.entity.Player;
-import org.bukkit.util.Vector;
 
 import java.util.Set;
 
@@ -36,7 +35,7 @@ public class UpAndDown extends Animation {
                 }
 
                 count++;
-                Vector3d tpLocation = location.withY(count * changeY);
+                Vector3d tpLocation = location.add(0, count * changeY, 0);
                 PacketUtil.sendPacketSetPlayer(new WrapperPlayServerEntityTeleport(
                         entityId,
                         tpLocation,

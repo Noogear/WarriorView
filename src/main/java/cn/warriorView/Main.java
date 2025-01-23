@@ -3,6 +3,7 @@ package cn.warriorView;
 import cn.warriorView.Manager.ConfigManager;
 import cn.warriorView.Manager.ListenerManager;
 import cn.warriorView.Manager.ViewManager;
+import cn.warriorView.Util.Scheduler.XRunnable;
 import cn.warriorView.Util.Scheduler.XScheduler;
 import cn.warriorView.Util.XLogger;
 import com.github.retrooper.packetevents.PacketEvents;
@@ -10,7 +11,10 @@ import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder
 import me.tofaa.entitylib.APIConfig;
 import me.tofaa.entitylib.EntityLib;
 import me.tofaa.entitylib.spigot.SpigotEntityLibPlatform;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jetbrains.annotations.NotNull;
 
 public final class Main extends JavaPlugin {
     private ViewManager viewManager;
@@ -26,6 +30,7 @@ public final class Main extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        long startTime = System.currentTimeMillis();
         new XLogger(this);
 
         PacketEvents.getAPI().init();
@@ -42,8 +47,15 @@ public final class Main extends JavaPlugin {
         }
         configManager = new ConfigManager(this);
         listenerManager = new ListenerManager(this);
+        PluginCommand mainCommand = getCommand("warriorview");
+        if (mainCommand != null) {
+            mainCommand.setExecutor(new Commands(this));
+        } else {
+            XLogger.err("Failed to load command.");
+        }
 
-
+        long elapsedTime = System.currentTimeMillis() - startTime;
+        XLogger.info("Plugin loaded successfully in " + elapsedTime + " ms");
     }
 
     @Override
@@ -56,16 +68,17 @@ public final class Main extends JavaPlugin {
         return viewManager;
     }
 
-    public ConfigManager getConfigManager() {
-        return configManager;
-    }
+    public void reload(@NotNull CommandSender sender) {
+        new XRunnable() {
+            @Override
+            public void run() {
+                long startTime = System.currentTimeMillis();
+                configManager.load();
+                listenerManager.load();
+                long elapsedTime = System.currentTimeMillis() - startTime;
+                sender.sendMessage("插件重启完成, 耗时 " + elapsedTime + " ms");
+            }
+        }.async();
 
-    public ListenerManager getListenerManager() {
-        return listenerManager;
-    }
-
-    public void reload() {
-        configManager.load();
-        listenerManager.load();
     }
 }

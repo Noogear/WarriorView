@@ -61,13 +61,13 @@ public class DisplayManager {
         meta.setViewRange(viewDisplay.getViewRange());
         meta.setSeeThrough(viewDisplay.isSeeThrough());
         String text = String.format(viewDisplay.getTextFormat(), damage);
-        meta.setText(MiniMessage.miniMessage().deserialize(viewDisplay.getReplacement().replaceAll(text)));
+        if(viewDisplay.getReplacement() != null) {
+            text = viewDisplay.getReplacement().replaceAll(text);
+        }
+        meta.setText(MiniMessage.miniMessage().deserialize(text));
         meta.setUseDefaultBackground(false);
         meta.setBackgroundColor(viewDisplay.getBackgroundColor());
-        float scale = viewDisplay.getScale();
-        if (scale != 1) {
-            meta.setScale(new Vector3f(scale, scale, scale));
-        }
+        meta.setScale(viewDisplay.getScale());
         WrapperPlayServerSpawnEntity packet = new WrapperPlayServerSpawnEntity(
                 entityId,
                 Optional.of(UUID.randomUUID()),

@@ -37,10 +37,10 @@ public class Config extends ConfigurationFile {
             public boolean shadow = true;
 
             @Comments("视距")
-            public float viewRange = 1.0f;
+            public double viewRange = 1.0;
 
             @Comments("可见玩家的范围, 设置为0时只有玩家本人可见")
-            public byte viewMarge = 16;
+            public int viewMarge = 16;
 
             @Comments("使用ARGB")
             public int backgroundColor = -1000000;
@@ -58,7 +58,7 @@ public class Config extends ConfigurationFile {
             public String animation = "1";
 
             @Comments("移动次数")
-            public byte moveCount = 8;
+            public int moveCount = 8;
 
             @Comments("移动间隔, 单位ticks")
             public long delay = 2;
@@ -95,10 +95,10 @@ public class Config extends ConfigurationFile {
             public boolean shadow = true;
 
             @Comments("视距")
-            public float viewRange = 1.0f;
+            public double viewRange = 1.0;
 
             @Comments("可见玩家的范围, 设置为0时只有玩家本人可见")
-            public byte viewMarge = 16;
+            public int viewMarge = 16;
 
             @Comments("使用ARGB")
             public int backgroundColor = -1000000;
@@ -116,7 +116,7 @@ public class Config extends ConfigurationFile {
             public String animation = "1";
 
             @Comments("移动次数")
-            public byte moveCount = 8;
+            public int moveCount = 8;
 
             @Comments("移动间隔, 单位ticks")
             public long delay = 2;

@@ -3,3 +3,16 @@ version: '1.0'
 main: cn.warriorView.Main
 api-version: '1.21'
 folia-supported: true
+
+depend:
+  - packetevents
+
+commands:
+  warriorview:
+    description: Main command.
+    usage: /<command>
+
+permissions:
+  warriorview.reload:
+    description: Allow the player to reload the plugin.
+    default: op

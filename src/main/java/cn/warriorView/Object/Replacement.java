@@ -1,5 +1,8 @@
 package cn.warriorView.Object;
 
+import cn.warriorView.Util.XLogger;
+
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -7,7 +10,6 @@ import java.util.Map;
 public class Replacement {
     private final String[] numbers;
     private final Map<String, String> chars;
-    private final boolean enabled;
 
     public Replacement(String[] numbers, List<String> list) {
         this.numbers = numbers;
@@ -19,7 +21,6 @@ public class Replacement {
             }
         }
         this.chars = replaceChar;
-        this.enabled = numbers.length != 0 || !chars.isEmpty();
     }
 
     public String replaceNumber(String text) {
@@ -42,12 +43,8 @@ public class Replacement {
     }
 
     public String replaceAll(String text) {
-        if (enabled) {
             String replace = replaceNumber(text);
             replace = replaceChar(replace);
             return replace;
-        }
-        return text;
     }
-
 }

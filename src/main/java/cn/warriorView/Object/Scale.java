@@ -1,21 +1,22 @@
 package cn.warriorView.Object;
 
 import cn.warriorView.Util.MathUtil;
+import com.github.retrooper.packetevents.util.Vector3f;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class Range {
+public class Scale {
 
     private final float start;
     private final float end;
-    private final float[] fixed;
+    private final Vector3f[] fixed;
 
-    public Range(String value) {
+    public Scale(String value) {
         float start = 0;
         float end = 0;
-        float[] fixed = new float[0];
+        Vector3f[] fixed = new Vector3f[0];
         if (value.contains("-")) {
             String[] range = value.replaceAll(" ", "").split("-");
             if (range.length >= 2) {
@@ -28,9 +29,9 @@ public class Range {
             for (String str : strArray) {
                 floatList.add(MathUtil.round(Float.parseFloat(str), 2));
             }
-            fixed = new float[floatList.size()];
+            fixed = new Vector3f[floatList.size()];
             for (int i = 0; i < floatList.size(); i++) {
-                fixed[i] = floatList.get(i);
+                fixed[i] = new Vector3f(floatList.get(i), floatList.get(i), floatList.get(i));
             }
         }
         this.start = start;
@@ -38,9 +39,10 @@ public class Range {
         this.fixed = fixed;
     }
 
-    public float getRandom() {
+    public Vector3f getRandom() {
         if (fixed.length == 0) {
-            return ThreadLocalRandom.current().nextFloat(start, end);
+            float scale = ThreadLocalRandom.current().nextFloat(start, end);
+            return new Vector3f(scale, scale, scale);
         }
         return fixed[ThreadLocalRandom.current().nextInt(fixed.length)];
     }
