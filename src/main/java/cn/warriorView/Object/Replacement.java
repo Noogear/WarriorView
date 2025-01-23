@@ -18,10 +18,10 @@ public class Replacement {
     }
 
     public static Replacement create(String[] numbers, List<String> list) {
-        boolean hasNumber = false;
+        boolean hasNumber = true;
         boolean hasChar = true;
-        if (numbers.length == 10) {
-            hasNumber = true;
+        if (numbers.length < 10) {
+            hasNumber = false;
         }
         Map<String, String> chars = new HashMap<>();
         for (String element : list) {
