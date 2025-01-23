@@ -13,7 +13,13 @@ public class Scale {
     private final float end;
     private final Vector3f[] fixed;
 
-    public Scale(String value) {
+    public Scale(float start, float end, Vector3f[] fixed) {
+        this.start = start;
+        this.end = end;
+        this.fixed = fixed;
+    }
+
+    public static Scale create(String value) {
         float start = 0;
         float end = 0;
         Vector3f[] fixed = new Vector3f[0];
@@ -34,9 +40,7 @@ public class Scale {
                 fixed[i] = new Vector3f(floatList.get(i), floatList.get(i), floatList.get(i));
             }
         }
-        this.start = start;
-        this.end = end;
-        this.fixed = fixed;
+        return new Scale(start, end, fixed);
     }
 
     public Vector3f getRandom() {

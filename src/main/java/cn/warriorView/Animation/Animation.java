@@ -24,7 +24,7 @@ public abstract class Animation {
         this.delay = delay;
     }
 
-    public static Animation build(AnimationParams params, byte moveCount, long delay) {
+    public static Animation create(AnimationParams params, byte moveCount, long delay) {
         switch (params.type()) {
             case UP -> {
                 return new Up(params, moveCount, delay);

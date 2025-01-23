@@ -138,14 +138,14 @@ public class ConfigManager {
             return new ViewParams(
                     textFormat,
                     replacementManager.getReplacement(replacement),
-                    new Scale(scale),
+                    Scale.create(scale),
                     shadow,
                     viewRange,
                     viewMarge,
                     backgroundColor,
                     seeThrough,
                     onlyPlayer,
-                    Animation.build(animParams, moveCount, delay),
+                    Animation.create(animParams, moveCount, delay),
                     position
             );
         }
@@ -153,14 +153,14 @@ public class ConfigManager {
         return new ViewParams(
                 section.getString("text-format", textFormat),
                 replacementManager.getReplacement(section.getString("replacement", replacement)),
-                new Scale(section.getString("scale", scale)),
+                Scale.create(section.getString("scale", scale)),
                 section.getBoolean("shadow", shadow),
                 MathUtil.round(section.getDouble("view-range", viewRange), 1),
                 MathUtil.convertIntToByte(section.getInt("view-marge", viewMarge)),
                 section.getInt("background-color", backgroundColor),
                 section.getBoolean("see-through", seeThrough),
                 section.getBoolean("only-player", onlyPlayer),
-                Animation.build(animParams, MathUtil.convertIntToByte(section.getInt("move-count", moveCount)), section.getLong("delay", delay)),
+                Animation.create(animParams, MathUtil.convertIntToByte(section.getInt("move-count", moveCount)), section.getLong("delay", delay)),
                 section.getString("position", position)
         );
     }
