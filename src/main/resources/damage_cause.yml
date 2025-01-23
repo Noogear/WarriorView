@@ -16,16 +16,16 @@ PROJECTILE:
   position: damage
   only-player: true
 ENTITY_SWEEP_ATTACK:
-  text-format: "<#ff8c8e>🗡%.2f"
+  text-format: "<#ff8c8e>🗡%.1f"
   position: eye
   scale: 0.8
   only-player: true
 MAGIC:
-  text-format: "<dark_purple>✨%.2f"
+  text-format: "<dark_purple>✨%.1f"
   only-player: false
   animation: 4
 FIRE_TICK:
-  text-format: "<gold>🔥%.2f"
+  text-format: "<gold>🔥%.1f"
   only-player: false
   animation: 5
   position: foot
@@ -37,7 +37,7 @@ ENTITY_EXPLOSION:
 CUSTOM:
   only-player: false
 POISON:
-  text-format: "<dark_green>☠️%.2f"
+  text-format: "<dark_green>☠️%.1f"
 LIGHTNING:
   text-format: "<aqua>⚡%.2f"
   only-player: false
