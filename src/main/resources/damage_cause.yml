@@ -5,45 +5,55 @@ CRITICAL:
   position: damage
   scale: 1.3
   replacement: test
+
 # 以下的配置使用damage cause判断
 # 详细请查询：https://hub.spigotmc.org/javadocs/spigot/org/bukkit/event/entity/EntityDamageEvent.DamageCause.html
 ENTITY_ATTACK:
   text-format: "<red>🗡%.2f"
   position: damage
   only-player: true
+
 PROJECTILE:
   text-format: "<red>🏹%.2f"
   position: damage
   only-player: true
+
 ENTITY_SWEEP_ATTACK:
-  text-format: "<#ff8c8e>🗡%.1f"
+  text-format: "<#ff8c8e>🔪%.1f"
   position: eye
   scale: 0.8
   only-player: true
+
 MAGIC:
   text-format: "<dark_purple>✨%.1f"
   only-player: false
   animation: 4
+
 FIRE_TICK:
   text-format: "<gold>🔥%.1f"
   only-player: false
   animation: 5
   position: foot
+
 ENTITY_EXPLOSION:
-  text-format: "<gray>💣%.2f"
+  text-format: "<dark_aqua>💣%.1f"
   animation: 5
   position: foot
   only-player: false
+
 CUSTOM:
   only-player: false
+
 POISON:
   text-format: "<dark_green>☠️%.1f"
+
 LIGHTNING:
   text-format: "<aqua>⚡%.2f"
   only-player: false
   animation: 5
   position: foot
   scale: 1.2
+
 FREEZE:
   text-format: "<blue>❄️%.2f"
   only-player: true

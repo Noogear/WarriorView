@@ -1,3 +1,9 @@
 # 配置不存在时使用默认配置, 默认配置在config.yml里的defaults
 # 以下的配置使用regain reason判断
-# 详情请查询https://hub.spigotmc.org/javadocs/bukkit/org/bukkit/event/entity/EntityRegainHealthEvent.RegainReason.html
+# 详情请查询: https://hub.spigotmc.org/javadocs/bukkit/org/bukkit/event/entity/EntityRegainHealthEvent.RegainReason.html
+MAGIC: {}
+
+CUSTOM:
+  only-player: true
+
+MAGIC_REGEN: {}

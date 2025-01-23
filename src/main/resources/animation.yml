@@ -8,15 +8,15 @@
     z: 0
 2:
   type: UP
-  max: 2.1
-  speed: 0.25
+  max: 0.8
+  speed: 0.1
   offset:
     x: 0
     y: 0
     z: 0
 3:
   type: DOWN
-  max: 1.5
+  max: 2
   speed: 0.2
   offset:
     x: 0

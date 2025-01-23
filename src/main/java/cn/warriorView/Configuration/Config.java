@@ -83,7 +83,7 @@ public class Config extends ConfigurationFile {
         public static class Defaults extends ConfigurationPart {
 
             @Comments("显示的文本, 只能使用minimessage颜色格式")
-            public String textFormat = "<green>+%.2f";
+            public String textFormat = "<green>+%.1f";
 
             @Comments("文字替换功能, 需要你去replacement.yml中进行配置")
             public String replacement = "";
@@ -107,10 +107,10 @@ public class Config extends ConfigurationFile {
             public boolean seeThrough = true;
 
             @Comments("是否只有玩家相关的才会显示")
-            public boolean onlyPlayer = true;
+            public boolean onlyPlayer = false;
 
             @Comments("数字显示的位置, 可使用: eye, foot")
-            public String position = "eye";
+            public String position = "foot";
 
             @Comments("动画类型, 需要你去animation.yml文件中进行配置")
             public String animation = "2";
