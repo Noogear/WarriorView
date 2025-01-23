@@ -35,7 +35,7 @@ public class DamageOtherView extends ViewDisplay {
         Location damageLocation;
         switch (this.getPosition()) {
             case DAMAGE:
-                DisplayManager.spawnDisplay(this, entity.getEyeLocation(), attacker.getEyeLocation(), player, damage);
+                DisplayManager.spawnDisplay(this, entity,attacker, player, damage);
                 return;
             case EYE:
                 damageLocation = entity.getEyeLocation();

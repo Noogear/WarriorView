@@ -12,7 +12,9 @@ import me.tofaa.entitylib.meta.display.AbstractDisplayMeta;
 import me.tofaa.entitylib.meta.display.TextDisplayMeta;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Location;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 import java.util.Set;
@@ -35,13 +37,15 @@ public class DisplayManager {
 
     }
 
-    public static void spawnDisplay(DamageOtherView viewDisplay, Location entityLocation, Location attackerLocation, Player player, double damage) {
-        Set<Player> players = PacketUtil.getNearbyPlayer(entityLocation, viewDisplay.getViewMarge());
+    public static void spawnDisplay(DamageOtherView viewDisplay, LivingEntity entity, LivingEntity attacker, Player player, double damage) {
+        Set<Player> players = PacketUtil.getNearbyPlayer(entity.getEyeLocation(), viewDisplay.getViewMarge());
         players.add(player);
         new XRunnable() {
 
             @Override
             public void run() {
+                Location entityLocation = entity.getEyeLocation();
+                Location attackerLocation = attacker.getEyeLocation();
                 Location damageLocation = attackerLocation.add(attackerLocation.getDirection().normalize().multiply(attackerLocation.distance(entityLocation)));
                 int entityId = PacketUtil.getAutoEntityId();
                 spawnEntity(viewDisplay, entityId, damageLocation, players, damage);
