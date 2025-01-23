@@ -1,6 +1,6 @@
 package cn.warriorView.View;
 
-import cn.warriorView.Object.Animation.Animation;
+import cn.warriorView.Animation.Animation;
 import cn.warriorView.Object.Range;
 import cn.warriorView.Object.Replacement;
 

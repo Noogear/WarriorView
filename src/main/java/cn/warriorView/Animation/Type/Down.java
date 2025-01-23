@@ -1,19 +1,22 @@
-package cn.warriorView.Object.Animation;
+package cn.warriorView.Animation.Type;
 
-import cn.warriorView.Object.Offset;
+import cn.warriorView.Animation.Animation;
+import cn.warriorView.Animation.AnimationParams;
 import cn.warriorView.Util.PacketUtil;
 import cn.warriorView.Util.Scheduler.XRunnable;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
 import org.bukkit.entity.Player;
+import org.bukkit.util.Vector;
 
 import java.util.Set;
 
-public class Up extends Animation {
+public class Down extends Animation {
 
-    public Up(byte moveCount, float max, float speed, long delay, Offset offset) {
-        super(moveCount, max, speed, delay, offset);
+
+    public Down(AnimationParams params, byte moveCount, long delay) {
+        super(params, moveCount, delay);
     }
 
     @Override
@@ -25,7 +28,7 @@ public class Up extends Animation {
             @Override
             public void run() {
 
-                if (count >= moveCount || changeY > max) {
+                if (count >= moveCount() || changeY > max()) {
                     PacketUtil.sendPacketSetPlayer(new WrapperPlayServerDestroyEntities(entityId), players);
                     players.clear();
                     cancel();
@@ -33,7 +36,7 @@ public class Up extends Animation {
                 }
 
                 count++;
-                Vector3d tpLocation = location.withY(count * changeY);
+                Vector3d tpLocation = location.withY(-count * changeY);
                 PacketUtil.sendPacketSetPlayer(new WrapperPlayServerEntityTeleport(
                         entityId,
                         tpLocation,
@@ -41,9 +44,9 @@ public class Up extends Animation {
                         0f,
                         false
                 ), players);
-                changeY += speed;
+                changeY += speed();
 
             }
-        }.asyncTimer(delay, delay);
+        }.asyncTimer(delay(), delay());
     }
 }

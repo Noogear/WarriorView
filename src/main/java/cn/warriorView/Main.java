@@ -1,11 +1,10 @@
 package cn.warriorView;
 
-import cn.warriorView.Manager.AnimationManager;
 import cn.warriorView.Manager.ConfigManager;
-import cn.warriorView.Manager.ReplacementManager;
+import cn.warriorView.Manager.ListenerManager;
+import cn.warriorView.Manager.ViewManager;
 import cn.warriorView.Util.Scheduler.XScheduler;
 import cn.warriorView.Util.XLogger;
-import cn.warriorView.Manager.ViewManager;
 import com.github.retrooper.packetevents.PacketEvents;
 import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
 import me.tofaa.entitylib.APIConfig;
@@ -15,6 +14,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Main extends JavaPlugin {
     private ViewManager viewManager;
+    private ConfigManager configManager;
+    private ListenerManager listenerManager;
 
 
     @Override
@@ -39,7 +40,8 @@ public final class Main extends JavaPlugin {
         } catch (ClassNotFoundException e) {
             new XScheduler(this, false);
         }
-        new ConfigManager(this);
+        configManager = new ConfigManager(this);
+        listenerManager = new ListenerManager(this);
 
 
     }
@@ -54,6 +56,16 @@ public final class Main extends JavaPlugin {
         return viewManager;
     }
 
+    public ConfigManager getConfigManager() {
+        return configManager;
+    }
 
+    public ListenerManager getListenerManager() {
+        return listenerManager;
+    }
 
+    public void reload() {
+        configManager.load();
+        listenerManager.load();
+    }
 }

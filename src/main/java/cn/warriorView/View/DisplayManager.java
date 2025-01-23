@@ -1,6 +1,5 @@
 package cn.warriorView.View;
 
-import cn.warriorView.Object.Offset;
 import cn.warriorView.Util.PacketUtil;
 import cn.warriorView.Util.Scheduler.XRunnable;
 import cn.warriorView.View.DamageView.DamageOtherView;
@@ -53,8 +52,7 @@ public class DisplayManager {
     }
 
     public static void spawnEntity(ViewDisplay viewDisplay, int entityId, Location location, Set<Player> players, double damage) {
-        Offset offset = viewDisplay.getAnimation().offset();
-        location = location.add(offset.getX(), offset.getY(), offset.getZ());
+        location = location.add(viewDisplay.getAnimation().offset());
         TextDisplayMeta meta = (TextDisplayMeta) EntityMeta.createMeta(entityId, EntityTypes.TEXT_DISPLAY);
         meta.setBillboardConstraints(AbstractDisplayMeta.BillboardConstraints.CENTER);
         meta.setPositionRotationInterpolationDuration(10);

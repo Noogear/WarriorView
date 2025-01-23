@@ -5,11 +5,11 @@ import java.util.List;
 import java.util.Map;
 
 public class Replacement {
-    private final char[] numbers;
+    private final String[] numbers;
     private final Map<String, String> chars;
     private final boolean enabled;
 
-    public Replacement(char[] numbers, List<String> list) {
+    public Replacement(String[] numbers, List<String> list) {
         this.numbers = numbers;
         Map<String, String> replaceChar = new HashMap<>();
         for (String element : list) {
@@ -23,18 +23,15 @@ public class Replacement {
     }
 
     public String replaceNumber(String text) {
-        char[] chars = text.toCharArray();
-        int length = chars.length;
-        char[] result = new char[length];
-        for (int i = 0; i < length; i++) {
-            if(Character.isDigit(chars[i])){
-                result[i] = numbers[chars[i] - '0'];
+        StringBuilder result = new StringBuilder();
+        for (char c : text.toCharArray()) {
+            if (Character.isDigit(c)) {
+                result.append(numbers[c - '0']);
                 continue;
             }
-            result[i] = chars[i];
-
+            result.append(c);
         }
-        return new String(result);
+        return result.toString();
     }
 
     public String replaceChar(String text) {

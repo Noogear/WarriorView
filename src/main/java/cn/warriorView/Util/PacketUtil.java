@@ -7,7 +7,9 @@ import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class PacketUtil {
@@ -29,8 +31,8 @@ public class PacketUtil {
         return new Vector3d(location.getX(), location.getY(), location.getZ());
     }
 
-    public static Set<Player> getNearbyPlayer(Location location, byte marge){
-        if(marge <= 1){
+    public static Set<Player> getNearbyPlayer(Location location, byte marge) {
+        if (marge <= 1) {
             return Collections.emptySet();
         }
         return new HashSet<>(location.getNearbyPlayers(marge));
