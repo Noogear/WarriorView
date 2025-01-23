@@ -7,14 +7,14 @@ import java.util.Map;
 public class Replacement {
     private final String[] numbers;
     private final Map<String, String> chars;
-    private final boolean isNumber;
-    private final boolean isChar;
+    private final boolean hasNumber;
+    private final boolean hasChar;
 
-    protected Replacement(String[] numbers, Map<String, String> chars, boolean isNumber, boolean isChar) {
+    protected Replacement(String[] numbers, Map<String, String> chars, boolean hasNumber, boolean hasChar) {
         this.numbers = numbers;
         this.chars = chars;
-        this.isNumber = isNumber;
-        this.isChar = isChar;
+        this.hasNumber = hasNumber;
+        this.hasChar = hasChar;
     }
 
     public static Replacement create(String[] numbers, List<String> list) {
@@ -23,17 +23,17 @@ public class Replacement {
         if (numbers.length == 10) {
             hasNumber = true;
         }
-        Map<String, String> replaceChar = new HashMap<>();
+        Map<String, String> chars = new HashMap<>();
         for (String element : list) {
             String[] parts = element.split("#");
             if (parts.length == 2) {
-                replaceChar.put(parts[0], parts[1]);
+                chars.put(parts[0], parts[1]);
             }
         }
-        if (replaceChar.isEmpty()) {
+        if (chars.isEmpty()) {
             hasChar = false;
         }
-        return new Replacement(numbers, replaceChar, hasNumber, hasChar);
+        return new Replacement(numbers, chars, hasNumber, hasChar);
     }
 
     private String replaceNumber(String text) {
@@ -56,10 +56,10 @@ public class Replacement {
     }
 
     public String replaceAll(String text) {
-        if (isNumber) {
+        if (hasNumber) {
             text = replaceNumber(text);
         }
-        if (isChar) {
+        if (hasChar) {
             text = replaceChar(text);
         }
         return text;
