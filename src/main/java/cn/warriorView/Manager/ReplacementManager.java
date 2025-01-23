@@ -29,7 +29,7 @@ public class ReplacementManager {
             if (section == null) continue;
             String[] numbers = section.getStringList("number").toArray(new String[0]);
             List<String> chars = section.getStringList("char");
-            replacements.put(topKey, new Replacement(numbers, chars));
+            replacements.put(topKey, Replacement.create(numbers, chars));
         }
         XLogger.info("Successfully load " + replacements.size() + " replacement(s)");
     }

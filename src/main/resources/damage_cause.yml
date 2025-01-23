@@ -1,14 +1,14 @@
 CRITICAL:
-  text-format: "💥%.2f"
+  text-format: "<yellow>💥%.2f"
   position: damage
-  scale: 1.5
+  scale: 1.3
+  replacement: test
 ENTITY_ATTACK:
-  text-format: "🗡%.2f"
+  text-format: "<red>🗡%.2f"
   position: damage
   only-player: true
-  replacement: test
 PROJECTILE:
-  text-format: "🏹%.2f"
+  text-format: "<red>🏹%.2f"
   position: damage
   only-player: true
 ENTITY_SWEEP_ATTACK:

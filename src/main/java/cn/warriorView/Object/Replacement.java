@@ -1,8 +1,5 @@
 package cn.warriorView.Object;
 
-import cn.warriorView.Util.XLogger;
-
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,9 +7,22 @@ import java.util.Map;
 public class Replacement {
     private final String[] numbers;
     private final Map<String, String> chars;
+    private final boolean isNumber;
+    private final boolean isChar;
 
-    public Replacement(String[] numbers, List<String> list) {
+    protected Replacement(String[] numbers, Map<String, String> chars, boolean isNumber, boolean isChar) {
         this.numbers = numbers;
+        this.chars = chars;
+        this.isNumber = isNumber;
+        this.isChar = isChar;
+    }
+
+    public static Replacement create(String[] numbers, List<String> list) {
+        boolean hasNumber = false;
+        boolean hasChar = true;
+        if (numbers.length == 10) {
+            hasNumber = true;
+        }
         Map<String, String> replaceChar = new HashMap<>();
         for (String element : list) {
             String[] parts = element.split("#");
@@ -20,10 +30,13 @@ public class Replacement {
                 replaceChar.put(parts[0], parts[1]);
             }
         }
-        this.chars = replaceChar;
+        if (replaceChar.isEmpty()) {
+            hasChar = false;
+        }
+        return new Replacement(numbers, replaceChar, hasNumber, hasChar);
     }
 
-    public String replaceNumber(String text) {
+    private String replaceNumber(String text) {
         StringBuilder result = new StringBuilder();
         for (char c : text.toCharArray()) {
             if (Character.isDigit(c)) {
@@ -35,7 +48,7 @@ public class Replacement {
         return result.toString();
     }
 
-    public String replaceChar(String text) {
+    private String replaceChar(String text) {
         for (String k : chars.keySet()) {
             text = text.replace(k, chars.get(k));
         }
@@ -43,8 +56,12 @@ public class Replacement {
     }
 
     public String replaceAll(String text) {
-            String replace = replaceNumber(text);
-            replace = replaceChar(replace);
-            return replace;
+        if (isNumber) {
+            text = replaceNumber(text);
+        }
+        if (isChar) {
+            text = replaceChar(text);
+        }
+        return text;
     }
 }

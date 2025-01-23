@@ -25,7 +25,7 @@ public class Config extends ConfigurationFile {
         public static class Defaults extends ConfigurationPart {
 
             @Comments("显示的文本, 只能使用minimessage颜色格式")
-            public String textFormat = "<red>-%.2f</red>";
+            public String textFormat = "<red>-%.2f";
 
             @Comments("文字替换功能")
             public String replacement = "";
@@ -42,16 +42,16 @@ public class Config extends ConfigurationFile {
             @Comments("可见玩家的范围, 设置为0时只有玩家本人可见")
             public int viewMarge = 16;
 
-            @Comments("使用ARGB")
-            public int backgroundColor = -1000000;
+            @Comments("使用ARGB, 0时为透明")
+            public int backgroundColor = 0;
 
             @Comments("可否穿过方块看见")
             public boolean seeThrough = true;
 
-            @Comments("是否只有玩家造成的才会显示")
+            @Comments("是否只有玩家相关的才会显示")
             public boolean onlyPlayer = true;
 
-            @Comments("位置, 可使用: eye, foot. 如果涉及到生物之间的攻击, 还可使用damage代表精确攻击的位置")
+            @Comments("数字显示的位置, 可使用: eye, foot. 如果涉及到生物之间的攻击, 还可使用damage代表精确攻击的位置")
             public String position = "eye";
 
             @Comments("动画类型")
@@ -65,7 +65,7 @@ public class Config extends ConfigurationFile {
 
         }
 
-        @Comments("其他配置文件")
+        @Comments("特殊配置文件, 在下方文件中添加了造成伤害的原因才能正常使用")
         public String apply = "damage_cause.yml";
 
     }
@@ -83,13 +83,13 @@ public class Config extends ConfigurationFile {
         public static class Defaults extends ConfigurationPart {
 
             @Comments("显示的文本, 只能使用minimessage颜色格式")
-            public String textFormat = "<red>-%.2f</red>";
+            public String textFormat = "<green>+%.2f";
 
-            @Comments("文字替换功能")
+            @Comments("文字替换功能, 需要你去replacement.yml中进行配置")
             public String replacement = "";
 
             @Comments("生成文字的大小, 可使用单个和多个值或0.9-1.1这种格式, 随机取值")
-            public String scale = "0.9, 1.0, 1.1";
+            public String scale = "1.0";
 
             @Comments("文字阴影")
             public boolean shadow = true;
@@ -98,22 +98,22 @@ public class Config extends ConfigurationFile {
             public double viewRange = 1.0;
 
             @Comments("可见玩家的范围, 设置为0时只有玩家本人可见")
-            public int viewMarge = 16;
+            public int viewMarge = 12;
 
-            @Comments("使用ARGB")
-            public int backgroundColor = -1000000;
+            @Comments("使用ARGB, 0时为透明")
+            public int backgroundColor = 0;
 
             @Comments("可否穿过方块看见")
             public boolean seeThrough = true;
 
-            @Comments("是否只有玩家造成的才会显示")
+            @Comments("是否只有玩家相关的才会显示")
             public boolean onlyPlayer = true;
 
-            @Comments("位置, 可使用: eye, foot. 如果涉及到生物之间的攻击, 还可使用damage代表精确攻击的位置")
+            @Comments("数字显示的位置, 可使用: eye, foot")
             public String position = "eye";
 
-            @Comments("动画类型")
-            public String animation = "1";
+            @Comments("动画类型, 需要你去animation.yml文件中进行配置")
+            public String animation = "2";
 
             @Comments("移动次数")
             public int moveCount = 8;
@@ -123,7 +123,7 @@ public class Config extends ConfigurationFile {
 
         }
 
-        @Comments("其他配置文件")
+        @Comments("特殊配置文件, 在下方文件中添加了治疗的原因才能正常使用")
         public String apply = "regain_reason.yml";
 
     }
