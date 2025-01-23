@@ -23,6 +23,7 @@ public class PacketUtil {
 
     public static void sendPacketSetPlayer(PacketWrapper<?> packet, Set<Player> players) {
         for (Player p : players) {
+            if (p == null) continue;
             playerManager.sendPacket(p, packet);
         }
     }
