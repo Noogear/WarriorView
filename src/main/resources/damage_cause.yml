@@ -14,7 +14,7 @@ ENTITY_ATTACK:
   only-player: true
 
 PROJECTILE:
-  text-format: "<red>⊕%.2f"
+  text-format: "<red>🩸%.2f"
   position: damage
   only-player: true
 

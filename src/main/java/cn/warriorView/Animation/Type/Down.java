@@ -28,7 +28,7 @@ public class Down extends Animation {
             public void run() {
 
                 if (count >= moveCount() || changeY > max()) {
-                    PacketUtil.sendPacketSetPlayer(new WrapperPlayServerDestroyEntities(entityId), players);
+                    PacketUtil.sendPacketToPlayers(new WrapperPlayServerDestroyEntities(entityId), players);
                     players.clear();
                     cancel();
                     return;
@@ -36,7 +36,7 @@ public class Down extends Animation {
 
                 count++;
                 Vector3d tpLocation = location.add(0, -count * changeY, 0);
-                PacketUtil.sendPacketSetPlayer(new WrapperPlayServerEntityTeleport(
+                PacketUtil.sendPacketToPlayers(new WrapperPlayServerEntityTeleport(
                         entityId,
                         tpLocation,
                         0f,

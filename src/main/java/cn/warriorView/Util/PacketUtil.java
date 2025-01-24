@@ -21,7 +21,7 @@ public class PacketUtil {
         return autoEntityId.incrementAndGet();
     }
 
-    public static void sendPacketSetPlayer(PacketWrapper<?> packet, Set<Player> players) {
+    public static void sendPacketToPlayers(PacketWrapper<?> packet, Set<Player> players) {
         for (Player p : players) {
             if (p == null) continue;
             playerManager.sendPacket(p, packet);

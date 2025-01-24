@@ -77,8 +77,8 @@ public class DisplayManager {
                 new Vector3d(location.getX(), location.getY(), location.getZ()),
                 0f, 0f, 0f, 0, Optional.empty()
         );
-        PacketUtil.sendPacketSetPlayer(packet, players);
-        PacketUtil.sendPacketSetPlayer(meta.createPacket(), players);
+        PacketUtil.sendPacketToPlayers(packet, players);
+        PacketUtil.sendPacketToPlayers(meta.createPacket(), players);
     }
 
 
