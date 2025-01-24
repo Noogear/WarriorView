@@ -31,7 +31,8 @@ public class ViewManager {
     public void addDamageViews(EntityDamageEvent.DamageCause cause, ViewParams params) {
         switch (cause) {
             case PROJECTILE -> damageViews.put(cause, new ProjectileView(params));
-            case ENTITY_ATTACK, ENTITY_SWEEP_ATTACK, ENTITY_EXPLOSION -> damageViews.put(cause, new DamageOtherView(params));
+            case ENTITY_ATTACK, ENTITY_SWEEP_ATTACK, ENTITY_EXPLOSION ->
+                    damageViews.put(cause, new DamageOtherView(params));
             default -> damageViews.put(cause, new DamageView(params));
         }
     }

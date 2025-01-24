@@ -67,6 +67,7 @@ public class DisplayManager {
             text = viewDisplay.getReplacement().replaceAll(text);
         }
         meta.setText(MiniMessage.miniMessage().deserialize(text));
+        meta.setTextOpacity(viewDisplay.getTextOpacity());
         meta.setUseDefaultBackground(false);
         meta.setBackgroundColor(viewDisplay.getBackgroundColor());
         meta.setScale(viewDisplay.getScale());

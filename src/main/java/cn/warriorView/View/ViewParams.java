@@ -2,14 +2,15 @@ package cn.warriorView.View;
 
 
 import cn.warriorView.Animation.Animation;
-import cn.warriorView.Object.Scale;
 import cn.warriorView.Object.Replacement;
+import cn.warriorView.Object.Scale;
 
 public record ViewParams(
         String textFormat,
         Replacement replacement,
         Scale scale,
         boolean shadow,
+        byte textOpacity,
         float viewRange,
         byte viewMarge,
         int backgroundColor,

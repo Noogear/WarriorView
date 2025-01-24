@@ -108,6 +108,7 @@ public class ConfigManager {
                 defaults.replacement,
                 defaults.scale,
                 defaults.shadow,
+                defaults.opacity,
                 MathUtil.round(defaults.viewRange, 2),
                 MathUtil.convertIntToByte(defaults.viewMarge),
                 defaults.backgroundColor,
@@ -128,6 +129,7 @@ public class ConfigManager {
                 defaults.replacement,
                 defaults.scale,
                 defaults.shadow,
+                defaults.opacity,
                 MathUtil.round(defaults.viewRange, 2),
                 MathUtil.convertIntToByte(defaults.viewMarge),
                 defaults.backgroundColor,
@@ -139,7 +141,7 @@ public class ConfigManager {
                 defaults.delay);
     }
 
-    private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, String animation, String position, byte moveCount, long delay) {
+    private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, double opacity, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, String animation, String position, byte moveCount, long delay) {
         if (section == null) {
             AnimationParams animParams = animationManager.getAnimation(animation);
             return new ViewParams(
@@ -147,6 +149,7 @@ public class ConfigManager {
                     replacementManager.getReplacement(replacement),
                     Scale.create(scale),
                     shadow,
+                    MathUtil.opacityFromPercent(opacity),
                     viewRange,
                     viewMarge,
                     backgroundColor,
@@ -162,6 +165,7 @@ public class ConfigManager {
                 replacementManager.getReplacement(section.getString("replacement", replacement)),
                 Scale.create(section.getString("scale", scale)),
                 section.getBoolean("shadow", shadow),
+                MathUtil.opacityFromPercent(section.getDouble("opacity", opacity)),
                 MathUtil.round(section.getDouble("view-range", viewRange), 1),
                 MathUtil.convertIntToByte(section.getInt("view-marge", viewMarge)),
                 section.getInt("background-color", backgroundColor),

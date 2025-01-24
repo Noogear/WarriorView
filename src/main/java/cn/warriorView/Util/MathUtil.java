@@ -22,4 +22,9 @@ public class MathUtil {
             return (byte) num;
         }
     }
+
+    public static byte opacityFromPercent(double percent) {
+        double clamped = Math.max(0.0, Math.min(100.0, percent));
+        return (byte) Math.round(clamped * 255 / 100.0);
+    }
 }

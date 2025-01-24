@@ -7,7 +7,7 @@ import cn.warriorView.Util.ConfigFile.ConfigurationPart;
 public class Config extends ConfigurationFile {
 
     @Comments("版本号, 请勿修改")
-    public static int version = 0;
+    public static int version = 1;
 
     @Comments("总开关")
     public static boolean enabled = true;
@@ -35,6 +35,9 @@ public class Config extends ConfigurationFile {
 
             @Comments("文字阴影")
             public boolean shadow = true;
+
+            @Comments("文字不透明度, 0-100, 100为不透明")
+            public double opacity = 100.0;
 
             @Comments("视距")
             public double viewRange = 1.0;
@@ -93,6 +96,9 @@ public class Config extends ConfigurationFile {
 
             @Comments("文字阴影")
             public boolean shadow = true;
+
+            @Comments("文字不透明度, 0-100, 100为不透明")
+            public double opacity = 100.0;
 
             @Comments("视距")
             public double viewRange = 1.0;

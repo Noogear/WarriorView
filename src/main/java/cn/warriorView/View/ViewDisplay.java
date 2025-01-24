@@ -1,8 +1,8 @@
 package cn.warriorView.View;
 
 import cn.warriorView.Animation.Animation;
-import cn.warriorView.Object.Scale;
 import cn.warriorView.Object.Replacement;
+import cn.warriorView.Object.Scale;
 import com.github.retrooper.packetevents.util.Vector3f;
 
 public abstract class ViewDisplay {
@@ -11,6 +11,7 @@ public abstract class ViewDisplay {
     private final Replacement replacement;
     private final Scale scale;
     private final boolean shadow;
+    private final byte textOpacity;
     private final float viewRange;
     private final byte viewMarge;
     private final int backgroundColor;
@@ -23,6 +24,7 @@ public abstract class ViewDisplay {
         this.replacement = params.replacement();
         this.scale = params.scale();
         this.shadow = params.shadow();
+        this.textOpacity = params.textOpacity();
         this.viewRange = params.viewRange();
         this.viewMarge = params.viewMarge();
         this.backgroundColor = params.backgroundColor();
@@ -71,4 +73,7 @@ public abstract class ViewDisplay {
         return seeThrough;
     }
 
+    public byte getTextOpacity() {
+        return textOpacity;
+    }
 }
