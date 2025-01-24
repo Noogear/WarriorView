@@ -21,9 +21,7 @@ public class DamageView extends ViewDisplay {
         return position;
     }
 
-    public void spawn(EntityDamageEvent event) {
-        double damage = event.getFinalDamage();
-        if (damage <= 0.01) return;
+    public void spawn(EntityDamageEvent event, double damage) {
         LivingEntity entity = (LivingEntity) event.getEntity();
         Player player = null;
         if (entity instanceof Player p) {

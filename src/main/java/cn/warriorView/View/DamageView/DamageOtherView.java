@@ -21,9 +21,7 @@ public class DamageOtherView extends ViewDisplay {
         return position;
     }
 
-    public void spawn(EntityDamageByEntityEvent event) {
-        double damage = event.getFinalDamage();
-        if (damage <= 0.01) return;
+    public void spawn(EntityDamageByEntityEvent event, double damage) {
         LivingEntity attacker = (LivingEntity) event.getDamager();
         Player player = null;
         if (attacker instanceof Player p) {
@@ -35,7 +33,7 @@ public class DamageOtherView extends ViewDisplay {
         Location damageLocation;
         switch (this.getPosition()) {
             case DAMAGE:
-                DisplayManager.spawnDisplay(this, entity,attacker, player, damage);
+                DisplayManager.spawnDisplay(this, entity, attacker, player, damage);
                 return;
             case EYE:
                 damageLocation = entity.getEyeLocation();

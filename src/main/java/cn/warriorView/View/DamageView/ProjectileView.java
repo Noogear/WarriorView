@@ -15,9 +15,7 @@ public class ProjectileView extends DamageOtherView {
     }
 
     @Override
-    public void spawn(EntityDamageByEntityEvent event) {
-        double damage = event.getFinalDamage();
-        if (damage <= 0.01) return;
+    public void spawn(EntityDamageByEntityEvent event, double damage) {
         Projectile attacker = (Projectile) event.getDamager();
         Player player = null;
         if (attacker.getShooter() instanceof Player p) {

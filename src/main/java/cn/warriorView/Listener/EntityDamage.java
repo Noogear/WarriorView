@@ -1,7 +1,6 @@
 package cn.warriorView.Listener;
 
 import cn.warriorView.Main;
-import cn.warriorView.Util.XLogger;
 import cn.warriorView.View.DamageView.DamageOtherView;
 import cn.warriorView.View.DamageView.DamageView;
 import cn.warriorView.View.DamageView.ProjectileView;
@@ -24,23 +23,25 @@ public class EntityDamage implements Listener {
     @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
     public void onDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof LivingEntity)) return;
+        double damage = event.getFinalDamage();
+        if (damage <= 0.01) return;
         EntityDamageEvent.DamageCause cause = event.getCause();
         ViewDisplay viewDisplay = plugin.getViewManager().getDamageViews().get(cause);
         if (viewDisplay == null) return;
         if (viewDisplay instanceof DamageOtherView damageOtherView) {
             if (event instanceof EntityDamageByEntityEvent damageOtherEvent) {
                 if (damageOtherEvent.isCritical()) {
-                    plugin.getViewManager().getCriticalView().spawn(damageOtherEvent);
+                    plugin.getViewManager().getCriticalView().spawn(damageOtherEvent, damage);
                     return;
                 }
                 if (damageOtherView instanceof ProjectileView projectileView) {
-                    projectileView.spawn(damageOtherEvent);
+                    projectileView.spawn(damageOtherEvent, damage);
                     return;
                 }
-                damageOtherView.spawn(damageOtherEvent);
+                damageOtherView.spawn(damageOtherEvent, damage);
             }
         } else if (viewDisplay instanceof DamageView damageView) {
-            damageView.spawn(event);
+            damageView.spawn(event, damage);
         }
 
     }
