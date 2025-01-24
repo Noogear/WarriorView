@@ -1,8 +1,10 @@
 package cn.warriorView;
 
+import cn.warriorView.Configuration.Language;
 import cn.warriorView.Manager.ConfigManager;
 import cn.warriorView.Manager.ListenerManager;
 import cn.warriorView.Manager.ViewManager;
+import cn.warriorView.Util.MsgUtil;
 import cn.warriorView.Util.Scheduler.XRunnable;
 import cn.warriorView.Util.Scheduler.XScheduler;
 import cn.warriorView.Util.XLogger;
@@ -76,7 +78,7 @@ public final class Main extends JavaPlugin {
                 configManager.load();
                 listenerManager.load();
                 long elapsedTime = System.currentTimeMillis() - startTime;
-                sender.sendMessage("插件重启完成, 耗时 " + elapsedTime + " ms");
+                MsgUtil.send(sender, Language.reload, elapsedTime);
             }
         }.async();
 

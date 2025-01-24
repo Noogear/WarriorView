@@ -5,7 +5,6 @@ import cn.warriorView.Util.Scheduler.XRunnable;
 import cn.warriorView.View.DamageView.DamageOtherView;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
 import com.github.retrooper.packetevents.util.Vector3d;
-import com.github.retrooper.packetevents.util.Vector3f;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import me.tofaa.entitylib.meta.EntityMeta;
 import me.tofaa.entitylib.meta.display.AbstractDisplayMeta;
@@ -14,7 +13,6 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 import java.util.Set;
@@ -65,7 +63,7 @@ public class DisplayManager {
         meta.setViewRange(viewDisplay.getViewRange());
         meta.setSeeThrough(viewDisplay.isSeeThrough());
         String text = String.format(viewDisplay.getTextFormat(), damage);
-        if(viewDisplay.getReplacement() != null) {
+        if (viewDisplay.getReplacement() != null) {
             text = viewDisplay.getReplacement().replaceAll(text);
         }
         meta.setText(MiniMessage.miniMessage().deserialize(text));

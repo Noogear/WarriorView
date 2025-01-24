@@ -14,7 +14,7 @@ ENTITY_ATTACK:
   only-player: true
 
 PROJECTILE:
-  text-format: "<red>🏹%.2f"
+  text-format: "<red>⊕%.2f"
   position: damage
   only-player: true
 
@@ -42,6 +42,7 @@ ENTITY_EXPLOSION:
   only-player: false
 
 CUSTOM:
+  scale: 0.8
   only-player: false
 
 POISON:

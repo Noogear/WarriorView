@@ -6,7 +6,7 @@ import cn.warriorView.Util.ConfigFile.ConfigurationPart;
 
 public class Config extends ConfigurationFile {
 
-    @Comments("版本号")
+    @Comments("版本号, 请勿修改")
     public static int version = 0;
 
     @Comments("总开关")

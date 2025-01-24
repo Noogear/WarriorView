@@ -3,6 +3,7 @@ package cn.warriorView.Manager;
 import cn.warriorView.Animation.Animation;
 import cn.warriorView.Animation.AnimationParams;
 import cn.warriorView.Configuration.Config;
+import cn.warriorView.Configuration.Language;
 import cn.warriorView.Main;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.ConfigFile.ConfigurationManager;
@@ -24,6 +25,7 @@ import java.util.Set;
 
 public class ConfigManager {
     private final File configFile;
+    private final File languageFile;
     private final AnimationManager animationManager;
     private final ReplacementManager replacementManager;
     private final Main plugin;
@@ -35,19 +37,24 @@ public class ConfigManager {
         replacementManager = new ReplacementManager();
         viewManager = plugin.getViewManager();
         configFile = new File(plugin.getDataFolder(), "config.yml");
+        languageFile = new File(plugin.getDataFolder(), "language.yml");
         load();
     }
 
     public void load() {
         try {
             ConfigurationManager.load(Config.class, configFile, "version");
+            ConfigurationManager.load(Language.class, languageFile, "version");
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
         viewManager.init();
         animationManager.init();
         replacementManager.init();
-        if (!Config.enabled) return;
+        if (!Config.enabled) {
+            XLogger.info("WarriorView is not enabled!");
+            return;
+        }
         replacementManager.load(loadOrCreateConfig(Config.replacement, "replacement.yml"));
         animationManager.load(loadOrCreateConfig(Config.animation, "animation.yml"));
         loadDamageView(loadOrCreateConfig(Config.damageEntity.apply, "damage_cause.yml"));
@@ -63,7 +70,7 @@ public class ConfigManager {
             EntityDamageEvent.DamageCause cause = RegistryUtil.toDamageCause(key);
             if (cause == null) {
                 if (!isCritical) {
-                    XLogger.err("Invalid Damage Cause: " + key);
+                    XLogger.err("Invalid Damage Cause: %s", key);
                     continue;
                 }
             }
@@ -74,7 +81,7 @@ public class ConfigManager {
             }
             viewManager.addDamageViews(cause, viewParams);
         }
-        XLogger.info("Successfully load " + viewManager.getDamageViews().size() + " damage view(s)");
+        XLogger.info("Successfully load %s damage view(s)", viewManager.getDamageViews().size());
     }
 
     private void loadRegainHealth(YamlConfiguration viewFile) {
@@ -83,13 +90,13 @@ public class ConfigManager {
             ConfigurationSection section = viewFile.getConfigurationSection(key);
             EntityRegainHealthEvent.RegainReason reason = RegistryUtil.toRegainReason(key);
             if (reason == null) {
-                XLogger.err("Invalid Regain reason: " + key);
+                XLogger.err("Invalid regain reason: %s", key);
                 continue;
             }
             ViewParams viewParams = buildRegainViewParams(section);
             viewManager.addRegainViews(reason, viewParams);
         }
-        XLogger.info("Successfully load " + viewManager.getRegainViews().size() + " regain view(s)");
+        XLogger.info("Successfully load %s regain view(s)", viewManager.getRegainViews().size());
     }
 
 
@@ -165,21 +172,13 @@ public class ConfigManager {
         );
     }
 
-    /**
-     * 加载或创建配置文件并返回配置对象
-     *
-     * @param targetFileName 要加载/创建的文件名（如 "2.yml"）
-     * @param sourceResource JAR内源文件路径（如 "1.yml"）
-     * @return 加载后的 FileConfiguration 对象
-     */
+
     public YamlConfiguration loadOrCreateConfig(String targetFileName, String sourceResource) {
         File configFile = new File(plugin.getDataFolder(), targetFileName);
         try {
-            // 确保插件数据目录存在
             if (!configFile.getParentFile().exists()) {
                 configFile.getParentFile().mkdirs();
             }
-            // 如果文件不存在，尝试从JAR复制
             if (!configFile.exists()) {
                 try (InputStream input = plugin.getResource(sourceResource)) {
                     if (input != null) {
@@ -188,19 +187,17 @@ public class ConfigManager {
                                 configFile.toPath(),
                                 StandardCopyOption.REPLACE_EXISTING
                         );
-                        XLogger.info("已从资源文件创建: " + targetFileName);
+                        XLogger.info("Created from the resource file already: %s.yml", targetFileName);
                     } else {
-                        // 如果资源也不存在，生成空白配置
-                        XLogger.warn("JAR内未找到资源，已生成空白配置: " + targetFileName);
+                        XLogger.warn("Resources not found in the JAR. Blank configuration has been generated: %s.yml", targetFileName);
                         return new YamlConfiguration();
                     }
                 }
             }
-            // 加载并返回配置
             return YamlConfiguration.loadConfiguration(configFile);
         } catch (IOException e) {
-            XLogger.err("配置文件处理失败: " + e.getMessage());
-            // 应急返回空配置
+            XLogger.err("Configuration file processing failed: %s", e.getMessage());
+            XLogger.err("Blank configuration has been generated: %s.yml", targetFileName);
             return new YamlConfiguration();
         }
     }
