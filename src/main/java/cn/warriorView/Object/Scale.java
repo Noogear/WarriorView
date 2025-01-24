@@ -14,7 +14,7 @@ public class Scale {
     private final Vector3f[] fixed;
     private final boolean isFixed;
 
-    public Scale(float start, float end, Vector3f[] fixed, boolean isFixed) {
+    protected Scale(float start, float end, Vector3f[] fixed, boolean isFixed) {
         this.start = start;
         this.end = end;
         this.fixed = fixed;

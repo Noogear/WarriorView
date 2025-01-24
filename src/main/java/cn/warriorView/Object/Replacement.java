@@ -37,7 +37,7 @@ public class Replacement {
     }
 
     private String replaceNumber(String text) {
-        StringBuilder result = new StringBuilder();
+        StringBuilder result = new StringBuilder(text.length());
         for (char c : text.toCharArray()) {
             if (Character.isDigit(c)) {
                 result.append(numbers[c - '0']);
