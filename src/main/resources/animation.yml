@@ -1,3 +1,8 @@
+# 动画功能较为简陋, 可以实现基本的动画效果
+# type可以使用up:上升, down:下降, up_and_down: 先上升再下降
+# max: 移动的最大距离
+# speed: 移动的速度
+# offset: 全息图偏移量
 1:
   type: UP_AND_DOWN
   max: 1
