@@ -77,6 +77,7 @@ public class ConfigManager {
             ViewParams viewParams = buildDamageViewParams(section);
             if (isCritical) {
                 viewManager.setCriticalView(viewParams);
+                XLogger.info("Successfully load critical view");
                 continue;
             }
             viewManager.addDamageViews(cause, viewParams);

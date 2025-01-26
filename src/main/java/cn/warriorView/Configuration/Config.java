@@ -37,7 +37,7 @@ public class Config extends ConfigurationFile {
             public boolean shadow = true;
 
             @Comments("文字不透明度, 0-100, 100为不透明")
-            public double opacity = 100.0;
+            public double opacity = 80.0;
 
             @Comments("视距")
             public double viewRange = 1.0;
@@ -98,7 +98,7 @@ public class Config extends ConfigurationFile {
             public boolean shadow = true;
 
             @Comments("文字不透明度, 0-100, 100为不透明")
-            public double opacity = 100.0;
+            public double opacity = 80.0;
 
             @Comments("视距")
             public double viewRange = 1.0;

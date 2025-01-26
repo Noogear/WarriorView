@@ -12,7 +12,7 @@
   speed: 0.1
   offset:
     x: 0
-    y: 0
+    y: -0.2
     z: 0
 3:
   type: DOWN
