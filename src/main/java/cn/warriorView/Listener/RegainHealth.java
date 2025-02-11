@@ -9,24 +9,26 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class RegainHealth implements Listener {
-    private final Main plugin;
+    private final Map<EntityRegainHealthEvent.RegainReason, ViewDisplay> regainViews;
 
     public RegainHealth(Main main) {
-        this.plugin = main;
+        this.regainViews = main.getViewManager().getRegainViews();
     }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
     public void onRegainHealth(EntityRegainHealthEvent event) {
         if (!(event.getEntity() instanceof LivingEntity)) return;
         EntityRegainHealthEvent.RegainReason reason = event.getRegainReason();
-        ViewDisplay viewDisplay = plugin.getViewManager().getRegainViews().get(reason);
+        ViewDisplay viewDisplay = regainViews.get(reason);
         if (viewDisplay == null) return;
 
         if (viewDisplay instanceof RegainView regainView) {
             regainView.spawn(event);
         }
     }
-
 
 }

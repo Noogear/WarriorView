@@ -10,7 +10,7 @@ import cn.warriorView.View.ViewParams;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Map;
 
 public class ViewManager {
@@ -20,8 +20,8 @@ public class ViewManager {
     private CriticalView criticalView;
 
     public ViewManager() {
-        this.damageViews = new HashMap<>();
-        this.regainViews = new HashMap<>();
+        this.damageViews = new EnumMap<>(EntityDamageEvent.DamageCause.class);
+        this.regainViews = new EnumMap<>(EntityRegainHealthEvent.RegainReason.class);
     }
 
     public Map<EntityDamageEvent.DamageCause, ViewDisplay> getDamageViews() {

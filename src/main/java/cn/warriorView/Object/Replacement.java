@@ -37,15 +37,13 @@ public class Replacement {
     }
 
     private String replaceNumber(String text) {
-        StringBuilder result = new StringBuilder(text.length());
-        for (char c : text.toCharArray()) {
-            if (Character.isDigit(c)) {
-                result.append(numbers[c - '0']);
-                continue;
+        char[] chars = text.toCharArray();
+        for (int i = 0; i < chars.length;  i++) {
+            if (Character.isDigit(chars[i]))  {
+                chars[i] = numbers[chars[i] - '0'].charAt(0);
             }
-            result.append(c);
         }
-        return result.toString();
+        return new String(chars);
     }
 
     private String replaceChar(String text) {
