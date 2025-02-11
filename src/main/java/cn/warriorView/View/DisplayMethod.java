@@ -28,7 +28,7 @@ public class DisplayMethod {
             @Override
             public void run() {
                 int entityId = PacketUtil.getAutoEntityId();
-                spawnEntity(viewDisplay, entityId, location, players, damage);
+                packetHolo(viewDisplay, entityId, location, players, damage);
                 viewDisplay.getAnimation().play(entityId, PacketUtil.locationToV3d(location), players);
             }
         }.async();
@@ -46,14 +46,14 @@ public class DisplayMethod {
                 Location attackerLocation = attacker.getEyeLocation();
                 Location damageLocation = attackerLocation.add(attackerLocation.getDirection().normalize().multiply(attackerLocation.distance(entityLocation)));
                 int entityId = PacketUtil.getAutoEntityId();
-                spawnEntity(viewDisplay, entityId, damageLocation, players, damage);
+                packetHolo(viewDisplay, entityId, damageLocation, players, damage);
                 viewDisplay.getAnimation().play(entityId, PacketUtil.locationToV3d(damageLocation), players);
             }
         }.async();
 
     }
 
-    public static void spawnEntity(ViewDisplay viewDisplay, int entityId, Location location, Set<Player> players, double damage) {
+    public static void packetHolo(ViewDisplay viewDisplay, int entityId, Location location, Set<Player> players, double damage) {
         location = location.add(viewDisplay.getAnimation().offset());
         TextDisplayMeta meta = (TextDisplayMeta) EntityMeta.createMeta(entityId, EntityTypes.TEXT_DISPLAY);
         meta.setBillboardConstraints(AbstractDisplayMeta.BillboardConstraints.CENTER);
