@@ -39,10 +39,9 @@ public class Down extends Animation {
                 }
 
                 count++;
-                Vector3d tpLocation = location.add(0, -count * changeY, 0);
                 PacketUtil.sendPacketToPlayers(new WrapperPlayServerEntityTeleport(
                         entityId,
-                        tpLocation,
+                        location.add(0, -count * changeY, 0),
                         0f,
                         0f,
                         false
