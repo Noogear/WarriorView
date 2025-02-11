@@ -1,6 +1,6 @@
 package cn.warriorView.View.DamageView;
 
-import cn.warriorView.View.DisplayManager;
+import cn.warriorView.View.DisplayMethod;
 import cn.warriorView.View.ViewParams;
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
@@ -29,7 +29,7 @@ public class ProjectileView extends DamageOtherView {
             case EYE -> entity.getEyeLocation();
             default -> entity.getLocation();
         };
-        DisplayManager.spawnDisplay(this, damageLocation, player, damage);
+        DisplayMethod.spawnDisplay(this, damageLocation, player, damage);
     }
 
 }

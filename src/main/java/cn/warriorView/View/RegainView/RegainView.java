@@ -1,6 +1,6 @@
 package cn.warriorView.View.RegainView;
 
-import cn.warriorView.View.DisplayManager;
+import cn.warriorView.View.DisplayMethod;
 import cn.warriorView.View.ViewDisplay;
 import cn.warriorView.View.ViewParams;
 import org.bukkit.Location;
@@ -28,7 +28,7 @@ public class RegainView extends ViewDisplay {
             if (this.isOnlyPlayer()) return;
         }
         Location regainLocation = (this.getPosition() == Position.EYE) ? entity.getEyeLocation() : entity.getLocation();
-        DisplayManager.spawnDisplay(this, regainLocation, player, regain);
+        DisplayMethod.spawnDisplay(this, regainLocation, player, regain);
 
     }
 

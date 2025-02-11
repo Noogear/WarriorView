@@ -1,12 +1,12 @@
 package cn.warriorView.Manager;
 
-import cn.warriorView.Object.Animation.Animation;
-import cn.warriorView.Object.Animation.AnimationParams;
 import cn.warriorView.Configuration.File.Config;
 import cn.warriorView.Configuration.File.Language;
-import cn.warriorView.Main;
-import cn.warriorView.Object.Scale;
 import cn.warriorView.Configuration.Form.ConfigurationManager;
+import cn.warriorView.Main;
+import cn.warriorView.Object.Animation.Animation;
+import cn.warriorView.Object.Animation.AnimationParams;
+import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.MathUtil;
 import cn.warriorView.Util.RegistryUtil;
 import cn.warriorView.Util.XLogger;

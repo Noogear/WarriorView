@@ -1,6 +1,6 @@
 package cn.warriorView.View.DamageView;
 
-import cn.warriorView.View.DisplayManager;
+import cn.warriorView.View.DisplayMethod;
 import cn.warriorView.View.ViewDisplay;
 import cn.warriorView.View.ViewParams;
 import org.bukkit.Location;
@@ -33,7 +33,7 @@ public class DamageOtherView extends ViewDisplay {
         Location damageLocation;
         switch (this.getPosition()) {
             case DAMAGE:
-                DisplayManager.spawnDisplay(this, entity, attacker, player, damage);
+                DisplayMethod.spawnDisplay(this, entity, attacker, player, damage);
                 return;
             case EYE:
                 damageLocation = entity.getEyeLocation();
@@ -42,7 +42,7 @@ public class DamageOtherView extends ViewDisplay {
                 damageLocation = entity.getLocation();
                 break;
         }
-        DisplayManager.spawnDisplay(this, damageLocation, player, damage);
+        DisplayMethod.spawnDisplay(this, damageLocation, player, damage);
     }
 
     public enum Position {

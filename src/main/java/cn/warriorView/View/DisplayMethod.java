@@ -18,7 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
-public class DisplayManager {
+public class DisplayMethod {
 
     public static void spawnDisplay(ViewDisplay viewDisplay, Location location, Player player, double damage) {
         Set<Player> players = PacketUtil.getNearbyPlayer(location, viewDisplay.getViewMarge());
