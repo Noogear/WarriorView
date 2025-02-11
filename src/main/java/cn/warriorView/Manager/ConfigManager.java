@@ -19,7 +19,9 @@ import org.bukkit.event.entity.EntityRegainHealthEvent;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Set;
 
@@ -178,32 +180,47 @@ public class ConfigManager {
     }
 
 
-    public YamlConfiguration loadOrCreateConfig(String targetFileName, String sourceResource) {
-        File configFile = new File(plugin.getDataFolder(), targetFileName);
+    public YamlConfiguration loadOrCreateConfig(String targetFileName, String sourceResource) throws ConfigLoadingException {
+        Path configFilePath = plugin.getDataFolder().toPath().resolve(targetFileName);
+        Path parentDir = configFilePath.getParent();
+
         try {
-            if (!configFile.getParentFile().exists()) {
-                configFile.getParentFile().mkdirs();
-            }
-            if (!configFile.exists()) {
-                try (InputStream input = plugin.getResource(sourceResource)) {
-                    if (input != null) {
-                        Files.copy(
-                                input,
-                                configFile.toPath(),
-                                StandardCopyOption.REPLACE_EXISTING
-                        );
-                        XLogger.info("Created from the resource file already: %s.yml", targetFileName);
-                    } else {
-                        XLogger.warn("Resources not found in the JAR. Blank configuration has been generated: %s.yml", targetFileName);
-                        return new YamlConfiguration();
-                    }
-                }
-            }
-            return YamlConfiguration.loadConfiguration(configFile);
+            Files.createDirectories(parentDir);
         } catch (IOException e) {
-            XLogger.err("Configuration file processing failed: %s", e.getMessage());
-            XLogger.err("Blank configuration has been generated: %s.yml", targetFileName);
-            return new YamlConfiguration();
+            throw new ConfigLoadingException("Failed to create parent directories for config file", e);
+        }
+
+        if (!Files.exists(configFilePath)) {
+            try (InputStream inputStream = plugin.getResource(sourceResource)) {
+                if (inputStream == null) {
+                    createEmptyConfig(configFilePath);
+                    return new YamlConfiguration();
+                }
+
+                Files.copy(inputStream, configFilePath, StandardCopyOption.REPLACE_EXISTING);
+                return YamlConfiguration.loadConfiguration(configFilePath.toFile());
+            } catch (IOException e) {
+                throw new ConfigLoadingException("Failed to copy config file from resource", e);
+            }
+        }
+
+        try {
+            return YamlConfiguration.loadConfiguration(configFilePath.toFile());
+        } catch (Exception e) {
+            throw new ConfigLoadingException("Failed to load existing config file", e);
+        }
+    }
+
+    private void createEmptyConfig(Path configFilePath) throws IOException {
+        try (var writer = Files.newBufferedWriter(configFilePath, StandardCharsets.UTF_8)) {
+            writer.write("#  Empty configuration file generated automatically");
+        }
+        XLogger.warn("Generated empty configuration file: %s", configFilePath.getFileName());
+    }
+
+    public static class ConfigLoadingException extends RuntimeException {
+        public ConfigLoadingException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 
