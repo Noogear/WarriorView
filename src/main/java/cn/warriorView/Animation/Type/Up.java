@@ -20,6 +20,10 @@ public class Up extends Animation {
 
     @Override
     public void play(int entityId, Vector3d location, Set<Player> players) {
+        byte moveCount = moveCount();
+        float speed = speed();
+        float max = max();
+
         new XRunnable() {
             byte count = 0;
             double changeY = 0;
@@ -27,7 +31,7 @@ public class Up extends Animation {
             @Override
             public void run() {
 
-                if (count >= moveCount() || changeY > max()) {
+                if (count >= moveCount || changeY > max) {
                     PacketUtil.sendPacketToPlayers(new WrapperPlayServerDestroyEntities(entityId), players);
                     players.clear();
                     cancel();
@@ -43,7 +47,7 @@ public class Up extends Animation {
                         0f,
                         false
                 ), players);
-                changeY += speed();
+                changeY += speed;
 
             }
         }.asyncTimer(delay(), delay());
