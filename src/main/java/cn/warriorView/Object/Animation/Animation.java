@@ -1,8 +1,8 @@
-package cn.warriorView.Animation;
+package cn.warriorView.Object.Animation;
 
-import cn.warriorView.Animation.Type.Down;
-import cn.warriorView.Animation.Type.Up;
-import cn.warriorView.Animation.Type.UpAndDown;
+import cn.warriorView.Object.Animation.Type.Down;
+import cn.warriorView.Object.Animation.Type.Up;
+import cn.warriorView.Object.Animation.Type.UpAndDown;
 import com.github.retrooper.packetevents.util.Vector3d;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;

@@ -1,7 +1,7 @@
-package cn.warriorView.Animation.Type;
+package cn.warriorView.Object.Animation.Type;
 
-import cn.warriorView.Animation.Animation;
-import cn.warriorView.Animation.AnimationParams;
+import cn.warriorView.Object.Animation.Animation;
+import cn.warriorView.Object.Animation.AnimationParams;
 import cn.warriorView.Util.PacketUtil;
 import cn.warriorView.Util.Scheduler.XRunnable;
 import com.github.retrooper.packetevents.util.Vector3d;

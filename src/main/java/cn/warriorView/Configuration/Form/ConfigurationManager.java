@@ -1,4 +1,4 @@
-package cn.warriorView.Util.ConfigFile;
+package cn.warriorView.Configuration.Form;
 
 import cn.warriorView.Util.XLogger;
 import org.bukkit.configuration.file.YamlConfiguration;

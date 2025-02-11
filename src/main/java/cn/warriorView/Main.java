@@ -1,6 +1,6 @@
 package cn.warriorView;
 
-import cn.warriorView.Configuration.Language;
+import cn.warriorView.Configuration.File.Language;
 import cn.warriorView.Manager.ConfigManager;
 import cn.warriorView.Manager.ListenerManager;
 import cn.warriorView.Manager.ViewManager;

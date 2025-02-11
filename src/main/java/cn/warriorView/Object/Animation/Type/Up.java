@@ -1,7 +1,7 @@
-package cn.warriorView.Animation.Type;
+package cn.warriorView.Object.Animation.Type;
 
-import cn.warriorView.Animation.Animation;
-import cn.warriorView.Animation.AnimationParams;
+import cn.warriorView.Object.Animation.Animation;
+import cn.warriorView.Object.Animation.AnimationParams;
 import cn.warriorView.Util.PacketUtil;
 import cn.warriorView.Util.Scheduler.XRunnable;
 import com.github.retrooper.packetevents.util.Vector3d;
@@ -11,10 +11,10 @@ import org.bukkit.entity.Player;
 
 import java.util.Set;
 
-public class Down extends Animation {
+public class Up extends Animation {
 
 
-    public Down(AnimationParams params, byte moveCount, long delay) {
+    public Up(AnimationParams params, byte moveCount, long delay) {
         super(params, moveCount, delay);
     }
 
@@ -41,7 +41,7 @@ public class Down extends Animation {
                 count++;
                 PacketUtil.sendPacketToPlayers(new WrapperPlayServerEntityTeleport(
                         entityId,
-                        location.add(0, -count * changeY, 0),
+                        location.add(0, count * changeY, 0),
                         0f,
                         0f,
                         false

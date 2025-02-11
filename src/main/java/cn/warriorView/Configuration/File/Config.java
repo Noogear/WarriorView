@@ -1,8 +1,8 @@
-package cn.warriorView.Configuration;
+package cn.warriorView.Configuration.File;
 
-import cn.warriorView.Util.ConfigFile.Comments;
-import cn.warriorView.Util.ConfigFile.ConfigurationFile;
-import cn.warriorView.Util.ConfigFile.ConfigurationPart;
+import cn.warriorView.Configuration.Form.Comments;
+import cn.warriorView.Configuration.Form.ConfigurationFile;
+import cn.warriorView.Configuration.Form.ConfigurationPart;
 
 public class Config extends ConfigurationFile {
 

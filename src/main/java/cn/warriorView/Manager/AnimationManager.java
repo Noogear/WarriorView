@@ -1,7 +1,7 @@
 package cn.warriorView.Manager;
 
-import cn.warriorView.Animation.Animation;
-import cn.warriorView.Animation.AnimationParams;
+import cn.warriorView.Object.Animation.Animation;
+import cn.warriorView.Object.Animation.AnimationParams;
 import cn.warriorView.Util.MathUtil;
 import cn.warriorView.Util.XLogger;
 import org.bukkit.configuration.ConfigurationSection;

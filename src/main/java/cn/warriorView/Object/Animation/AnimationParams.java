@@ -1,4 +1,4 @@
-package cn.warriorView.Animation;
+package cn.warriorView.Object.Animation;
 
 import org.bukkit.util.Vector;
 

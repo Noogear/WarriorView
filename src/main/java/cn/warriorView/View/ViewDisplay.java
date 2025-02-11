@@ -1,6 +1,6 @@
 package cn.warriorView.View;
 
-import cn.warriorView.Animation.Animation;
+import cn.warriorView.Object.Animation.Animation;
 import cn.warriorView.Object.Replacement;
 import cn.warriorView.Object.Scale;
 import com.github.retrooper.packetevents.util.Vector3f;

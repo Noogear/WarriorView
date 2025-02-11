@@ -1,6 +1,6 @@
 package cn.warriorView.Manager;
 
-import cn.warriorView.Configuration.Config;
+import cn.warriorView.Configuration.File.Config;
 import cn.warriorView.Listener.EntityDamage;
 import cn.warriorView.Listener.RegainHealth;
 import cn.warriorView.Main;
