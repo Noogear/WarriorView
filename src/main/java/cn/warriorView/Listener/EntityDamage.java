@@ -6,6 +6,7 @@ import cn.warriorView.View.DamageView.DamageOtherView;
 import cn.warriorView.View.DamageView.DamageView;
 import cn.warriorView.View.DamageView.ProjectileView;
 import cn.warriorView.View.ViewDisplay;
+import org.bukkit.entity.AreaEffectCloud;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -26,7 +27,7 @@ public class EntityDamage implements Listener {
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
     public void onDamage(EntityDamageEvent event) {
-
+//        XLogger.info(event.getEntity().getName() + " " + event.getCause() + " " + event.getFinalDamage() + " " + damageViews.get(event.getCause()));
         if (!(event.getEntity() instanceof LivingEntity)) return;
 
         double damage = event.getFinalDamage();
@@ -38,21 +39,35 @@ public class EntityDamage implements Listener {
         if (viewDisplay == null) return;
 
         if (viewDisplay instanceof DamageOtherView damageOtherView) {
-            handleOtherDamage((EntityDamageByEntityEvent) event, damageOtherView, damage);
-        } else if (viewDisplay instanceof DamageView damageView) {
-            damageView.spawn(event, damage);
-        }
-    }
+            EntityDamageByEntityEvent damageOtherEvent = (EntityDamageByEntityEvent) event;
+//            XLogger.info(String.valueOf(damageOtherEvent.getDamager().getType()));
+            if (damageOtherEvent.isCritical()) {
+                criticalView.spawn(damageOtherEvent, damage);
+                return;
+            }
 
-    private void handleOtherDamage(EntityDamageByEntityEvent event, DamageOtherView viewDisplay, double damage) {
-        if (event.isCritical()) {
-            criticalView.spawn(event, damage);
-            return;
-        }
-        if (viewDisplay instanceof ProjectileView projectileView) {
-            projectileView.spawn(event, damage);
+            if (damageOtherEvent.getDamager() instanceof LivingEntity) {
+                damageOtherView.spawn(damageOtherEvent, damage);
+                return;
+            }
+
+            if (damageOtherView instanceof ProjectileView projectileView) {
+                projectileView.spawn(damageOtherEvent, damage);
+                return;
+            }
+
+            if (damageOtherEvent.getDamager() instanceof AreaEffectCloud) {
+                viewDisplay = damageViews.get(EntityDamageEvent.DamageCause.MAGIC);
+            } else {
+                viewDisplay = damageViews.get(EntityDamageEvent.DamageCause.CUSTOM);
+            }
+            if (viewDisplay == null) return;
+            ((DamageView) viewDisplay).spawn(event, damage);
+
         } else {
-            viewDisplay.spawn(event, damage);
+
+            ((DamageView) viewDisplay).spawn(event, damage);
+
         }
     }
 

@@ -9,7 +9,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 
-import java.util.HashMap;
 import java.util.Map;
 
 public class RegainHealth implements Listener {
