@@ -6,7 +6,7 @@
 
     <groupId>cn</groupId>
     <artifactId>WarriorView</artifactId>
-    <version>1.0.6</version>
+    <version>1.0.7</version>
     <packaging>jar</packaging>
 
     <name>WarriorView</name>
@@ -42,7 +42,7 @@
                             <relocations>
                                 <relocation>
                                     <pattern>me.tofaa.entitylib</pattern>
-                                    <shadedPattern>cn.warriorView.tofaa.entitylib</shadedPattern>
+                                    <shadedPattern>depend.me.tofaa.entitylib</shadedPattern>
                                 </relocation>
                             </relocations>
                         </configuration>
