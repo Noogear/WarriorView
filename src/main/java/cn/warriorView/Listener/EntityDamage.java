@@ -16,10 +16,12 @@ import java.util.Map;
 public class EntityDamage implements Listener {
     private final Map<EntityDamageEvent.DamageCause, IDamageDisplay> damageViews;
     private final CriticalView criticalView;
+    private final boolean criticalEnabled;
 
     public EntityDamage(Main main) {
         this.damageViews = main.getViewManager().getDamageViews();
         this.criticalView = main.getViewManager().getCriticalView();
+        this.criticalEnabled = this.criticalView != null;
     }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
@@ -30,15 +32,16 @@ public class EntityDamage implements Listener {
         EntityDamageEvent.DamageCause cause = event.getCause();
         IDamageDisplay viewDisplay = damageViews.get(cause);
         if (event instanceof EntityDamageByEntityEvent otherEvent) {
-            if (criticalView != null) {
-                if (otherEvent.isCritical()) {
-                    criticalView.spawn(otherEvent, damage);
-                    return;
-                }
+            if (criticalEnabled && otherEvent.isCritical()) {
+                criticalView.spawn(otherEvent, damage);
+                return;
             }
             if (otherEvent.getDamager() instanceof AreaEffectCloud) {
                 viewDisplay = damageViews.get(EntityDamageEvent.DamageCause.MAGIC);
             }
+            if (viewDisplay == null) return;
+            viewDisplay.spawn(otherEvent, damage);
+            return;
         }
         if (viewDisplay == null) return;
         viewDisplay.spawn(event, damage);
