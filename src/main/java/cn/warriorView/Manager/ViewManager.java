@@ -1,11 +1,7 @@
 package cn.warriorView.Manager;
 
-import cn.warriorView.View.DamageView.CriticalView;
-import cn.warriorView.View.DamageView.DamageOtherView;
-import cn.warriorView.View.DamageView.DamageView;
-import cn.warriorView.View.DamageView.ProjectileView;
-import cn.warriorView.View.RegainView.RegainView;
-import cn.warriorView.View.ViewDisplay;
+import cn.warriorView.View.Category.Damage.*;
+import cn.warriorView.View.Category.Regain.RegainView;
 import cn.warriorView.View.ViewParams;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
@@ -15,8 +11,8 @@ import java.util.Map;
 
 public class ViewManager {
 
-    private final Map<EntityDamageEvent.DamageCause, ViewDisplay> damageViews;
-    private final Map<EntityRegainHealthEvent.RegainReason, ViewDisplay> regainViews;
+    private final Map<EntityDamageEvent.DamageCause, IDamageDisplay> damageViews;
+    private final Map<EntityRegainHealthEvent.RegainReason, RegainView> regainViews;
     private CriticalView criticalView;
 
     public ViewManager() {
@@ -24,7 +20,7 @@ public class ViewManager {
         this.regainViews = new EnumMap<>(EntityRegainHealthEvent.RegainReason.class);
     }
 
-    public Map<EntityDamageEvent.DamageCause, ViewDisplay> getDamageViews() {
+    public Map<EntityDamageEvent.DamageCause, IDamageDisplay> getDamageViews() {
         return damageViews;
     }
 
@@ -36,7 +32,7 @@ public class ViewManager {
         }
     }
 
-    public Map<EntityRegainHealthEvent.RegainReason, ViewDisplay> getRegainViews() {
+    public Map<EntityRegainHealthEvent.RegainReason, RegainView> getRegainViews() {
         return regainViews;
     }
 
