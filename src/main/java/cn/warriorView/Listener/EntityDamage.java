@@ -27,23 +27,20 @@ public class EntityDamage implements Listener {
         if (!(event.getEntity() instanceof LivingEntity)) return;
         double damage = event.getFinalDamage();
         if (damage <= 0.01) return;
+        EntityDamageEvent.DamageCause cause = event.getCause();
+        IDamageDisplay viewDisplay = damageViews.get(cause);
         if (event instanceof EntityDamageByEntityEvent otherEvent) {
-            if (otherEvent.isCritical()) {
-                criticalView.spawn(otherEvent, damage);
-                return;
+            if (criticalView != null) {
+                if (otherEvent.isCritical()) {
+                    criticalView.spawn(otherEvent, damage);
+                    return;
+                }
             }
             if (otherEvent.getDamager() instanceof AreaEffectCloud) {
-                damageViews.get(EntityDamageEvent.DamageCause.MAGIC).spawn(event, damage);
-                return;
+                viewDisplay = damageViews.get(EntityDamageEvent.DamageCause.MAGIC);
             }
-            damageViews.get(EntityDamageEvent.DamageCause.CUSTOM).spawn(event, damage);
-        } else {
-            EntityDamageEvent.DamageCause cause = event.getCause();
-            IDamageDisplay viewDisplay = damageViews.get(cause);
-            if (viewDisplay == null) return;
-            viewDisplay.spawn(event, damage);
         }
-
+        if (viewDisplay == null) return;
+        viewDisplay.spawn(event, damage);
     }
-
 }
