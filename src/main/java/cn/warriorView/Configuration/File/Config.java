@@ -54,7 +54,7 @@ public class Config extends ConfigurationFile {
             @Comments("是否只有玩家相关的才会显示")
             public boolean onlyPlayer = true;
 
-            @Comments("数字显示的位置, 可使用: eye, foot. 如果涉及到生物之间的攻击, 还可使用damage代表精确攻击的位置")
+            @Comments({"数字显示的位置, 可使用: eye, foot.","下方在特殊配置文件中, 如果涉及到生物之间的攻击, 还可使用damage代表精确攻击的位置"})
             public String position = "eye";
 
             @Comments("动画类型")

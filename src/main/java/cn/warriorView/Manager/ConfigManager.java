@@ -65,41 +65,50 @@ public class ConfigManager {
     }
 
     private void loadDamageView(YamlConfiguration viewFile) {
-        Set<String> topKeys = viewFile.getKeys(false);
-        for (String key : topKeys) {
-            ConfigurationSection section = viewFile.getConfigurationSection(key);
-            boolean isCritical = "CRITICAL".equalsIgnoreCase(key);
-            EntityDamageEvent.DamageCause cause = RegistryUtil.toDamageCause(key);
-            if (cause == null) {
-                if (!isCritical) {
-                    XLogger.err("Invalid Damage Cause: %s", key);
+        try{
+            Set<String> topKeys = viewFile.getKeys(false);
+            for (String key : topKeys) {
+                ConfigurationSection section = viewFile.getConfigurationSection(key);
+                boolean isCritical = "CRITICAL".equalsIgnoreCase(key);
+                EntityDamageEvent.DamageCause cause = RegistryUtil.toDamageCause(key);
+                if (cause == null) {
+                    if (!isCritical) {
+                        XLogger.err("Invalid Damage Cause: %s", key);
+                        continue;
+                    }
+                }
+                ViewParams viewParams = buildDamageViewParams(section);
+                if (isCritical) {
+                    viewManager.setCriticalView(viewParams);
+                    XLogger.info("Successfully load critical view");
                     continue;
                 }
+                viewManager.addDamageViews(cause, viewParams);
             }
-            ViewParams viewParams = buildDamageViewParams(section);
-            if (isCritical) {
-                viewManager.setCriticalView(viewParams);
-                XLogger.info("Successfully load critical view");
-                continue;
-            }
-            viewManager.addDamageViews(cause, viewParams);
+            XLogger.info("Successfully load %s damage view(s)", viewManager.getDamageViews().size());
+        } catch (Exception e) {
+            XLogger.err("Failed to load damage views: %s", e);
         }
-        XLogger.info("Successfully load %s damage view(s)", viewManager.getDamageViews().size());
     }
 
     private void loadRegainHealth(YamlConfiguration viewFile) {
-        Set<String> topKeys = viewFile.getKeys(false);
-        for (String key : topKeys) {
-            ConfigurationSection section = viewFile.getConfigurationSection(key);
-            EntityRegainHealthEvent.RegainReason reason = RegistryUtil.toRegainReason(key);
-            if (reason == null) {
-                XLogger.err("Invalid regain reason: %s", key);
-                continue;
+        try{
+            Set<String> topKeys = viewFile.getKeys(false);
+            for (String key : topKeys) {
+                ConfigurationSection section = viewFile.getConfigurationSection(key);
+                EntityRegainHealthEvent.RegainReason reason = RegistryUtil.toRegainReason(key);
+                if (reason == null) {
+                    XLogger.err("Invalid regain reason: %s", key);
+                    continue;
+                }
+                ViewParams viewParams = buildRegainViewParams(section);
+                viewManager.addRegainViews(reason, viewParams);
             }
-            ViewParams viewParams = buildRegainViewParams(section);
-            viewManager.addRegainViews(reason, viewParams);
+            XLogger.info("Successfully load %s regain view(s)", viewManager.getRegainViews().size());
+        } catch (Exception e) {
+            XLogger.err("Failed to load regain views: %s", e);
         }
-        XLogger.info("Successfully load %s regain view(s)", viewManager.getRegainViews().size());
+
     }
 
 
@@ -147,6 +156,9 @@ public class ConfigManager {
     private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, double opacity, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, String animation, String position, byte moveCount, long delay) {
         if (section == null) {
             AnimationParams animParams = animationManager.getAnimation(animation);
+            if("DAMAGE".equalsIgnoreCase(position)){
+                throw new RuntimeException("The default config cannot use \"damage\" as the position.");
+            }
             return new ViewParams(
                     textFormat,
                     replacementManager.getReplacement(replacement),

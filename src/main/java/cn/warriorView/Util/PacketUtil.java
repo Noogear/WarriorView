@@ -39,4 +39,8 @@ public class PacketUtil {
         return new HashSet<>(location.getNearbyPlayers(marge));
     }
 
+    public static int getProtocolVersion() {
+        return PacketEvents.getAPI().getServerManager().getVersion().getProtocolVersion();
+    }
+
 }
