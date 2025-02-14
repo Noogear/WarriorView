@@ -7,12 +7,11 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 
 import java.util.EnumMap;
-import java.util.Map;
 
 public class ViewManager {
 
-    private final Map<EntityDamageEvent.DamageCause, IDamageDisplay> damageViews;
-    private final Map<EntityRegainHealthEvent.RegainReason, RegainView> regainViews;
+    private final EnumMap<EntityDamageEvent.DamageCause, IDamageDisplay> damageViews;
+    private final EnumMap<EntityRegainHealthEvent.RegainReason, RegainView> regainViews;
     private CriticalView criticalView;
 
     public ViewManager() {
@@ -20,7 +19,7 @@ public class ViewManager {
         this.regainViews = new EnumMap<>(EntityRegainHealthEvent.RegainReason.class);
     }
 
-    public Map<EntityDamageEvent.DamageCause, IDamageDisplay> getDamageViews() {
+    public EnumMap<EntityDamageEvent.DamageCause, IDamageDisplay> getDamageViews() {
         return damageViews;
     }
 
@@ -32,7 +31,7 @@ public class ViewManager {
         }
     }
 
-    public Map<EntityRegainHealthEvent.RegainReason, RegainView> getRegainViews() {
+    public EnumMap<EntityRegainHealthEvent.RegainReason, RegainView> getRegainViews() {
         return regainViews;
     }
 

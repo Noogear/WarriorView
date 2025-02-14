@@ -11,10 +11,10 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 
-import java.util.Map;
+import java.util.EnumMap;
 
 public class EntityDamage implements Listener {
-    private final Map<EntityDamageEvent.DamageCause, IDamageDisplay> damageViews;
+    private final EnumMap<EntityDamageEvent.DamageCause, IDamageDisplay> damageViews;
     private final CriticalView criticalView;
     private final boolean criticalEnabled;
 

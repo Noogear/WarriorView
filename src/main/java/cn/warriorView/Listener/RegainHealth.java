@@ -8,10 +8,10 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 
-import java.util.Map;
+import java.util.EnumMap;
 
 public class RegainHealth implements Listener {
-    private final Map<EntityRegainHealthEvent.RegainReason, RegainView> regainViews;
+    private final EnumMap<EntityRegainHealthEvent.RegainReason, RegainView> regainViews;
 
     public RegainHealth(Main main) {
         this.regainViews = main.getViewManager().getRegainViews();
