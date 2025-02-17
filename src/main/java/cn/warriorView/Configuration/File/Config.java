@@ -138,6 +138,6 @@ public class Config extends ConfigurationFile {
     public static String animation = "animation.yml";
 
     @Comments("字符替换配置文件")
-    public static String replacement = "format.yml";
+    public static String replacement = "replacement.yml";
 
 }

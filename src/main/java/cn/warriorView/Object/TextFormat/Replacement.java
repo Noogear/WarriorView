@@ -1,39 +1,32 @@
-package cn.warriorView.Object;
+package cn.warriorView.Object.TextFormat;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class Replace {
+public class Replacement {
     private final String[] numbers;
     private final Map<String, String> chars;
     private final boolean hasNumber;
     private final boolean hasChar;
 
-    protected Replace(String[] numbers, Map<String, String> chars, boolean hasNumber, boolean hasChar) {
+    protected Replacement(String[] numbers, Map<String, String> chars, boolean hasNumber, boolean hasChar) {
         this.numbers = numbers;
         this.chars = chars;
         this.hasNumber = hasNumber;
         this.hasChar = hasChar;
     }
 
-    public static Replace create(String[] numbers, List<String> list) {
+    public static Replacement create(String[] numbers, Map<String, String> chars) {
         boolean hasNumber = true;
         boolean hasChar = true;
-        if (numbers.length < 10) {
+        if (numbers.length != 10) {
             hasNumber = false;
-        }
-        Map<String, String> chars = new HashMap<>();
-        for (String element : list) {
-            String[] parts = element.split("#");
-            if (parts.length == 2) {
-                chars.put(parts[0], parts[1]);
-            }
         }
         if (chars.isEmpty()) {
             hasChar = false;
         }
-        return new Replace(numbers, chars, hasNumber, hasChar);
+        return new Replacement(numbers, chars, hasNumber, hasChar);
     }
 
     private String replaceNumber(String text) {

@@ -1,4 +1,6 @@
-package cn.warriorView.Object;
+package cn.warriorView.Object.TextFormat;
+
+import net.kyori.adventure.text.format.TextFormat;
 
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -6,7 +8,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class TextFormat {
+public class TextQuantize implements ITextFormat {
 
     private static final Pattern FORMAT_REGEX = Pattern.compile("^(.*?)%(\\d+)f(.*)$");
     private static final char[] DIGIT_TABLE = new char[10];
@@ -26,8 +28,8 @@ public class TextFormat {
     private final int[] decimalFactors;
     private final ThreadLocal<StringBuilder> buffer = ThreadLocal.withInitial(()  -> new StringBuilder(32));
 
-    private TextFormat(String prefix, String suffix, int precision,
-                       double[] thresholds, String[] units) {
+    private TextQuantize(String prefix, String suffix, int precision,
+                         double[] thresholds, String[] units) {
         this.prefix  = prefix.toCharArray();
         this.suffix  = suffix.toCharArray();
         this.precision  = precision;
@@ -40,11 +42,11 @@ public class TextFormat {
         this.decimalFactors  = computeDecimalFactors(precision);
     }
 
-    public static TextFormat build(String format, Map<Integer, String> unitMap) {
+    public static TextQuantize build(String format, Map<Integer, String> unitMap) {
         Matcher matcher = FORMAT_REGEX.matcher(format);
         if (!matcher.matches())  throw new IllegalArgumentException("Invalid format: " + format);
 
-        return new TextFormat(
+        return new TextQuantize(
                 matcher.group(1),
                 matcher.group(3),
                 Integer.parseInt(matcher.group(2)),
@@ -74,6 +76,7 @@ public class TextFormat {
         return factors;
     }
 
+    @Override
     public String format(double value) {
         StringBuilder buf = buffer.get();
         buf.setLength(0);
@@ -113,7 +116,6 @@ public class TextFormat {
         return high;
     }
 
-    // 保持独立方法
     private void writeFixedNumber(long num, StringBuilder buf) {
         long integerPart = num / scaleFactor;
         long decimalPart = num % scaleFactor;
@@ -126,7 +128,6 @@ public class TextFormat {
         }
     }
 
-    // 独立数字写入方法
     private void writeDigits(long num, StringBuilder buf) {
         if (num == 0) {
             buf.append('0');
@@ -141,7 +142,6 @@ public class TextFormat {
         reverseSegment(buf, start, buf.length()  - 1);
     }
 
-    // 独立小数填充方法
     private void writePaddedDecimal(long dec, StringBuilder buf) {
         for (int factor : decimalFactors) {
             buf.append(DIGIT_TABLE[(int)  (dec / factor)]);
@@ -149,7 +149,6 @@ public class TextFormat {
         }
     }
 
-    // 独立反转实现
     private static void reverseSegment(StringBuilder sb, int start, int end) {
         while (start < end) {
             char temp = sb.charAt(start);

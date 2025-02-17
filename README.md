@@ -15,7 +15,7 @@
    - Support for different text effects based on damage/healing types.
    - Color and gradient customization using [MiniMessage](https://webui.advntr.dev). 
    - Multiple animation effects (requires configuration of `animation.yml`). 
-   - Text replace feature, allowing character substitution for numbers and text to achieve customized effects.
+   - Text replacement feature, allowing character substitution for numbers and text to achieve customized effects.
 
 2. **Multiple Configuration Options**  
    - Text scaling random value support: `0.9,1.0,1.1` or `0.9-1.1`.
@@ -23,8 +23,8 @@
   ```
    # Displayed text, only supports minimessage color format
    text-format: <red>-%.2f
-   # Text replace feature
-   replace: ''
+   # Text replacement feature
+   replacement: ''
    # Size of generated text, supports single/multiple values or formats like 0.9-1.1 for random selection
    scale: 0.9, 1.0, 1.1
    # Text shadow
@@ -66,5 +66,5 @@
    damage_cause.yml   # Damage cause configuration
    regain_reason.yml  # Healing cause configuration
    animation.yml      # Animation configuration
-   replace.yml    # Text replace rules
+   replacement.yml    # Text replacement rules
    language.yml       # Language file

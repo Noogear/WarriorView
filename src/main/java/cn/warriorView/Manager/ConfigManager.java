@@ -7,6 +7,7 @@ import cn.warriorView.Main;
 import cn.warriorView.Object.Animation.Animation;
 import cn.warriorView.Object.Animation.AnimationParams;
 import cn.warriorView.Object.Scale;
+import cn.warriorView.Object.TextFormat.TextQuantize;
 import cn.warriorView.Util.MathUtil;
 import cn.warriorView.Util.RegistryUtil;
 import cn.warriorView.Util.XLogger;
@@ -29,14 +30,14 @@ public class ConfigManager {
     private final File configFile;
     private final File languageFile;
     private final AnimationManager animationManager;
-    private final ReplacementManager replacementManager;
+    private final TextFormatManager textFormatManager;
     private final Main plugin;
     private final ViewManager viewManager;
 
     public ConfigManager(Main main) {
         this.plugin = main;
         animationManager = new AnimationManager();
-        replacementManager = new ReplacementManager();
+        textFormatManager = new TextFormatManager();
         viewManager = plugin.getViewManager();
         configFile = new File(plugin.getDataFolder(), "config.yml");
         languageFile = new File(plugin.getDataFolder(), "language.yml");
@@ -52,12 +53,12 @@ public class ConfigManager {
         }
         viewManager.init();
         animationManager.init();
-        replacementManager.init();
+        textFormatManager.init();
         if (!Config.enabled) {
             XLogger.info("WarriorView is not enabled!");
             return;
         }
-        replacementManager.load(loadOrCreateConfig(Config.replacement, "format.yml"));
+        textFormatManager.load(loadOrCreateConfig(Config.replacement, "replacement.yml"));
         animationManager.load(loadOrCreateConfig(Config.animation, "animation.yml"));
         loadDamageView(loadOrCreateConfig(Config.damageEntity.apply, "views/damage_cause.yml"));
         loadRegainHealth(loadOrCreateConfig(Config.regainHealth.apply, "views/regain_reason.yml"));
@@ -160,8 +161,8 @@ public class ConfigManager {
                 throw new RuntimeException("The default config cannot use \"damage\" as the position.");
             }
             return new ViewParams(
-                    textFormat,
-                    replacementManager.getReplacement(replacement),
+                    TextQuantize.build(textFormat,) ,
+                    textFormatManager.getReplacement(replacement),
                     Scale.create(scale),
                     shadow,
                     MathUtil.opacityFromPercent(opacity),
@@ -176,8 +177,8 @@ public class ConfigManager {
         }
         AnimationParams animParams = animationManager.getAnimation(section.getString("animation", animation));
         return new ViewParams(
-                section.getString("text-format", textFormat),
-                replacementManager.getReplacement(section.getString("replacement", replacement)),
+                textFormat,
+                textFormatManager.getReplacement(section.getString("replacement", replacement)),
                 Scale.create(section.getString("scale", scale)),
                 section.getBoolean("shadow", shadow),
                 MathUtil.opacityFromPercent(section.getDouble("opacity", opacity)),

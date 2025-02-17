@@ -1,12 +1,13 @@
 package cn.warriorView.View;
 
 import cn.warriorView.Object.Animation.Animation;
-import cn.warriorView.Object.Replace;
+import cn.warriorView.Object.TextFormat.Replacement;
 import cn.warriorView.Object.Scale;
+import cn.warriorView.Object.TextFormat.TextQuantize;
 
 public record ViewParams(
-        String textFormat,
-        Replace replace,
+        TextQuantize textFormat,
+        Replacement replacement,
         Scale scale,
         boolean shadow,
         byte textOpacity,
@@ -22,6 +23,12 @@ public record ViewParams(
         if (viewRange < 0) {
             throw new IllegalArgumentException("View range cannot be negative");
         }
+
+        if(viewMarge < 0) {
+            throw new IllegalArgumentException("View Marge cannot be negative");
+        }
+
+
     }
 
 }
