@@ -1,44 +1,52 @@
 # 动画功能较为简陋, 可以实现基本的动画效果
-# type可以使用up:上升, down:下降, up_and_down: 先上升再下降
-# max: 移动的最大距离
-# speed: 移动的速度
-# offset: 全息图偏移量
+# max: 移动的最大距离, 到距离上限时消失
+# yaw: 移动时的水平偏移距离
+# speed:
+#   initial: 移动的初始速度
+#   acceleration: 移动的加速度, 正数为加速, 负数为减速
+# offset: 生成全息图时的偏移坐标
 1:
-  type: UP_AND_DOWN
-  max: 1
-  speed: 0.17
+  max: 2.0
+  yaw: 0.03
+  speed:
+    initial: 1.15
+    acceleration: -0.2
   offset:
     x: 0
     y: 0.22
     z: 0
 2:
-  type: UP
   max: 0.8
-  speed: 0.1
+  speed:
+    initial: 0
+    acceleration: 0.1
   offset:
     x: 0
     y: -0.2
     z: 0
 3:
-  type: DOWN
   max: 2
-  speed: 0.2
+  speed:
+    initial: 0
+    acceleration: -0.2
   offset:
     x: 0
     y: 0
     z: 0
 4:
-  type: UP
   max: 0.6
-  speed: 0.1
+  speed:
+    initial: 0
+    acceleration: 0.08
   offset:
     x: 0
     y: 0.5
     z: 0
 5:
-  type: UP_AND_DOWN
   max: 1
-  speed: 0.17
+  speed:
+    initial: 0
+    acceleration: 0.17
   offset:
     x: 0
     y: 0.5
