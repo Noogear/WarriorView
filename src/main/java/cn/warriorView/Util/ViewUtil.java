@@ -1,7 +1,7 @@
 package cn.warriorView.Util;
 
 import cn.warriorView.Object.Animation.Animation;
-import cn.warriorView.Object.Replacement;
+import cn.warriorView.Object.Replace;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.Scheduler.XRunnable;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
@@ -28,7 +28,7 @@ public class ViewUtil {
             byte viewMarge,
             boolean isSeeThrough,
             String textFormat,
-            Replacement replacement,
+            Replace replace,
             byte textOpacity,
             int backGroundColor,
             Scale scale,
@@ -43,7 +43,7 @@ public class ViewUtil {
             @Override
             public void run() {
                 int entityId = PacketUtil.getAutoEntityId();
-                packetHolo(entityId, location, players, value, animation, isShadow, viewRange, isSeeThrough, textFormat, replacement, textOpacity, backGroundColor, scale);
+                packetHolo(entityId, location, players, value, animation, isShadow, viewRange, isSeeThrough, textFormat, replace, textOpacity, backGroundColor, scale);
                 animation.play(entityId, PacketUtil.locationToV3d(location), players);
             }
         }.async();
@@ -57,7 +57,7 @@ public class ViewUtil {
             byte viewMarge,
             boolean isSeeThrough,
             String textFormat,
-            Replacement replacement,
+            Replace replace,
             byte textOpacity,
             int backGroundColor,
             Scale scale,
@@ -75,7 +75,7 @@ public class ViewUtil {
                 Location attackerLocation = attacker.getEyeLocation();
                 Location damageLocation = attackerLocation.add(attackerLocation.getDirection().normalize().multiply(attackerLocation.distance(entityLocation)));
                 int entityId = PacketUtil.getAutoEntityId();
-                packetHolo(entityId, damageLocation, players, value, animation, isShadow, viewRange, isSeeThrough, textFormat, replacement, textOpacity, backGroundColor, scale);
+                packetHolo(entityId, damageLocation, players, value, animation, isShadow, viewRange, isSeeThrough, textFormat, replace, textOpacity, backGroundColor, scale);
                 animation.play(entityId, PacketUtil.locationToV3d(damageLocation), players);
             }
         }.async();
@@ -93,7 +93,7 @@ public class ViewUtil {
             float viewRange,
             boolean isSeeThrough,
             String textFormat,
-            Replacement replacement,
+            Replace replace,
             byte textOpacity,
             int backGroundColor,
             Scale scale
@@ -107,8 +107,8 @@ public class ViewUtil {
         meta.setViewRange(viewRange);
         meta.setSeeThrough(isSeeThrough);
         String text = String.format(textFormat, value);
-        if (replacement != null) {
-            text = replacement.replaceAll(text);
+        if (replace != null) {
+            text = replace.replaceAll(text);
         }
         meta.setText(MiniMessage.miniMessage().deserialize(text));
         meta.setTextOpacity(textOpacity);

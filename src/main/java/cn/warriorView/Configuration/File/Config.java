@@ -69,7 +69,7 @@ public class Config extends ConfigurationFile {
         }
 
         @Comments("特殊配置文件, 在下方文件中添加了造成伤害的原因才能正常使用")
-        public String apply = "damage_cause.yml";
+        public String apply = "views/damage_cause.yml";
 
     }
 
@@ -130,7 +130,7 @@ public class Config extends ConfigurationFile {
         }
 
         @Comments("特殊配置文件, 在下方文件中添加了治疗的原因才能正常使用")
-        public String apply = "regain_reason.yml";
+        public String apply = "views/regain_reason.yml";
 
     }
 
@@ -138,6 +138,6 @@ public class Config extends ConfigurationFile {
     public static String animation = "animation.yml";
 
     @Comments("字符替换配置文件")
-    public static String replacement = "replacement.yml";
+    public static String replacement = "format.yml";
 
 }

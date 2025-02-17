@@ -1,7 +1,7 @@
 package cn.warriorView.View.Category.Damage;
 
 import cn.warriorView.Object.Animation.Animation;
-import cn.warriorView.Object.Replacement;
+import cn.warriorView.Object.Replace;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.ViewUtil;
 import cn.warriorView.View.ViewParams;
@@ -14,7 +14,7 @@ import org.bukkit.event.entity.EntityDamageEvent;
 public class DamageView implements IDamageDisplay {
 
     final String textFormat;
-    final Replacement replacement;
+    final Replace replace;
     final Scale scale;
     final boolean shadow;
     final byte textOpacity;
@@ -28,7 +28,7 @@ public class DamageView implements IDamageDisplay {
 
     public DamageView(ViewParams params) {
         this.textFormat = params.textFormat();
-        this.replacement = params.replacement();
+        this.replace = params.replace();
         this.scale = params.scale();
         this.shadow = params.shadow();
         this.textOpacity = params.textOpacity();
@@ -51,7 +51,7 @@ public class DamageView implements IDamageDisplay {
             if (this.onlyPlayer) return;
         }
         Location damageLocation = (this.position == Position.EYE) ? entity.getEyeLocation() : entity.getLocation();
-        ViewUtil.spawnDisplay(animation, shadow, viewRange, viewMarge, seeThrough, textFormat, replacement, textOpacity, backgroundColor, scale, damageLocation, player, damage);
+        ViewUtil.spawnDisplay(animation, shadow, viewRange, viewMarge, seeThrough, textFormat, replace, textOpacity, backgroundColor, scale, damageLocation, player, damage);
     }
 
     @Override

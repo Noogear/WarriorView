@@ -1,6 +1,6 @@
 package cn.warriorView.Manager;
 
-import cn.warriorView.Object.Replacement;
+import cn.warriorView.Object.Replace;
 import cn.warriorView.Util.XLogger;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -12,7 +12,7 @@ import java.util.Set;
 
 public class ReplacementManager {
 
-    private final Map<String, Replacement> replacements;
+    private final Map<String, Replace> replacements;
 
     public ReplacementManager() {
         this.replacements = new HashMap<>();
@@ -29,12 +29,12 @@ public class ReplacementManager {
             if (section == null) continue;
             String[] numbers = section.getStringList("number").toArray(new String[0]);
             List<String> chars = section.getStringList("char");
-            replacements.put(topKey, Replacement.create(numbers, chars));
+            replacements.put(topKey, Replace.create(numbers, chars));
         }
         XLogger.info("Successfully load " + replacements.size() + " replacement(s)");
     }
 
-    public Replacement getReplacement(String groupId) {
+    public Replace getReplacement(String groupId) {
         return replacements.get(groupId);
     }
 

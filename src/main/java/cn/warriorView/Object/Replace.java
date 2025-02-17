@@ -4,20 +4,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class Replacement {
+public class Replace {
     private final String[] numbers;
     private final Map<String, String> chars;
     private final boolean hasNumber;
     private final boolean hasChar;
 
-    protected Replacement(String[] numbers, Map<String, String> chars, boolean hasNumber, boolean hasChar) {
+    protected Replace(String[] numbers, Map<String, String> chars, boolean hasNumber, boolean hasChar) {
         this.numbers = numbers;
         this.chars = chars;
         this.hasNumber = hasNumber;
         this.hasChar = hasChar;
     }
 
-    public static Replacement create(String[] numbers, List<String> list) {
+    public static Replace create(String[] numbers, List<String> list) {
         boolean hasNumber = true;
         boolean hasChar = true;
         if (numbers.length < 10) {
@@ -33,7 +33,7 @@ public class Replacement {
         if (chars.isEmpty()) {
             hasChar = false;
         }
-        return new Replacement(numbers, chars, hasNumber, hasChar);
+        return new Replace(numbers, chars, hasNumber, hasChar);
     }
 
     private String replaceNumber(String text) {

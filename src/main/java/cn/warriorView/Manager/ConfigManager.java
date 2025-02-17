@@ -57,10 +57,10 @@ public class ConfigManager {
             XLogger.info("WarriorView is not enabled!");
             return;
         }
-        replacementManager.load(loadOrCreateConfig(Config.replacement, "replacement.yml"));
+        replacementManager.load(loadOrCreateConfig(Config.replacement, "format.yml"));
         animationManager.load(loadOrCreateConfig(Config.animation, "animation.yml"));
-        loadDamageView(loadOrCreateConfig(Config.damageEntity.apply, "damage_cause.yml"));
-        loadRegainHealth(loadOrCreateConfig(Config.regainHealth.apply, "regain_reason.yml"));
+        loadDamageView(loadOrCreateConfig(Config.damageEntity.apply, "views/damage_cause.yml"));
+        loadRegainHealth(loadOrCreateConfig(Config.regainHealth.apply, "views/regain_reason.yml"));
 
     }
 
