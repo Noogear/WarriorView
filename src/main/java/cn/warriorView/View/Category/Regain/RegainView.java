@@ -1,7 +1,7 @@
 package cn.warriorView.View.Category.Regain;
 
 import cn.warriorView.Object.Animation.Animation;
-import cn.warriorView.Object.TextFormat.Replacement;
+import cn.warriorView.Object.Replacement;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.ViewUtil;
 import cn.warriorView.View.ViewParams;

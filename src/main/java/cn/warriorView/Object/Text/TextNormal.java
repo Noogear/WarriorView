@@ -1,10 +1,9 @@
-package cn.warriorView.Object.TextFormat;
+package cn.warriorView.Object.Text;
 
-public class TextNormal implements ITextFormat {
+public class TextNormal {
 
     private String text;
 
-    @Override
     public String format(double value) {
         return String.format(text, value);
     }

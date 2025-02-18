@@ -1,7 +1,5 @@
-package cn.warriorView.Object.TextFormat;
+package cn.warriorView.Object;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class Replacement {
@@ -31,8 +29,8 @@ public class Replacement {
 
     private String replaceNumber(String text) {
         char[] chars = text.toCharArray();
-        for (int i = 0; i < chars.length;  i++) {
-            if (Character.isDigit(chars[i]))  {
+        for (int i = 0; i < chars.length; i++) {
+            if (Character.isDigit(chars[i])) {
                 chars[i] = numbers[chars[i] - '0'].charAt(0);
             }
         }

@@ -1,7 +1,7 @@
 package cn.warriorView.Util;
 
 import cn.warriorView.Object.Animation.Animation;
-import cn.warriorView.Object.TextFormat.Replacement;
+import cn.warriorView.Object.Replacement;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.Scheduler.XRunnable;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;

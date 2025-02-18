@@ -1,12 +1,11 @@
 package cn.warriorView.Manager;
 
-import cn.warriorView.Object.TextFormat.Replacement;
+import cn.warriorView.Object.Replacement;
 import cn.warriorView.Util.XLogger;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 

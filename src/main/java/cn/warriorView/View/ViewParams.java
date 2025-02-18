@@ -1,9 +1,8 @@
 package cn.warriorView.View;
 
 import cn.warriorView.Object.Animation.Animation;
-import cn.warriorView.Object.TextFormat.Replacement;
+import cn.warriorView.Object.Replacement;
 import cn.warriorView.Object.Scale;
-import cn.warriorView.Object.TextFormat.TextQuantize;
 
 public record ViewParams(
         TextQuantize textFormat,
