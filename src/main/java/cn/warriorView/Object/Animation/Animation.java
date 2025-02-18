@@ -31,44 +31,15 @@ public class Animation {
         return new Animation(params, moveCount, delay);
     }
 
-    public void play(int entityId, Vector3d location, Set<Player> players, double[] yaws) {
-        new XRunnable() {
-            final double x = yaws[0] * 1;
-            final double y = yaws[1] * 1;
-            byte count = 0;
-            double speed = initial;
-
-            @Override
-            public void run() {
-                if (count >= moveCount || speed > max) {
-                    PacketUtil.sendPacketToPlayers(new WrapperPlayServerDestroyEntities(entityId), players);
-                    players.clear();
-                    cancel();
-                    return;
-                }
-
-                count++;
-                PacketUtil.sendPacketToPlayers(new WrapperPlayServerEntityTeleport(
-                        entityId,
-                        location.add(x * count, count * speed, y * count),
-                        0f,
-                        0f,
-                        false
-                ), players);
-                speed += acceleration;
-            }
-        }.asyncTimer(delay, delay);
-    }
-
     public void play(int entityId, Vector3d location, Set<Player> players) {
         new XRunnable() {
+            final double y = location.getY();
             byte count = 0;
             double speed = initial;
-            final double y = location.getY();
 
             @Override
             public void run() {
-                if (count >= moveCount || speed > max) {
+                if (count >= moveCount) {
                     PacketUtil.sendPacketToPlayers(new WrapperPlayServerDestroyEntities(entityId), players);
                     players.clear();
                     cancel();
@@ -83,7 +54,9 @@ public class Animation {
                         0f,
                         false
                 ), players);
-                speed += acceleration;
+                if (speed <= max) {
+                    speed += acceleration;
+                }
             }
         }.asyncTimer(delay, delay);
     }
