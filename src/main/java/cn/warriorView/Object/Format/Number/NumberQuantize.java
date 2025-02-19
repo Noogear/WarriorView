@@ -1,10 +1,10 @@
 package cn.warriorView.Object.Format.Number;
 
-import cn.warriorView.Util.CharUtils;
+import cn.warriorView.Util.TextUtils;
 
 import java.util.Map;
 
-public final class NumberQuantize implements INumberFormat {
+public final class NumberQuantize implements INumber {
     private static final char[] DIGITS = "0123456789".toCharArray();
     private static final long[] POW10_CACHE = new long[18];
 
@@ -47,7 +47,7 @@ public final class NumberQuantize implements INumberFormat {
             int exp = sortedEntries.get(i).getKey();
             thresholds[i] = (exp >= 0 && exp < POW10_CACHE.length) ?
                     POW10_CACHE[exp] : Math.pow(10, exp);
-            units[i] = CharUtils.unescapeUnicode(sortedEntries.get(i).getValue());
+            units[i] = TextUtils.unescapeUnicode(sortedEntries.get(i).getValue());
         }
 
         return new NumberQuantize(thresholds, units);

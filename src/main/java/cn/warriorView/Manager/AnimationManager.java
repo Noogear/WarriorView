@@ -35,7 +35,7 @@ public class AnimationManager {
             if (speedSec != null) {
                 initial = MathUtil.round(speedSec.getDouble("initial"), 2);
                 acceleration = MathUtil.round(speedSec.getDouble("acceleration"), 2);
-            } else{
+            } else {
                 throw new RuntimeException("Animation " + topKey + " has no speed section");
             }
             ConfigurationSection offsetSec = section.getConfigurationSection("offset");

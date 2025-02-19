@@ -1,7 +1,7 @@
 package cn.warriorView.View.Category.Regain;
 
 import cn.warriorView.Object.Animation.Animation;
-import cn.warriorView.Object.Replacement;
+import cn.warriorView.Object.Format.TextFormat;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.ViewUtil;
 import cn.warriorView.View.ViewParams;
@@ -13,8 +13,7 @@ import org.bukkit.event.entity.EntityRegainHealthEvent;
 public class RegainView {
     final boolean onlyPlayer;
     final Position position;
-    private final String textFormat;
-    private final Replacement replacement;
+    private final TextFormat textFormat;
     private final Scale scale;
     private final boolean shadow;
     private final byte textOpacity;
@@ -26,7 +25,6 @@ public class RegainView {
 
     public RegainView(ViewParams params) {
         this.textFormat = params.textFormat();
-        this.replacement = params.replacement();
         this.scale = params.scale();
         this.shadow = params.shadow();
         this.textOpacity = params.textOpacity();
@@ -50,7 +48,7 @@ public class RegainView {
             if (this.onlyPlayer) return;
         }
         Location regainLocation = (this.position == Position.EYE) ? entity.getEyeLocation() : entity.getLocation();
-        ViewUtil.spawnDisplay(animation, shadow, viewRange, viewMarge, seeThrough, textFormat, replacement, textOpacity, backgroundColor, scale, regainLocation, player, regain);
+        ViewUtil.spawnDisplay(animation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, regainLocation, player, regain);
 
     }
 

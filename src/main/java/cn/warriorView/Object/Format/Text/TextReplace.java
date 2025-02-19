@@ -1,13 +1,13 @@
 package cn.warriorView.Object.Format.Text;
 
-import cn.warriorView.Util.CharUtils;
+import cn.warriorView.Util.TextUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class TextReplace implements ITextFormat {
+public class TextReplace implements IText {
     private final char[] numberMap = new char[10];
     private final String[] asciiMap = new String[128];
     private final Map<Character, String> extendedMap;
@@ -39,7 +39,7 @@ public class TextReplace implements ITextFormat {
         boolean hasExtendedReplace = false;
         for (Map.Entry<String, String> e : rules.entrySet()) {
             String key = e.getKey();
-            String val = e.getValue() != null ? CharUtils.unescapeUnicode(e.getValue()) : "";
+            String val = e.getValue() != null ? TextUtils.unescapeUnicode(e.getValue()) : "";
             if (key.length() != 1) {
                 throw new IllegalArgumentException("Rule key must be single character: " + key);
             }

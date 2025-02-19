@@ -29,14 +29,14 @@ public class ConfigManager {
     private final File configFile;
     private final File languageFile;
     private final AnimationManager animationManager;
-    private final TextFormatManager textFormatManager;
+    private final FormatManager formatManager;
     private final Main plugin;
     private final ViewManager viewManager;
 
     public ConfigManager(Main main) {
         this.plugin = main;
         animationManager = new AnimationManager();
-        textFormatManager = new TextFormatManager();
+        formatManager = new FormatManager();
         viewManager = plugin.getViewManager();
         configFile = new File(plugin.getDataFolder(), "config.yml");
         languageFile = new File(plugin.getDataFolder(), "language.yml");
@@ -52,12 +52,12 @@ public class ConfigManager {
         }
         viewManager.init();
         animationManager.init();
-        textFormatManager.init();
+        formatManager.init();
         if (!Config.enabled) {
             XLogger.info("WarriorView is not enabled!");
             return;
         }
-        textFormatManager.load(loadOrCreateConfig(Config.replacement, "replacement.yml"));
+        formatManager.load(loadOrCreateConfig(Config.replacement, "replacement.yml"));
         animationManager.load(loadOrCreateConfig(Config.animation, "animation.yml"));
         loadDamageView(loadOrCreateConfig(Config.damageEntity.apply, "views/damage_cause.yml"));
         loadRegainHealth(loadOrCreateConfig(Config.regainHealth.apply, "views/regain_reason.yml"));
@@ -65,7 +65,7 @@ public class ConfigManager {
     }
 
     private void loadDamageView(YamlConfiguration viewFile) {
-        try{
+        try {
             Set<String> topKeys = viewFile.getKeys(false);
             for (String key : topKeys) {
                 ConfigurationSection section = viewFile.getConfigurationSection(key);
@@ -92,7 +92,7 @@ public class ConfigManager {
     }
 
     private void loadRegainHealth(YamlConfiguration viewFile) {
-        try{
+        try {
             Set<String> topKeys = viewFile.getKeys(false);
             for (String key : topKeys) {
                 ConfigurationSection section = viewFile.getConfigurationSection(key);
@@ -156,12 +156,11 @@ public class ConfigManager {
     private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, double opacity, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, String animation, String position, byte moveCount, long delay) {
         if (section == null) {
             AnimationParams animParams = animationManager.getAnimation(animation);
-            if("DAMAGE".equalsIgnoreCase(position)){
+            if ("DAMAGE".equalsIgnoreCase(position)) {
                 throw new RuntimeException("The default config cannot use \"damage\" as the position.");
             }
             return new ViewParams(
-                    TextQuantize.build(textFormat,) ,
-                    textFormatManager.getReplacement(replacement),
+                    formatManager.getTextFormat(textFormat, replacement),
                     Scale.create(scale),
                     shadow,
                     MathUtil.opacityFromPercent(opacity),
@@ -176,8 +175,7 @@ public class ConfigManager {
         }
         AnimationParams animParams = animationManager.getAnimation(section.getString("animation", animation));
         return new ViewParams(
-                textFormat,
-                textFormatManager.getReplacement(section.getString("replacement", replacement)),
+                formatManager.getTextFormat(section.getString("text-format", textFormat), section.getString("replacement", replacement)),
                 Scale.create(section.getString("scale", scale)),
                 section.getBoolean("shadow", shadow),
                 MathUtil.opacityFromPercent(section.getDouble("opacity", opacity)),

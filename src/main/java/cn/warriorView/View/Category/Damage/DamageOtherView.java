@@ -1,7 +1,7 @@
 package cn.warriorView.View.Category.Damage;
 
 import cn.warriorView.Object.Animation.Animation;
-import cn.warriorView.Object.Replacement;
+import cn.warriorView.Object.Format.TextFormat;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.ViewUtil;
 import cn.warriorView.View.ViewParams;
@@ -15,8 +15,7 @@ public class DamageOtherView implements IDamageDisplay {
 
     final boolean onlyPlayer;
     final Position position;
-    final String textFormat;
-    final Replacement replacement;
+    final TextFormat textFormat;
     final Scale scale;
     final boolean shadow;
     final byte textOpacity;
@@ -29,7 +28,6 @@ public class DamageOtherView implements IDamageDisplay {
 
     public DamageOtherView(ViewParams params) {
         this.textFormat = params.textFormat();
-        this.replacement = params.replacement();
         this.scale = params.scale();
         this.shadow = params.shadow();
         this.textOpacity = params.textOpacity();
@@ -61,7 +59,7 @@ public class DamageOtherView implements IDamageDisplay {
         Location damageLocation;
         switch (this.position) {
             case DAMAGE:
-                ViewUtil.spawnDisplay(animation, shadow, viewRange, viewMarge, seeThrough, textFormat, replacement, textOpacity, backgroundColor, scale, entity, attacker, player, damage);
+                ViewUtil.spawnDisplay(animation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, entity, attacker, player, damage);
                 return;
             case EYE:
                 damageLocation = entity.getEyeLocation();
@@ -70,7 +68,7 @@ public class DamageOtherView implements IDamageDisplay {
                 damageLocation = entity.getLocation();
                 break;
         }
-        ViewUtil.spawnDisplay(animation, shadow, viewRange, viewMarge, seeThrough, textFormat, replacement, textOpacity, backgroundColor, scale, damageLocation, player, damage);
+        ViewUtil.spawnDisplay(animation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage);
 
     }
 

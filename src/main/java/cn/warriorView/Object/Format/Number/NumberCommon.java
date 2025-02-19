@@ -3,7 +3,7 @@ package cn.warriorView.Object.Format.Number;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
-public class NumberCommon implements INumberFormat {
+public class NumberCommon implements INumber {
 
     @Override
     public String format(String prefix, String suffix, int precision, double value) {
