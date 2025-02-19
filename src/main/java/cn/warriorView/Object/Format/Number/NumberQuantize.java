@@ -1,8 +1,6 @@
 package cn.warriorView.Object.Format.Number;
 
 import cn.warriorView.Util.CharUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.bukkit.util.StringUtil;
 
 import java.util.Map;
 
