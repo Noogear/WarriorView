@@ -7,6 +7,7 @@ import cn.warriorView.Util.Scheduler.XRunnable;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 import java.util.Set;
@@ -29,8 +30,8 @@ public class Side implements IAnimation {
     }
 
     @Override
-    public float offset() {
-        return offset;
+    public Vector3d offset(Location location) {
+        return new Vector3d(location.getX() + offset, location.getY(), location.getZ() + offset);
     }
 
     @Override

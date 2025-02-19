@@ -110,7 +110,7 @@ public class ViewUtil {
                 entityId,
                 Optional.of(UUID.randomUUID()),
                 EntityTypes.TEXT_DISPLAY,
-                new Vector3d(location.getX(), location.getY() + animation.offset(), location.getZ()),
+                animation.offset(location),
                 0f, 0f, 0f, 0, Optional.empty()
         );
         PacketUtil.sendPacketToPlayers(packet, players);

@@ -3,8 +3,8 @@ package cn.warriorView.Manager;
 import cn.warriorView.Object.Animation.AnimationParams;
 import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Animation.Type.Side;
-import cn.warriorView.Object.Animation.Type.Up;
-import cn.warriorView.Object.Animation.Type.UpAndSide;
+import cn.warriorView.Object.Animation.Type.Approach;
+import cn.warriorView.Object.Animation.Type.ApproachAndSide;
 import cn.warriorView.Util.MathUtil;
 import cn.warriorView.Util.XLogger;
 import org.bukkit.configuration.ConfigurationSection;
@@ -53,10 +53,10 @@ public class AnimationManager {
                 float offset = MathUtil.round(section.getDouble("offset", 0), 2);
                 ConfigurationSection speedSec = sideSec.getConfigurationSection("speed");
                 float initial = 0;
-                float accelerate = 0.1f;
+                float accelerate = 0;
                 if (speedSec != null) {
                     initial = MathUtil.round(sideSec.getDouble("initial", 0), 2);
-                    accelerate = MathUtil.round(sideSec.getDouble("accelerate", 0.1), 2);
+                    accelerate = MathUtil.round(sideSec.getDouble("accelerate", 0), 2);
                 }
                 sideAnimations.put(topKey, new AnimationParams(max, initial, accelerate, offset));
             }
@@ -66,9 +66,9 @@ public class AnimationManager {
 
     public IAnimation get(String groupId, byte moveCount, long delay) {
         if (upAnimations.containsKey(groupId) && sideAnimations.containsKey(groupId)) {
-            return new UpAndSide(upAnimations.get(groupId), sideAnimations.get(groupId), moveCount, delay);
+            return new ApproachAndSide(upAnimations.get(groupId), sideAnimations.get(groupId), moveCount, delay);
         } else if (upAnimations.containsKey(groupId)) {
-            return new Up(upAnimations.get(groupId), moveCount, delay);
+            return new Approach(upAnimations.get(groupId), moveCount, delay);
         } else if (sideAnimations.containsKey(groupId)) {
             return new Side(sideAnimations.get(groupId), moveCount, delay);
         } else {

@@ -1,17 +1,18 @@
 package cn.warriorView.Object.Animation.Type;
 
-import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Animation.AnimationParams;
+import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Util.PacketUtil;
 import cn.warriorView.Util.Scheduler.XRunnable;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 import java.util.Set;
 
-public class Up implements IAnimation {
+public class Approach implements IAnimation {
     final float max;
     final float initial;
     final float acceleration;
@@ -19,7 +20,7 @@ public class Up implements IAnimation {
     final byte moveCount;
     final long delay;
 
-    public Up(AnimationParams params, byte moveCount, long delay) {
+    public Approach(AnimationParams params, byte moveCount, long delay) {
         this.max = params.max();
         this.initial = params.initial();
         this.acceleration = params.acceleration();
@@ -29,8 +30,8 @@ public class Up implements IAnimation {
     }
 
     @Override
-    public float offset() {
-        return offset;
+    public Vector3d offset(Location location) {
+        return new Vector3d(location.getX(), location.getY() + offset, location.getZ());
     }
 
     @Override
