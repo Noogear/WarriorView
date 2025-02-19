@@ -1,16 +1,19 @@
-package cn.warriorView.Object.Format;
+package cn.warriorView.Object.Format.Text;
+
+import cn.warriorView.Util.CharUtils;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class TextReplace {
+public class TextReplace implements ITextFormat {
     private final char[] numberMap = new char[10];
     private final String[] asciiMap = new String[128];
     private final Map<Character, String> extendedMap;
     private final boolean hasNumberReplace;
     private final boolean hasAsciiReplace;
     private final boolean hasExtendedReplace;
-    private final boolean hasReplace;
 
     protected TextReplace(char[] numMap, String[] asciiMap,
                           Map<Character, String> extendedMap,
@@ -21,7 +24,6 @@ public class TextReplace {
         this.hasNumberReplace = hasNum;
         this.hasAsciiReplace = hasAscii;
         this.hasExtendedReplace = hasExt;
-        this.hasReplace = hasNumberReplace || hasAsciiReplace || hasExtendedReplace;
     }
 
     public static TextReplace create(Map<String, String> rules) {
@@ -37,7 +39,7 @@ public class TextReplace {
         boolean hasExtendedReplace = false;
         for (Map.Entry<String, String> e : rules.entrySet()) {
             String key = e.getKey();
-            String val = e.getValue() != null ? e.getValue() : "";
+            String val = e.getValue() != null ? CharUtils.unescapeUnicode(e.getValue()) : "";
             if (key.length() != 1) {
                 throw new IllegalArgumentException("Rule key must be single character: " + key);
             }
@@ -65,19 +67,27 @@ public class TextReplace {
                 hasNumberReplace, hasAsciiReplace, hasExtendedReplace);
     }
 
-    public String format(String text) {
-        if (!hasReplace) {
-            return text;
-        }
-
+    @Override
+    public Component format(String text) {
         StringBuilder buffer = new StringBuilder(text.length() * 2);
+        boolean inTag = false;
         for (char c : text.toCharArray()) {
-            if (processNumber(c, buffer)) continue;
-            if (processAscii(c, buffer)) continue;
-            if (processExtended(c, buffer)) continue;
-            buffer.append(c);
+            if (c == '<') {
+                inTag = true;
+                buffer.append(c);
+            } else if (c == '>') {
+                inTag = false;
+                buffer.append(c);
+            } else if (inTag) {
+                buffer.append(c);
+            } else {
+                if (processNumber(c, buffer)) continue;
+                if (processAscii(c, buffer)) continue;
+                if (processExtended(c, buffer)) continue;
+                buffer.append(c);
+            }
         }
-        return buffer.toString();
+        return MiniMessage.miniMessage().deserialize(buffer.toString());
     }
 
     private boolean processNumber(char c, StringBuilder buffer) {
