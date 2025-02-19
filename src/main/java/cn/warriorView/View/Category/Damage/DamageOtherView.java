@@ -1,6 +1,6 @@
 package cn.warriorView.View.Category.Damage;
 
-import cn.warriorView.Object.Animation.Animation;
+import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Format.TextFormat;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.ViewUtil;
@@ -23,7 +23,7 @@ public class DamageOtherView implements IDamageDisplay {
     final byte viewMarge;
     final int backgroundColor;
     final boolean seeThrough;
-    final Animation animation;
+    final IAnimation IAnimation;
 
 
     public DamageOtherView(ViewParams params) {
@@ -36,7 +36,7 @@ public class DamageOtherView implements IDamageDisplay {
         this.backgroundColor = params.backgroundColor();
         this.seeThrough = params.seeThrough();
         this.onlyPlayer = params.onlyPlayer();
-        this.animation = params.animation();
+        this.IAnimation = params.IAnimation();
         this.position = Position.valueOf(params.position().toUpperCase());
     }
 
@@ -59,7 +59,7 @@ public class DamageOtherView implements IDamageDisplay {
         Location damageLocation;
         switch (this.position) {
             case DAMAGE:
-                ViewUtil.spawnDisplay(animation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, entity, attacker, player, damage);
+                ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, entity, attacker, player, damage);
                 return;
             case EYE:
                 damageLocation = entity.getEyeLocation();
@@ -68,7 +68,7 @@ public class DamageOtherView implements IDamageDisplay {
                 damageLocation = entity.getLocation();
                 break;
         }
-        ViewUtil.spawnDisplay(animation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage);
+        ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage);
 
     }
 

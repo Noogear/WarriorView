@@ -1,6 +1,6 @@
 package cn.warriorView.Util;
 
-import cn.warriorView.Object.Animation.Animation;
+import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Format.TextFormat;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.Scheduler.XRunnable;
@@ -21,7 +21,7 @@ import java.util.UUID;
 public class ViewUtil {
 
     public static void spawnDisplay(
-            Animation animation,
+            IAnimation animation,
             boolean isShadow,
             float viewRange,
             byte viewMarge,
@@ -49,7 +49,7 @@ public class ViewUtil {
     }
 
     public static void spawnDisplay(
-            Animation animation,
+            IAnimation animation,
             boolean isShadow,
             float viewRange,
             byte viewMarge,
@@ -85,7 +85,7 @@ public class ViewUtil {
             Location location,
             Set<Player> players,
             double value,
-            Animation animation,
+            IAnimation animation,
             boolean isShadow,
             float viewRange,
             boolean isSeeThrough,
@@ -94,7 +94,6 @@ public class ViewUtil {
             int backGroundColor,
             Scale scale
     ) {
-        location = location.add(animation.offset());
         TextDisplayMeta meta = (TextDisplayMeta) EntityMeta.createMeta(entityId, EntityTypes.TEXT_DISPLAY);
         meta.setBillboardConstraints(AbstractDisplayMeta.BillboardConstraints.CENTER);
         meta.setPositionRotationInterpolationDuration(10);
@@ -111,7 +110,7 @@ public class ViewUtil {
                 entityId,
                 Optional.of(UUID.randomUUID()),
                 EntityTypes.TEXT_DISPLAY,
-                new Vector3d(location.getX(), location.getY(), location.getZ()),
+                new Vector3d(location.getX(), location.getY() + animation.offset(), location.getZ()),
                 0f, 0f, 0f, 0, Optional.empty()
         );
         PacketUtil.sendPacketToPlayers(packet, players);

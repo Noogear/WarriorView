@@ -4,8 +4,6 @@ import cn.warriorView.Configuration.File.Config;
 import cn.warriorView.Configuration.File.Language;
 import cn.warriorView.Configuration.Form.ConfigurationManager;
 import cn.warriorView.Main;
-import cn.warriorView.Object.Animation.Animation;
-import cn.warriorView.Object.Animation.AnimationParams;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.MathUtil;
 import cn.warriorView.Util.RegistryUtil;
@@ -155,7 +153,6 @@ public class ConfigManager {
 
     private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, double opacity, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, String animation, String position, byte moveCount, long delay) {
         if (section == null) {
-            AnimationParams animParams = animationManager.getAnimation(animation);
             if ("DAMAGE".equalsIgnoreCase(position)) {
                 throw new RuntimeException("The default config cannot use \"damage\" as the position.");
             }
@@ -169,11 +166,10 @@ public class ConfigManager {
                     backgroundColor,
                     seeThrough,
                     onlyPlayer,
-                    Animation.create(animParams, moveCount, delay),
+                    animationManager.get(animation, moveCount, delay),
                     position
             );
         }
-        AnimationParams animParams = animationManager.getAnimation(section.getString("animation", animation));
         return new ViewParams(
                 formatManager.getTextFormat(section.getString("text-format", textFormat), section.getString("replacement", replacement)),
                 Scale.create(section.getString("scale", scale)),
@@ -184,7 +180,7 @@ public class ConfigManager {
                 section.getInt("background-color", backgroundColor),
                 section.getBoolean("see-through", seeThrough),
                 section.getBoolean("only-player", onlyPlayer),
-                Animation.create(animParams, MathUtil.convertIntToByte(section.getInt("move-count", moveCount)), section.getLong("delay", delay)),
+                animationManager.get(section.getString("animation", animation), MathUtil.convertIntToByte(section.getInt("move-count", moveCount)), section.getLong("delay", delay)),
                 section.getString("position", position)
         );
     }

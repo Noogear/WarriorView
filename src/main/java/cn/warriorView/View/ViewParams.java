@@ -1,6 +1,6 @@
 package cn.warriorView.View;
 
-import cn.warriorView.Object.Animation.Animation;
+import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Format.TextFormat;
 import cn.warriorView.Object.Scale;
 
@@ -14,7 +14,7 @@ public record ViewParams(
         int backgroundColor,
         boolean seeThrough,
         boolean onlyPlayer,
-        Animation animation,
+        IAnimation IAnimation,
         String position
 ) {
     public ViewParams {

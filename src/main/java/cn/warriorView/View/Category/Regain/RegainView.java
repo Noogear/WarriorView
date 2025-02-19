@@ -1,6 +1,6 @@
 package cn.warriorView.View.Category.Regain;
 
-import cn.warriorView.Object.Animation.Animation;
+import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Format.TextFormat;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.ViewUtil;
@@ -21,7 +21,7 @@ public class RegainView {
     private final byte viewMarge;
     private final int backgroundColor;
     private final boolean seeThrough;
-    private final Animation animation;
+    private final IAnimation IAnimation;
 
     public RegainView(ViewParams params) {
         this.textFormat = params.textFormat();
@@ -33,7 +33,7 @@ public class RegainView {
         this.backgroundColor = params.backgroundColor();
         this.seeThrough = params.seeThrough();
         this.onlyPlayer = params.onlyPlayer();
-        this.animation = params.animation();
+        this.IAnimation = params.IAnimation();
         this.position = Position.valueOf(params.position().toUpperCase());
     }
 
@@ -48,7 +48,7 @@ public class RegainView {
             if (this.onlyPlayer) return;
         }
         Location regainLocation = (this.position == Position.EYE) ? entity.getEyeLocation() : entity.getLocation();
-        ViewUtil.spawnDisplay(animation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, regainLocation, player, regain);
+        ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, regainLocation, player, regain);
 
     }
 

@@ -1,6 +1,6 @@
 package cn.warriorView.View.Category.Damage;
 
-import cn.warriorView.Object.Animation.Animation;
+import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Format.TextFormat;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.ViewUtil;
@@ -22,7 +22,7 @@ public class DamageView implements IDamageDisplay {
     final int backgroundColor;
     final boolean seeThrough;
     final boolean onlyPlayer;
-    final Animation animation;
+    final IAnimation IAnimation;
     final Position position;
 
     public DamageView(ViewParams params) {
@@ -35,7 +35,7 @@ public class DamageView implements IDamageDisplay {
         this.backgroundColor = params.backgroundColor();
         this.seeThrough = params.seeThrough();
         this.onlyPlayer = params.onlyPlayer();
-        this.animation = params.animation();
+        this.IAnimation = params.IAnimation();
         this.position = Position.valueOf(params.position().toUpperCase());
     }
 
@@ -49,7 +49,7 @@ public class DamageView implements IDamageDisplay {
             if (this.onlyPlayer) return;
         }
         Location damageLocation = (this.position == Position.EYE) ? entity.getEyeLocation() : entity.getLocation();
-        ViewUtil.spawnDisplay(animation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage);
+        ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage);
     }
 
     @Override
