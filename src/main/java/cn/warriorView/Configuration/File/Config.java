@@ -7,7 +7,7 @@ import cn.warriorView.Configuration.Form.ConfigurationPart;
 public class Config extends ConfigurationFile {
 
     @Comments("版本号, 请勿修改")
-    public static int version = 1;
+    public static int version = 2;
 
     @Comments("总开关")
     public static boolean enabled = true;
@@ -57,18 +57,23 @@ public class Config extends ConfigurationFile {
             @Comments({"数字显示的位置, 可使用: eye, foot.","下方在特殊配置文件中, 如果涉及到生物之间的攻击, 还可使用damage代表精确攻击的位置"})
             public String position = "eye";
 
-            @Comments("动画类型")
+            @Comments("默认动画类型, 需要你去animation.yml文件中进行配置")
             public String animation = "1";
 
-            @Comments("移动次数")
-            public int moveCount = 8;
+            @Comments("相对偏移功能")
+            public static Offset offset = new Offset();
+            public static class Offset extends ConfigurationPart {
 
-            @Comments("移动间隔, 单位ticks")
-            public long delay = 2;
+                @Comments("向上偏移")
+                public double up = 0;
 
+                @Comments("向玩家方向偏移")
+                public double approach = 0;
+
+            }
         }
 
-        @Comments("特殊配置文件, 在下方文件中添加了造成伤害的原因才能正常使用")
+        @Comments("特殊配置文件路径, 在下方文件中添加了造成伤害的原因才能正常使用")
         public String apply = "views/damage_cause.yml";
 
     }
@@ -118,26 +123,31 @@ public class Config extends ConfigurationFile {
             @Comments("数字显示的位置, 可使用: eye, foot")
             public String position = "foot";
 
-            @Comments("动画类型, 需要你去animation.yml文件中进行配置")
+            @Comments("默认动画类型, 需要你去animation.yml文件中进行配置")
             public String animation = "2";
 
-            @Comments("移动次数")
-            public int moveCount = 8;
+            @Comments("相对偏移功能")
+            public static DamageEntity.Defaults.Offset offset = new DamageEntity.Defaults.Offset();
+            public static class Offset extends ConfigurationPart {
 
-            @Comments("移动间隔, 单位ticks")
-            public long delay = 2;
+                @Comments("向上偏移")
+                public double up = 0;
 
+                @Comments("向玩家方向偏移")
+                public double approach = 0;
+
+            }
         }
 
-        @Comments("特殊配置文件, 在下方文件中添加了治疗的原因才能正常使用")
+        @Comments("特殊配置文件路径, 在下方文件中添加了治疗的原因才能正常使用")
         public String apply = "views/regain_reason.yml";
 
     }
 
-    @Comments("动画配置文件")
+    @Comments("动画配置文件路径")
     public static String animation = "animation.yml";
 
-    @Comments("字符替换配置文件")
+    @Comments("字符替换配置文件路径")
     public static String replacement = "replacement.yml";
 
 }

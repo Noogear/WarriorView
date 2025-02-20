@@ -31,7 +31,7 @@ public class Approach implements IAnimation {
 
     @Override
     public Vector3d offset(Location location) {
-        return new Vector3d(location.getX(), location.getY() + offset, location.getZ());
+        return new Vector3d(location.getX() + offset, location.getY(), location.getZ() + offset);
     }
 
     @Override

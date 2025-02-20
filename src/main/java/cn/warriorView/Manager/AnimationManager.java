@@ -2,9 +2,9 @@ package cn.warriorView.Manager;
 
 import cn.warriorView.Object.Animation.AnimationParams;
 import cn.warriorView.Object.Animation.IAnimation;
-import cn.warriorView.Object.Animation.Type.Side;
 import cn.warriorView.Object.Animation.Type.Approach;
-import cn.warriorView.Object.Animation.Type.ApproachAndSide;
+import cn.warriorView.Object.Animation.Type.Up;
+import cn.warriorView.Object.Animation.Type.UpAndApproach;
 import cn.warriorView.Util.MathUtil;
 import cn.warriorView.Util.XLogger;
 import org.bukkit.configuration.ConfigurationSection;
@@ -66,11 +66,11 @@ public class AnimationManager {
 
     public IAnimation get(String groupId, byte moveCount, long delay) {
         if (upAnimations.containsKey(groupId) && sideAnimations.containsKey(groupId)) {
-            return new ApproachAndSide(upAnimations.get(groupId), sideAnimations.get(groupId), moveCount, delay);
+            return new UpAndApproach(upAnimations.get(groupId), sideAnimations.get(groupId), moveCount, delay);
         } else if (upAnimations.containsKey(groupId)) {
-            return new Approach(upAnimations.get(groupId), moveCount, delay);
+            return new Up(upAnimations.get(groupId), moveCount, delay);
         } else if (sideAnimations.containsKey(groupId)) {
-            return new Side(sideAnimations.get(groupId), moveCount, delay);
+            return new Approach(sideAnimations.get(groupId), moveCount, delay);
         } else {
             throw new RuntimeException("Animation " + groupId + " doesn't exist");
         }

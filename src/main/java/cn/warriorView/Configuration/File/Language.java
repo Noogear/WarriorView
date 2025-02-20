@@ -10,5 +10,4 @@ public class Language extends ConfigurationFile {
 
     public static String reload = "Plugin reload succeeded. Time taken: %s ms";
 
-
 }

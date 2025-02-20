@@ -12,7 +12,7 @@ import org.bukkit.entity.Player;
 
 import java.util.Set;
 
-public class Side implements IAnimation {
+public class Up implements IAnimation {
     final float max;
     final float initial;
     final float acceleration;
@@ -20,7 +20,7 @@ public class Side implements IAnimation {
     final byte moveCount;
     final long delay;
 
-    public Side(AnimationParams params, byte moveCount, long delay) {
+    public Up(AnimationParams params, byte moveCount, long delay) {
         this.max = params.max();
         this.initial = params.initial();
         this.acceleration = params.acceleration();
@@ -31,7 +31,7 @@ public class Side implements IAnimation {
 
     @Override
     public Vector3d offset(Location location) {
-        return new Vector3d(location.getX() + offset, location.getY(), location.getZ() + offset);
+        return new Vector3d(location.getX(), location.getY() + offset, location.getZ());
     }
 
     @Override

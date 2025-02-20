@@ -1,14 +1,39 @@
+# type: 类型, up代表上升, approach代表面向玩家
+# max: 运动距离的最大限制（到达限制后会停下来）
+# offset: 偏移
+# speed: 速度，可以填入一个数组, 数组第一位代表初始速度, 第二位代表最大速度(可省略)
+# angle: 代表角度
+# interval: 代表间隔
+# move-count代表移动步数
+
+# 如果type使用up-and-approach时，每个参数需要传入两组参数, 分别对应up和approach
+
+# interval省略时默认为2. move-count省略时默认为8, 其他参数在被省略时默认为0
+
 1:
-  up:
+  - type: up-and-approach
+    max: [2, 0.3]
+    offset: [0.22, 0]
+    speed:
+      - [1.15, -1.15]
+      - 0.05
+    angle: [0, 30]
+    interval: 2
+    move-count: 8
+
+6:
+  - type: up
     max: 2
     offset: 0.22
-    speed:
-      initial: 1.15
-      accelerate: -0.2
-  side:
+    speed: [1.15, -1.15]
+    delay: 2
+    move-count: 4
+  - type: approach
     max: 0.3
-    speed:
-      initial: 0.05
+    angle: 30
+    speed: 0.05
+    interval: 2
+    move-count: 4
 
 2:
   up:

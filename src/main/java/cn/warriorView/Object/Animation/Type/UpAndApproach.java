@@ -8,8 +8,8 @@ import org.bukkit.entity.Player;
 
 import java.util.Set;
 
-public class ApproachAndSide implements IAnimation {
-    public ApproachAndSide(AnimationParams animationParams, AnimationParams animationParams1, byte moveCount, long delay) {
+public class UpAndApproach implements IAnimation {
+    public UpAndApproach(AnimationParams animationParams, AnimationParams animationParams1, byte moveCount, long delay) {
     }
 
 
