@@ -4,18 +4,19 @@ import cn.warriorView.Util.TextUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
 public class TextReplace implements IText {
-    private final char[] numberMap = new char[10];
+    private final String[] numberMap = new String[10];
     private final String[] asciiMap = new String[128];
     private final Map<Character, String> extendedMap;
     private final boolean hasNumberReplace;
     private final boolean hasAsciiReplace;
     private final boolean hasExtendedReplace;
 
-    protected TextReplace(char[] numMap, String[] asciiMap,
+    protected TextReplace(String[] numMap, String[] asciiMap,
                           Map<Character, String> extendedMap,
                           boolean hasNum, boolean hasAscii, boolean hasExt) {
         System.arraycopy(numMap, 0, this.numberMap, 0, 10);
@@ -27,30 +28,28 @@ public class TextReplace implements IText {
     }
 
     public static TextReplace create(Map<String, String> rules) {
-        char[] numMap = new char[10];
-        for (int i = 0; i < 10; i++) {
-            numMap[i] = (char) ('0' + i);
-        }
+        String[] numMap = new String[10];
+        Arrays.setAll(numMap, i -> String.valueOf((char) ('0' + i)));
+
         boolean hasNumberReplace = false;
         String[] ascii = new String[128];
         boolean hasAsciiReplace = false;
         Map<Character, String> extended = new HashMap<>();
-
         boolean hasExtendedReplace = false;
+
         for (Map.Entry<String, String> e : rules.entrySet()) {
             String key = e.getKey();
             String val = e.getValue() != null ? TextUtils.unescapeUnicode(e.getValue()) : "";
+
             if (key.length() != 1) {
                 throw new IllegalArgumentException("Rule key must be single character: " + key);
             }
             char k = key.charAt(0);
+
             if (k >= '0' && k <= '9') {
-                if (val.length() != 1) {
-                    throw new IllegalArgumentException("Number replacement must be single character for: " + k);
-                }
                 int index = k - '0';
-                numMap[index] = val.charAt(0);
-                if (numMap[index] != k) {
+                numMap[index] = val;
+                if (!String.valueOf(k).equals(val)) {
                     hasNumberReplace = true;
                 }
             } else {

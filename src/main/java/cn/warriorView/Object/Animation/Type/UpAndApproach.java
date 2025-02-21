@@ -1,25 +1,18 @@
 package cn.warriorView.Object.Animation.Type;
 
-import cn.warriorView.Object.Animation.AnimationParams;
 import cn.warriorView.Object.Animation.IAnimation;
 import com.github.retrooper.packetevents.util.Vector3d;
-import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.bukkit.util.Vector;
 
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class UpAndApproach implements IAnimation {
-    public UpAndApproach(AnimationParams animationParams, AnimationParams animationParams1, byte moveCount, long delay) {
-    }
 
 
     @Override
-    public Vector3d offset(Location location) {
-        return null;
-    }
-
-    @Override
-    public void play(int entityId, Vector3d location, Set<Player> players) {
+    public void play(int entityId, Vector3d location, Vector unitVec, Set<Player> players, Consumer<Vector3d> onComplete) {
 
     }
 }

@@ -1,14 +1,14 @@
 package cn.warriorView.Object.Animation;
 
 import com.github.retrooper.packetevents.util.Vector3d;
-import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.bukkit.util.Vector;
 
 import java.util.Set;
+import java.util.function.Consumer;
 
 public interface IAnimation {
 
-    Vector3d offset(Location location) ;
+    void play(int entityId, Vector3d location, Vector unitVec, Set<Player> players, Consumer<Vector3d> onComplete);
 
-    void play(int entityId, Vector3d location, Set<Player> players);
 }

@@ -5,63 +5,63 @@ import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Util.PacketUtil;
 import cn.warriorView.Util.Scheduler.XRunnable;
 import com.github.retrooper.packetevents.util.Vector3d;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
-import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.bukkit.util.Vector;
 
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class Up implements IAnimation {
-    final float max;
-    final float initial;
-    final float acceleration;
-    final float offset;
-    final byte moveCount;
-    final long delay;
 
-    public Up(AnimationParams params, byte moveCount, long delay) {
+    float max;
+    float baseSpeed;
+    float acceleration;
+    double CosAngle;
+    double SinAngle;
+    int moveCount;
+    long interval;
+
+    public Up(AnimationParams params) {
         this.max = params.max();
-        this.initial = params.initial();
-        this.acceleration = params.acceleration();
-        this.offset = params.offset();
-        this.moveCount = moveCount;
-        this.delay = delay;
+        this.baseSpeed = params.baseSpeed();
+        this.acceleration = params.maxSpeed() / params.moveCount();
+        this.CosAngle = Math.cos(params.angle());
+        this.SinAngle = Math.sin(params.angle());
+        this.moveCount = params.moveCount();
+        this.interval = params.interval();
     }
 
     @Override
-    public Vector3d offset(Location location) {
-        return new Vector3d(location.getX(), location.getY() + offset, location.getZ());
-    }
-
-    @Override
-    public void play(int entityId, Vector3d location, Set<Player> players) {
+    public void play(int entityId, Vector3d location, Vector unitVec, Set<Player> players, Consumer<Vector3d> onComplete) {
         new XRunnable() {
-            final double y = location.getY();
             byte count = 0;
-            double speed = initial;
+            double speed = baseSpeed;
+            double y = location.getY() + speed;
 
             @Override
             public void run() {
                 if (count >= moveCount) {
-                    PacketUtil.sendPacketToPlayers(new WrapperPlayServerDestroyEntities(entityId), players);
-                    players.clear();
+                    onComplete.accept(location.withY(y));
                     cancel();
                     return;
                 }
-
-                count++;
                 PacketUtil.sendPacketToPlayers(new WrapperPlayServerEntityTeleport(
                         entityId,
-                        location.withY(y + count * speed),
+                        location.withY(y),
                         0f,
                         0f,
                         false
                 ), players);
+
+                count++;
+
                 if (speed <= max) {
                     speed += acceleration;
+                    y += speed;
                 }
+
             }
-        }.asyncTimer(delay, delay);
+        }.asyncTimer(interval, interval);
     }
 }
