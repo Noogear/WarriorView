@@ -37,7 +37,6 @@ public class AnimationGroup implements IAnimation {
         if (animationQueue.isEmpty()) {
             if (groupCompleteCallback != null) {
                 groupCompleteCallback.accept(currentLocation);
-
             }
             PacketUtil.sendPacketToPlayers(new WrapperPlayServerDestroyEntities(currentEntityId), currentPlayers);
             currentPlayers.clear();
@@ -47,8 +46,8 @@ public class AnimationGroup implements IAnimation {
         IAnimation nextAnim = animationQueue.poll();
         nextAnim.play(currentEntityId, currentLocation, currentUnitVec,
                 currentPlayers, newLocation -> {
-                    currentLocation = newLocation; // 同步最新位置
-                    playNextAnimation(); // 链式触发下一个动画
+                    currentLocation = newLocation;
+                    playNextAnimation();
                 });
     }
 }

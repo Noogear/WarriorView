@@ -25,7 +25,7 @@ public class Up implements IAnimation {
     public Up(AnimationParams params) {
         this.max = params.max();
         this.baseSpeed = params.baseSpeed();
-        this.acceleration = params.maxSpeed() / params.moveCount();
+        this.acceleration = (params.maxSpeed()-params.baseSpeed()) / params.moveCount();
         this.CosAngle = Math.cos(params.angle());
         this.SinAngle = Math.sin(params.angle());
         this.moveCount = params.moveCount();
@@ -38,7 +38,13 @@ public class Up implements IAnimation {
             byte count = 0;
             double speed = baseSpeed;
             double y = location.getY() + speed;
-
+            final WrapperPlayServerEntityTeleport teleportPacket = new WrapperPlayServerEntityTeleport(
+                    entityId,
+                    location,
+                    0f,
+                    0f,
+                    false
+            );
             @Override
             public void run() {
                 if (count >= moveCount) {
@@ -46,13 +52,8 @@ public class Up implements IAnimation {
                     cancel();
                     return;
                 }
-                PacketUtil.sendPacketToPlayers(new WrapperPlayServerEntityTeleport(
-                        entityId,
-                        location.withY(y),
-                        0f,
-                        0f,
-                        false
-                ), players);
+                teleportPacket.setPosition(location.withY(y));
+                PacketUtil.sendPacketToPlayers(teleportPacket, players);
 
                 count++;
 
