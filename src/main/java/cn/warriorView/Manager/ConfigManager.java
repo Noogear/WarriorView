@@ -125,9 +125,7 @@ public class ConfigManager {
                 defaults.seeThrough,
                 defaults.onlyPlayer,
                 defaults.animation,
-                defaults.position,
-                MathUtil.convertIntToByte(defaults.moveCount),
-                defaults.delay
+                defaults.position
         );
     }
 
@@ -146,12 +144,11 @@ public class ConfigManager {
                 defaults.seeThrough,
                 defaults.onlyPlayer,
                 defaults.animation,
-                defaults.position,
-                MathUtil.convertIntToByte(defaults.moveCount),
-                defaults.delay);
+                defaults.position
+        );
     }
 
-    private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, double opacity, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, String animation, String position, byte moveCount, long delay) {
+    private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, double opacity, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, String animation, String position) {
         if (section == null) {
             if ("DAMAGE".equalsIgnoreCase(position)) {
                 throw new RuntimeException("The default config cannot use \"damage\" as the position.");
@@ -166,7 +163,7 @@ public class ConfigManager {
                     backgroundColor,
                     seeThrough,
                     onlyPlayer,
-                    animationManager.get(animation, moveCount, delay),
+                    animationManager.getAnimation(animation),
                     position
             );
         }
@@ -180,7 +177,7 @@ public class ConfigManager {
                 section.getInt("background-color", backgroundColor),
                 section.getBoolean("see-through", seeThrough),
                 section.getBoolean("only-player", onlyPlayer),
-                animationManager.get(section.getString("animation", animation), MathUtil.convertIntToByte(section.getInt("move-count", moveCount)), section.getLong("delay", delay)),
+                animationManager.getAnimation(section.getString("animation", animation)),
                 section.getString("position", position)
         );
     }

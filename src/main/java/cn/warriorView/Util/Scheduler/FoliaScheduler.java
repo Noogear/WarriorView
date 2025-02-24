@@ -5,8 +5,6 @@ import cn.warriorView.Util.Scheduler.task.FoliaTaskWrapper;
 import cn.warriorView.Util.Scheduler.task.ITaskWrapper;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.entity.Entity;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.TimeUnit;
@@ -25,12 +23,15 @@ public class FoliaScheduler implements IScheduler {
         return new FoliaTaskWrapper(Bukkit.getAsyncScheduler().runNow(plugin, runnableToConsumer(task)));
     }
 
+    @Override
+    public ITaskWrapper asyncLater(@NotNull Runnable task, long delayTicks) {
+        return new FoliaTaskWrapper(Bukkit.getAsyncScheduler().runDelayed(plugin, runnableToConsumer(task), delayTicks * 50, TimeUnit.MILLISECONDS));
+    }
 
     @Override
     public ITaskWrapper asyncTimer(@NotNull Runnable task, long delayTicks, long periodTicks) {
         return new FoliaTaskWrapper(Bukkit.getAsyncScheduler().runAtFixedRate(plugin, runnableToConsumer(task), delayTicks * 50, periodTicks * 50, TimeUnit.MILLISECONDS));
     }
-
 
     @Override
     public void cancelTasks() {

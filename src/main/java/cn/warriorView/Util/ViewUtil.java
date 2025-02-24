@@ -5,7 +5,6 @@ import cn.warriorView.Object.Format.TextFormat;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.Scheduler.XRunnable;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
-import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import me.tofaa.entitylib.meta.EntityMeta;
 import me.tofaa.entitylib.meta.display.AbstractDisplayMeta;

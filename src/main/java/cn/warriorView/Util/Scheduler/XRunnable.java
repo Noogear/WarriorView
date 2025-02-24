@@ -1,8 +1,6 @@
 package cn.warriorView.Util.Scheduler;
 
 import cn.warriorView.Util.Scheduler.task.ITaskWrapper;
-import org.bukkit.Location;
-import org.bukkit.entity.Entity;
 
 public abstract class XRunnable implements Runnable {
 
@@ -16,11 +14,15 @@ public abstract class XRunnable implements Runnable {
         return setTaskWrapper(XScheduler.get().async(this));
     }
 
+    public ITaskWrapper asyncLater(long delayTicks) {
+        checkTaskNotNull();
+        return setTaskWrapper(XScheduler.get().asyncLater(this, delayTicks));
+    }
+
     public ITaskWrapper asyncTimer(long delayTicks, long periodTicks) {
         checkTaskNotNull();
         return setTaskWrapper(XScheduler.get().asyncTimer(this, delayTicks, periodTicks));
     }
-
 
     public void cancel() {
         if (this.taskWrapper == null) return;

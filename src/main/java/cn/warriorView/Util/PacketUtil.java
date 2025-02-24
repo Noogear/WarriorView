@@ -7,6 +7,7 @@ import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -26,6 +27,13 @@ public class PacketUtil {
             if (p == null) continue;
             playerManager.sendPacket(p, packet);
         }
+    }
+
+    public static void sendBulkPackets(Collection<PacketWrapper<?>> packets,
+                                       Set<Player> players) {
+        players.parallelStream().forEach(player -> {
+            packets.forEach(packet -> playerManager.sendPacket(player, packet));
+        });
     }
 
     public static Vector3d locationToV3d(Location location) {

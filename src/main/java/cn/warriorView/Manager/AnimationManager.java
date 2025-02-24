@@ -1,32 +1,34 @@
 package cn.warriorView.Manager;
 
+import cn.warriorView.Object.Animation.AnimationGroup;
 import cn.warriorView.Object.Animation.AnimationParams;
 import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Animation.Type.Approach;
 import cn.warriorView.Object.Animation.Type.Up;
 import cn.warriorView.Object.Animation.Type.UpAndApproach;
+import cn.warriorView.Util.FileUtil;
 import cn.warriorView.Util.MathUtil;
 import cn.warriorView.Util.XLogger;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+
 
 public class AnimationManager {
 
-    private final Map<String, AnimationParams> upAnimations;
-    private final Map<String, AnimationParams> sideAnimations;
+    private final Map<String, IAnimation> animationMap;
 
     public AnimationManager() {
-        this.upAnimations = new HashMap<>();
-        this.sideAnimations = new HashMap<>();
+        this.animationMap = new HashMap<>();
     }
 
     public void init() {
-        upAnimations.clear();
-        sideAnimations.clear();
+        animationMap.clear();
+    }
+
+    public IAnimation getAnimation(String name) {
+        return animationMap.get(name);
     }
 
     public void load(YamlConfiguration yamlConfiguration) {
@@ -34,47 +36,100 @@ public class AnimationManager {
         for (String topKey : topKeys) {
             ConfigurationSection section = yamlConfiguration.getConfigurationSection(topKey);
             if (section == null) continue;
-            ConfigurationSection upSec = section.getConfigurationSection("up");
-            if (upSec != null) {
-                float max = MathUtil.round(upSec.getDouble("max", -1), 2);
-                float offset = MathUtil.round(section.getDouble("offset", 0), 2);
-                ConfigurationSection speedSec = upSec.getConfigurationSection("speed");
-                float initial = 0;
-                float accelerate = 0.1f;
-                if (speedSec != null) {
-                    initial = MathUtil.round(upSec.getDouble("initial", 0), 2);
-                    accelerate = MathUtil.round(upSec.getDouble("accelerate", 0.1), 2);
+
+            List<IAnimation> animations = new LinkedList<>();
+            for (ConfigurationSection animationSec : FileUtil.getSectionList(section, topKey)) {
+                String type = animationSec.getString("type");
+                if (type == null) continue;
+                switch (type.replace("-", "").toLowerCase()) {
+                    case "up":
+                        animations.add(new Up(createAnimation(animationSec)));
+                        break;
+                    case "approach":
+                        animations.add(new Approach(createAnimation(animationSec)));
+                        break;
+                    case "upandapproach":
+                        List<AnimationParams> paramsList = createCompoundAnimation(animationSec);
+                        animations.add(new UpAndApproach(paramsList.get(0), paramsList.get(1)));
+                        break;
                 }
-                upAnimations.put(topKey, new AnimationParams(max, initial, accelerate, offset));
             }
-            ConfigurationSection sideSec = section.getConfigurationSection("side");
-            if (sideSec != null) {
-                float max = MathUtil.round(sideSec.getDouble("max", -1), 2);
-                float offset = MathUtil.round(section.getDouble("offset", 0), 2);
-                ConfigurationSection speedSec = sideSec.getConfigurationSection("speed");
-                float initial = 0;
-                float accelerate = 0;
-                if (speedSec != null) {
-                    initial = MathUtil.round(sideSec.getDouble("initial", 0), 2);
-                    accelerate = MathUtil.round(sideSec.getDouble("accelerate", 0), 2);
-                }
-                sideAnimations.put(topKey, new AnimationParams(max, initial, accelerate, offset));
-            }
+            animationMap.put(topKey, AnimationGroup.create(animations));
         }
-        XLogger.info("Successfully load " + MathUtil.parallelCount(upAnimations, sideAnimations) + " animation(s)");
+        XLogger.info("Successfully load " + animationMap.size() + " animation(s)");
     }
 
-    public IAnimation get(String groupId, byte moveCount, long delay) {
-        if (upAnimations.containsKey(groupId) && sideAnimations.containsKey(groupId)) {
-            return new UpAndApproach(upAnimations.get(groupId), sideAnimations.get(groupId), moveCount, delay);
-        } else if (upAnimations.containsKey(groupId)) {
-            return new Up(upAnimations.get(groupId), moveCount, delay);
-        } else if (sideAnimations.containsKey(groupId)) {
-            return new Approach(sideAnimations.get(groupId), moveCount, delay);
-        } else {
-            throw new RuntimeException("Animation " + groupId + " doesn't exist");
-        }
+    public AnimationParams createAnimation(ConfigurationSection animationSec) {
+        double max = animationSec.getDouble("max", 0);
+        float[] speed = MathUtil.coverListToArray(animationSec.getFloatList("speed"), 2, 0);
+        double angle = animationSec.getDouble("angle", 0);
+        long initial = animationSec.getLong("interval", 2);
+        byte moveCount = MathUtil.convertIntToByte(animationSec.getInt("move-count", 8));
+        return new AnimationParams(
+                MathUtil.round(max),
+                MathUtil.round(speed[0]),
+                MathUtil.round(speed[1]),
+                angle,
+                moveCount,
+                initial
+        );
     }
 
+    public List<AnimationParams> createCompoundAnimation(ConfigurationSection animationSec) {
+        double[] max = MathUtil.coverListToArray(animationSec.getDoubleList("max"), 2, 0);
+        double[][] speeds = loadSpeedRanges(animationSec);
+        double[] angle = MathUtil.coverListToArray(animationSec.getDoubleList("angle"), 2, 0);
+        long[] interval = MathUtil.coverListToArray(animationSec.getLongList("interval"), 2, 2);
+        int[] moveCount = MathUtil.coverListToArray(animationSec.getIntegerList("move-count"), 2, 4);
+
+        AnimationParams params1 = new AnimationParams(
+                MathUtil.round(max[0]),
+                MathUtil.round(speeds[0][0]),
+                MathUtil.round(speeds[0][1]),
+                angle[0],
+                MathUtil.convertIntToByte(moveCount[0]),
+                interval[0]
+        );
+
+        AnimationParams params2 = new AnimationParams(
+                MathUtil.round(max[1]),
+                MathUtil.round(speeds[1][0]),
+                MathUtil.round(speeds[1][1]),
+                angle[1],
+                MathUtil.convertIntToByte(moveCount[1]),
+                interval[1]
+        );
+
+        return Arrays.asList(params1, params2);
+    }
+
+    public double[][] loadSpeedRanges(ConfigurationSection config) {
+        List<?> speedList = config.getList("speed");
+        double[][] result = new double[2][2];
+        Arrays.fill(result[0], 0.0);
+        Arrays.fill(result[1], 0.0);
+
+        if (speedList == null || speedList.isEmpty()) return result;
+
+        for (int phase = 0; phase < 2 && phase < speedList.size(); phase++) {
+            Object entry = speedList.get(phase);
+            if (entry instanceof List<?> pair) {
+                result[phase][0] = parseDouble(!pair.isEmpty() ? pair.get(0) : 0.0);
+                result[phase][1] = parseDouble(pair.size() > 1 ? pair.get(1) : result[phase][0]);
+            } else if (entry instanceof Number) {
+                result[phase][0] = ((Number) entry).doubleValue();
+                result[phase][1] = result[phase][0];
+            }
+        }
+        return result;
+    }
+
+    private double parseDouble(Object obj) {
+        try {
+            return Double.parseDouble(obj.toString());
+        } catch (Exception e) {
+            return 0.0;
+        }
+    }
 
 }
