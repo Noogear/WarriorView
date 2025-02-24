@@ -18,6 +18,7 @@ public class Up implements IAnimation {
     private final float acceleration;
     private final double cosAngle;
     private final double sinAngle;
+    private final boolean rotate;
     private final int moveCount;
     private final long interval;
 
@@ -27,6 +28,11 @@ public class Up implements IAnimation {
         this.acceleration = (params.maxSpeed() - params.baseSpeed()) / params.moveCount();
         this.cosAngle = Math.cos(params.angle());
         this.sinAngle = Math.sin(params.angle());
+        if(params.angle() == 0){
+            this.rotate = false;
+        } else {
+            this.rotate = true;
+        }
         this.moveCount = params.moveCount();
         this.interval = params.interval();
     }
@@ -56,19 +62,18 @@ public class Up implements IAnimation {
 
         @Override
         public void run() {
-            if (count >= moveCount) {
-                onComplete.accept(initialLocation.withY(y));
-                AnimationTask.getInstance().cancelTask(interval, this);
-                return;
-            }
-
             teleportPacket.setPosition(initialLocation.withY(y));
             PacketUtil.sendPacketToPlayers(teleportPacket, players);
 
-            count++;
             if (speed <= max) {
                 speed += acceleration;
                 y += speed;
+            }
+
+            count++;
+            if (count >= moveCount) {
+                onComplete.accept(initialLocation.withY(y));
+                AnimationTask.getInstance().cancelTask(interval, this);
             }
         }
     }

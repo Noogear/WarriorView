@@ -22,6 +22,14 @@ import java.util.UUID;
 
 public class ViewUtil {
 
+    public static WrapperPlayServerSpawnEntity spawnPack = new WrapperPlayServerSpawnEntity(
+            0,
+            Optional.of(UUID.randomUUID()),
+            EntityTypes.TEXT_DISPLAY,
+            null,
+            0f, 0f, 0f, 0, Optional.empty()
+    );
+
     public static void spawnDisplay(
             IAnimation animation,
             boolean isShadow,
@@ -110,16 +118,10 @@ public class ViewUtil {
         meta.setUseDefaultBackground(false);
         meta.setBackgroundColor(backGroundColor);
         meta.setScale(scale.getRandom());
-        WrapperPlayServerSpawnEntity packet = new WrapperPlayServerSpawnEntity(
-                entityId,
-                Optional.of(UUID.randomUUID()),
-                EntityTypes.TEXT_DISPLAY,
-                location,
-                0f, 0f, 0f, 0, Optional.empty()
-        );
-        PacketUtil.sendPacketToPlayers(packet, players);
+        spawnPack.setEntityId(entityId);
+        spawnPack.setPosition(location);
+        PacketUtil.sendPacketToPlayers(spawnPack, players);
         PacketUtil.sendPacketToPlayers(meta.createPacket(), players);
     }
-
 
 }
