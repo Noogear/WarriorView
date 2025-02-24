@@ -16,9 +16,9 @@ public class Up implements IAnimation {
     private final float max;
     private final float baseSpeed;
     private final float acceleration;
-    private final double cosAngle;
-    private final double sinAngle;
-    private final boolean rotate;
+    private final double[] cosCache;
+    private final double[] sinCache;
+    private final boolean isRotation;
     private final int moveCount;
     private final long interval;
 
@@ -26,20 +26,24 @@ public class Up implements IAnimation {
         this.max = params.max();
         this.baseSpeed = params.baseSpeed();
         this.acceleration = (params.maxSpeed() - params.baseSpeed()) / params.moveCount();
-        this.cosAngle = Math.cos(params.angle());
-        this.sinAngle = Math.sin(params.angle());
-        if(params.angle() == 0){
-            this.rotate = false;
-        } else {
-            this.rotate = true;
-        }
         this.moveCount = params.moveCount();
         this.interval = params.interval();
+
+        double radianStep = Math.toRadians(params.angle());
+        this.cosCache = new double[moveCount];
+        this.sinCache = new double[moveCount];
+        for (int step = 0; step < moveCount; step++) {
+            double totalRad = radianStep * step;
+            cosCache[step] = Math.cos(totalRad);
+            sinCache[step] = Math.sin(totalRad);
+        }
+
+        this.isRotation = params.angle() != 0;
     }
 
     @Override
     public void play(int entityId, Vector3d location, Vector unitVec, Set<Player> players, Consumer<Vector3d> onComplete) {
-        Updater updater = new Updater(entityId, location, players, onComplete);
+        Updater updater = new Updater(entityId, location, unitVec, players, onComplete);
         AnimationTask.getInstance().scheduleTask(interval, updater);
     }
 
@@ -48,33 +52,56 @@ public class Up implements IAnimation {
         private final WrapperPlayServerEntityTeleport teleportPacket;
         private final Set<Player> players;
         private final Consumer<Vector3d> onComplete;
-        private int count = 0;
-        private double speed = baseSpeed;
+        private final boolean onRotation;
+        private final double x;
+        private final double z;
         private double y;
+        private byte count = 0;
+        private double speed = baseSpeed;
 
-        public Updater(int entityId, Vector3d location, Set<Player> players, Consumer<Vector3d> onComplete) {
+
+        public Updater(int entityId, Vector3d location, Vector unitVec, Set<Player> players, Consumer<Vector3d> onComplete) {
             this.initialLocation = location;
-            this.y = location.getY() + speed;
+            this.x = unitVec.getX();
+            this.y = location.getY();
+            this.z = unitVec.getZ();
             this.players = players;
             this.onComplete = onComplete;
             this.teleportPacket = new WrapperPlayServerEntityTeleport(entityId, location, 0f, 0f, false);
+            this.onRotation = (isRotation) && (x != 0 || z != 0);
         }
 
         @Override
         public void run() {
-            teleportPacket.setPosition(initialLocation.withY(y));
-            PacketUtil.sendPacketToPlayers(teleportPacket, players);
-
             if (speed <= max) {
                 speed += acceleration;
                 y += speed;
             }
+            if (onRotation) {
+                double[] rotated = rotate(x, z, count);
+                teleportPacket.setPosition(initialLocation.add(rotated[0], y, rotated[1]));
+            } else {
+                teleportPacket.setPosition(initialLocation.withY(y));
+            }
+            PacketUtil.sendPacketToPlayers(teleportPacket, players);
 
             count++;
             if (count >= moveCount) {
-                onComplete.accept(initialLocation.withY(y));
+                onComplete.accept(initialLocation.add(x, y, z));
                 AnimationTask.getInstance().cancelTask(interval, this);
             }
+        }
+
+        public double[] rotate(double x0, double z0, byte step) {
+            double cos = cosCache[step];
+            double sin = sinCache[step];
+            double rx = x0 * cos - z0 * sin;
+            double ry = x0 * sin + z0 * cos;
+            double projectionScale = (rx * x0 + ry * z0) / (x0 * x0 + z0 * z0);
+            return new double[]{
+                    rx - projectionScale * x0,
+                    ry - projectionScale * z0
+            };
         }
     }
 }

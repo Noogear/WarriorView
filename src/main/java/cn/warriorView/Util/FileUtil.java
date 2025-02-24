@@ -28,9 +28,9 @@ public class FileUtil {
     private static Object processValue(ConfigurationSection parent, String key, Object value) {
         if (value instanceof Map<?, ?> map) {
             ConfigurationSection section;
-            if (parent == null || key == null) { // 兼容 List
+            if (parent == null || key == null) {
                 section = new MemoryConfiguration();
-            } else { // 兼容 Map
+            } else {
                 section = parent.createSection(key);
             }
             for (Map.Entry<?, ?> entry : map.entrySet()) {
