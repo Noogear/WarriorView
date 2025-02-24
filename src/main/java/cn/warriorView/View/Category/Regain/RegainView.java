@@ -2,6 +2,7 @@ package cn.warriorView.View.Category.Regain;
 
 import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Format.TextFormat;
+import cn.warriorView.Object.Offset;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.ViewUtil;
 import cn.warriorView.View.ViewParams;
@@ -22,6 +23,7 @@ public class RegainView {
     private final int backgroundColor;
     private final boolean seeThrough;
     private final IAnimation IAnimation;
+    private final Offset offset;
 
     public RegainView(ViewParams params) {
         this.textFormat = params.textFormat();
@@ -35,6 +37,7 @@ public class RegainView {
         this.onlyPlayer = params.onlyPlayer();
         this.IAnimation = params.IAnimation();
         this.position = Position.valueOf(params.position().toUpperCase());
+        this.offset = params.offset();
     }
 
     public void spawn(EntityRegainHealthEvent event) {
@@ -48,7 +51,7 @@ public class RegainView {
             if (this.onlyPlayer) return;
         }
         Location regainLocation = (this.position == Position.EYE) ? entity.getEyeLocation() : entity.getLocation();
-        ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, regainLocation, player, regain);
+        ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, regainLocation, player, regain, offset);
 
     }
 

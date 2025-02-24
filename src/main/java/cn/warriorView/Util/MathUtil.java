@@ -43,36 +43,36 @@ public class MathUtil {
 
     public static float[] coverListToArray(List<Float> list, int length, float defaultValue) {
         float[] array = new float[length];
-        int listSize = (list != null) ? list.size()  : 0;
+        int listSize = (list != null) ? list.size() : 0;
         for (int i = 0; i < length; i++) {
-            array[i] = (i < listSize && list.get(i)  != null) ? list.get(i)  : defaultValue;
+            array[i] = (i < listSize && list.get(i) != null) ? list.get(i) : defaultValue;
         }
         return array;
     }
 
     public static int[] coverListToArray(List<Integer> list, int length, int defaultValue) {
         int[] array = new int[length];
-        int listSize = (list != null) ? list.size()  : 0;
+        int listSize = (list != null) ? list.size() : 0;
         for (int i = 0; i < length; i++) {
-            array[i] = (i < listSize && list.get(i)  != null) ? list.get(i)  : defaultValue;
+            array[i] = (i < listSize && list.get(i) != null) ? list.get(i) : defaultValue;
         }
         return array;
     }
 
     public static long[] coverListToArray(List<Long> list, int length, long defaultValue) {
         long[] array = new long[length];
-        int listSize = (list != null) ? list.size()  : 0;
+        int listSize = (list != null) ? list.size() : 0;
         for (int i = 0; i < length; i++) {
-            array[i] = (i < listSize && list.get(i)  != null) ? list.get(i)  : defaultValue;
+            array[i] = (i < listSize && list.get(i) != null) ? list.get(i) : defaultValue;
         }
         return array;
     }
 
     public static double[] coverListToArray(List<Double> list, int length, double defaultValue) {
         double[] array = new double[length];
-        int listSize = (list != null) ? list.size()  : 0;
+        int listSize = (list != null) ? list.size() : 0;
         for (int i = 0; i < length; i++) {
-            array[i] = (i < listSize && list.get(i)  != null) ? list.get(i)  : defaultValue;
+            array[i] = (i < listSize && list.get(i) != null) ? list.get(i) : defaultValue;
         }
         return array;
     }

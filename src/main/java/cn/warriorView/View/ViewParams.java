@@ -2,6 +2,7 @@ package cn.warriorView.View;
 
 import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Format.TextFormat;
+import cn.warriorView.Object.Offset;
 import cn.warriorView.Object.Scale;
 
 public record ViewParams(
@@ -15,7 +16,8 @@ public record ViewParams(
         boolean seeThrough,
         boolean onlyPlayer,
         IAnimation IAnimation,
-        String position
+        String position,
+        Offset offset
 ) {
     public ViewParams {
         if (viewRange < 0) {

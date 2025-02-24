@@ -2,18 +2,22 @@ package cn.warriorView.Object.Animation;
 
 import cn.warriorView.Util.Scheduler.XRunnable;
 
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 public class AnimationTask {
-    private static AnimationTask instance;
+    private static volatile AnimationTask instance;
     private final Map<Long, TaskGroup> taskGroups = new ConcurrentHashMap<>();
 
     public static AnimationTask getInstance() {
         if (instance == null) {
-            instance = new AnimationTask();
+            synchronized (AnimationTask.class)  {
+                if (instance == null) {
+                    instance = new AnimationTask();
+                }
+            }
         }
         return instance;
     }
@@ -36,7 +40,7 @@ public class AnimationTask {
 
     private static class TaskGroup {
         private final long interval;
-        private final Set<Runnable> tasks = new HashSet<>();
+        private final Set<Runnable> tasks = new CopyOnWriteArraySet<>();
         private XRunnable runnable;
 
         public TaskGroup(long interval) {
@@ -48,7 +52,7 @@ public class AnimationTask {
             runnable = new XRunnable() {
                 @Override
                 public void run() {
-                    new HashSet<>(tasks).forEach(Runnable::run);
+                    tasks.forEach(Runnable::run);
                 }
             };
             runnable.asyncTimer(interval, interval);
@@ -68,6 +72,7 @@ public class AnimationTask {
 
         public void cancel() {
             runnable.cancel();
+            tasks.clear();
         }
     }
 

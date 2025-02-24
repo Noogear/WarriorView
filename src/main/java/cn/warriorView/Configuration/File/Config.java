@@ -60,17 +60,11 @@ public class Config extends ConfigurationFile {
             @Comments("默认动画类型, 需要你去animation.yml文件中进行配置")
             public String animation = "1";
 
-            @Comments("相对偏移功能")
-            public static Offset offset = new Offset();
-            public static class Offset extends ConfigurationPart {
+            @Comments("相对向上偏移")
+            public double offsetUp = 0;
 
-                @Comments("向上偏移")
-                public double up = 0;
-
-                @Comments("向玩家方向偏移")
-                public double approach = 0;
-
-            }
+            @Comments("相对向玩家偏移, 如果没有玩家的时候只会向移动方向偏移")
+            public double offsetApproach = 0;
         }
 
         @Comments("特殊配置文件路径, 在下方文件中添加了造成伤害的原因才能正常使用")
@@ -126,17 +120,11 @@ public class Config extends ConfigurationFile {
             @Comments("默认动画类型, 需要你去animation.yml文件中进行配置")
             public String animation = "2";
 
-            @Comments("相对偏移功能")
-            public static DamageEntity.Defaults.Offset offset = new DamageEntity.Defaults.Offset();
-            public static class Offset extends ConfigurationPart {
+            @Comments("相对向上偏移")
+            public double offsetUp = 0;
 
-                @Comments("向上偏移")
-                public double up = 0;
-
-                @Comments("向玩家方向偏移")
-                public double approach = 0;
-
-            }
+            @Comments("相对向玩家偏移, 如果没有玩家的时候只会向移动方向偏移")
+            public double offsetApproach = 0;
         }
 
         @Comments("特殊配置文件路径, 在下方文件中添加了治疗的原因才能正常使用")

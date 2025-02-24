@@ -4,6 +4,7 @@ import cn.warriorView.Configuration.File.Config;
 import cn.warriorView.Configuration.File.Language;
 import cn.warriorView.Configuration.Form.ConfigurationManager;
 import cn.warriorView.Main;
+import cn.warriorView.Object.Offset;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.MathUtil;
 import cn.warriorView.Util.RegistryUtil;
@@ -125,7 +126,9 @@ public class ConfigManager {
                 defaults.seeThrough,
                 defaults.onlyPlayer,
                 defaults.animation,
-                defaults.position
+                defaults.position,
+                defaults.offsetUp,
+                defaults.offsetApproach
         );
     }
 
@@ -144,11 +147,13 @@ public class ConfigManager {
                 defaults.seeThrough,
                 defaults.onlyPlayer,
                 defaults.animation,
-                defaults.position
+                defaults.position,
+                defaults.offsetUp,
+                defaults.offsetApproach
         );
     }
 
-    private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, double opacity, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, String animation, String position) {
+    private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, double opacity, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, String animation, String position, double offsetUp, double offsetApproach) {
         if (section == null) {
             if ("DAMAGE".equalsIgnoreCase(position)) {
                 throw new RuntimeException("The default config cannot use \"damage\" as the position.");
@@ -164,7 +169,8 @@ public class ConfigManager {
                     seeThrough,
                     onlyPlayer,
                     animationManager.getAnimation(animation),
-                    position
+                    position,
+                    new Offset(offsetUp, offsetApproach)
             );
         }
         return new ViewParams(
@@ -178,7 +184,8 @@ public class ConfigManager {
                 section.getBoolean("see-through", seeThrough),
                 section.getBoolean("only-player", onlyPlayer),
                 animationManager.getAnimation(section.getString("animation", animation)),
-                section.getString("position", position)
+                section.getString("position", position),
+                new Offset(section.getDouble("offset-up", offsetUp), section.getDouble("offset-approach", offsetApproach))
         );
     }
 

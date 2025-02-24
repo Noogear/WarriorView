@@ -2,9 +2,11 @@ package cn.warriorView.Util;
 
 import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Format.TextFormat;
+import cn.warriorView.Object.Offset;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.Scheduler.XRunnable;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
+import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import me.tofaa.entitylib.meta.EntityMeta;
 import me.tofaa.entitylib.meta.display.AbstractDisplayMeta;
@@ -12,6 +14,7 @@ import me.tofaa.entitylib.meta.display.TextDisplayMeta;
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.util.Vector;
 
 import java.util.Optional;
 import java.util.Set;
@@ -31,17 +34,18 @@ public class ViewUtil {
             Scale scale,
             Location location,
             Player player,
-            double value
+            double value,
+            Offset offset
     ) {
         Set<Player> players = PacketUtil.getNearbyPlayer(location, viewMarge);
         players.add(player);
         new XRunnable() {
-
             @Override
             public void run() {
                 int entityId = PacketUtil.getAutoEntityId();
-                packetHolo(entityId, location, players, value, animation, isShadow, viewRange, isSeeThrough, textFormat, textOpacity, backGroundColor, scale);
-                animation.play(entityId, PacketUtil.locationToV3d(location), players);
+                Vector3d finalLoc = offset.getPosition(location);
+                packetHolo(entityId, finalLoc, players, value, isShadow, viewRange, isSeeThrough, textFormat, textOpacity, backGroundColor, scale);
+                animation.play(entityId, finalLoc, location.getDirection().normalize(), players, null);
             }
         }.async();
 
@@ -60,19 +64,21 @@ public class ViewUtil {
             LivingEntity entity,
             LivingEntity attacker,
             Player player,
-            double value) {
+            double value,
+            Offset offset
+    ) {
         Set<Player> players = PacketUtil.getNearbyPlayer(entity.getEyeLocation(), viewMarge);
         players.add(player);
         new XRunnable() {
-
             @Override
             public void run() {
                 Location entityLocation = entity.getEyeLocation();
                 Location attackerLocation = attacker.getEyeLocation();
-                Location damageLocation = attackerLocation.add(attackerLocation.getDirection().normalize().multiply(attackerLocation.distance(entityLocation)));
+                Vector unitVec = attackerLocation.getDirection().normalize();
+                Vector3d finalLoc = offset.getPosition(attackerLocation.add(unitVec.multiply(attackerLocation.distance(entityLocation))), unitVec);
                 int entityId = PacketUtil.getAutoEntityId();
-                packetHolo(entityId, damageLocation, players, value, animation, isShadow, viewRange, isSeeThrough, textFormat, textOpacity, backGroundColor, scale);
-                animation.play(entityId, PacketUtil.locationToV3d(damageLocation), players);
+                packetHolo(entityId, finalLoc, players, value, isShadow, viewRange, isSeeThrough, textFormat, textOpacity, backGroundColor, scale);
+                animation.play(entityId, finalLoc, unitVec.multiply(-1), players, null);
             }
         }.async();
 
@@ -81,10 +87,9 @@ public class ViewUtil {
 
     public static void packetHolo(
             int entityId,
-            Location location,
+            Vector3d location,
             Set<Player> players,
             double value,
-            IAnimation animation,
             boolean isShadow,
             float viewRange,
             boolean isSeeThrough,
@@ -109,7 +114,7 @@ public class ViewUtil {
                 entityId,
                 Optional.of(UUID.randomUUID()),
                 EntityTypes.TEXT_DISPLAY,
-                animation.offset(location),
+                location,
                 0f, 0f, 0f, 0, Optional.empty()
         );
         PacketUtil.sendPacketToPlayers(packet, players);

@@ -2,6 +2,7 @@ package cn.warriorView.View.Category.Damage;
 
 import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Format.TextFormat;
+import cn.warriorView.Object.Offset;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.ViewUtil;
 import cn.warriorView.View.ViewParams;
@@ -24,6 +25,7 @@ public class DamageOtherView implements IDamageDisplay {
     final int backgroundColor;
     final boolean seeThrough;
     final IAnimation IAnimation;
+    final Offset offset;
 
 
     public DamageOtherView(ViewParams params) {
@@ -38,6 +40,7 @@ public class DamageOtherView implements IDamageDisplay {
         this.onlyPlayer = params.onlyPlayer();
         this.IAnimation = params.IAnimation();
         this.position = Position.valueOf(params.position().toUpperCase());
+        this.offset = params.offset();
     }
 
 
@@ -59,7 +62,7 @@ public class DamageOtherView implements IDamageDisplay {
         Location damageLocation;
         switch (this.position) {
             case DAMAGE:
-                ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, entity, attacker, player, damage);
+                ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, entity, attacker, player, damage, offset);
                 return;
             case EYE:
                 damageLocation = entity.getEyeLocation();
@@ -68,7 +71,7 @@ public class DamageOtherView implements IDamageDisplay {
                 damageLocation = entity.getLocation();
                 break;
         }
-        ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage);
+        ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage, offset);
 
     }
 

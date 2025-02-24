@@ -2,6 +2,7 @@ package cn.warriorView.View.Category.Damage;
 
 import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Format.TextFormat;
+import cn.warriorView.Object.Offset;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.ViewUtil;
 import cn.warriorView.View.ViewParams;
@@ -24,6 +25,7 @@ public class DamageView implements IDamageDisplay {
     final boolean onlyPlayer;
     final IAnimation IAnimation;
     final Position position;
+    final Offset offset;
 
     public DamageView(ViewParams params) {
         this.textFormat = params.textFormat();
@@ -37,6 +39,7 @@ public class DamageView implements IDamageDisplay {
         this.onlyPlayer = params.onlyPlayer();
         this.IAnimation = params.IAnimation();
         this.position = Position.valueOf(params.position().toUpperCase());
+        this.offset = params.offset();
     }
 
     @Override
@@ -49,7 +52,7 @@ public class DamageView implements IDamageDisplay {
             if (this.onlyPlayer) return;
         }
         Location damageLocation = (this.position == Position.EYE) ? entity.getEyeLocation() : entity.getLocation();
-        ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage);
+        ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage, offset);
     }
 
     @Override

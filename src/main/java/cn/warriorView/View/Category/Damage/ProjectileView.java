@@ -28,6 +28,6 @@ public class ProjectileView extends DamageOtherView {
             case EYE -> entity.getEyeLocation();
             default -> entity.getLocation();
         };
-        ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage);
+        ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage, offset);
     }
 }
