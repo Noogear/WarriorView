@@ -29,13 +29,6 @@ public class PacketUtil {
         }
     }
 
-    public static void sendBulkPackets(Collection<PacketWrapper<?>> packets,
-                                       Set<Player> players) {
-        players.parallelStream().forEach(player -> {
-            packets.forEach(packet -> playerManager.sendPacket(player, packet));
-        });
-    }
-
     public static Vector3d locationToV3d(Location location) {
         return new Vector3d(location.getX(), location.getY(), location.getZ());
     }

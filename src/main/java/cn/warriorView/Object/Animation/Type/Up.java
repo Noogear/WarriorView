@@ -56,6 +56,7 @@ public class Up implements IAnimation {
         private final double x;
         private final double z;
         private final double[] rotated = new double[2];
+        private final double denominator;
         private double y;
         private byte count = 0;
         private double speed = baseSpeed;
@@ -73,6 +74,7 @@ public class Up implements IAnimation {
             this.onRotation = (isRotation) && (x != 0 || z != 0);
             this.rotated[0] = 0;
             this.rotated[1] = 0;
+            this.denominator = x * x + z * z;
         }
 
         @Override
@@ -101,7 +103,7 @@ public class Up implements IAnimation {
             double sin = sinCache[step];
             double rx = x0 * cos - z0 * sin;
             double rz = x0 * sin + z0 * cos;
-            double projectionScale = (rx * x0 + rz * z0) / (x0 * x0 + z0 * z0);
+            double projectionScale = (rx * x0 + rz * z0) / denominator;
             this.rotated[0] = rx - projectionScale * x0;
             this.rotated[1] = rz - projectionScale * z0;
         }
