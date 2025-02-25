@@ -14,12 +14,12 @@ public abstract class XRunnable implements Runnable {
         return setTaskWrapper(XScheduler.get().async(this));
     }
 
-    public ITaskWrapper asyncLater(long delayTicks) {
+    public ITaskWrapper async(long delayTicks) {
         checkTaskNotNull();
         return setTaskWrapper(XScheduler.get().asyncLater(this, delayTicks));
     }
 
-    public ITaskWrapper asyncTimer(long delayTicks, long periodTicks) {
+    public ITaskWrapper async(long delayTicks, long periodTicks) {
         checkTaskNotNull();
         return setTaskWrapper(XScheduler.get().asyncTimer(this, delayTicks, periodTicks));
     }

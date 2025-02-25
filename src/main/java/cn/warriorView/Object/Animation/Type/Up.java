@@ -55,6 +55,7 @@ public class Up implements IAnimation {
         private final boolean onRotation;
         private final double x;
         private final double z;
+        private final double[] rotated = new double[2];
         private double y;
         private byte count = 0;
         private double speed = baseSpeed;
@@ -62,46 +63,47 @@ public class Up implements IAnimation {
 
         public Updater(int entityId, Vector3d location, Vector unitVec, Set<Player> players, Consumer<Vector3d> onComplete) {
             this.initialLocation = location;
-            this.x = unitVec.getX();
+            Vector finalVec = unitVec.clone().setY(0).normalize();
+            this.x = finalVec.getX() * acceleration;
             this.y = location.getY();
-            this.z = unitVec.getZ();
+            this.z = finalVec.getZ() * acceleration;
             this.players = players;
             this.onComplete = onComplete;
             this.teleportPacket = new WrapperPlayServerEntityTeleport(entityId, location, 0f, 0f, false);
             this.onRotation = (isRotation) && (x != 0 || z != 0);
+            this.rotated[0] = 0;
+            this.rotated[1] = 0;
         }
 
         @Override
         public void run() {
-            if (speed <= max) {
+            if (!(max > 0 && y >= max)) {
                 speed += acceleration;
                 y += speed;
+                if (onRotation) {
+                    rotate(x, z, count);
+                    teleportPacket.setPosition(initialLocation.add(rotated[0], y, rotated[1]));
+                } else {
+                    teleportPacket.setPosition(initialLocation.withY(y));
+                }
+                PacketUtil.sendPacketToPlayers(teleportPacket, players);
             }
-            if (onRotation) {
-                double[] rotated = rotate(x, z, count);
-                teleportPacket.setPosition(initialLocation.add(rotated[0], y, rotated[1]));
-            } else {
-                teleportPacket.setPosition(initialLocation.withY(y));
-            }
-            PacketUtil.sendPacketToPlayers(teleportPacket, players);
 
             count++;
             if (count >= moveCount) {
-                onComplete.accept(initialLocation.add(x, y, z));
+                onComplete.accept(initialLocation.add(rotated[0], y, rotated[1]));
                 AnimationTask.getInstance().cancelTask(interval, this);
             }
         }
 
-        public double[] rotate(double x0, double z0, byte step) {
+        public void rotate(double x0, double z0, byte step) {
             double cos = cosCache[step];
             double sin = sinCache[step];
             double rx = x0 * cos - z0 * sin;
-            double ry = x0 * sin + z0 * cos;
-            double projectionScale = (rx * x0 + ry * z0) / (x0 * x0 + z0 * z0);
-            return new double[]{
-                    rx - projectionScale * x0,
-                    ry - projectionScale * z0
-            };
+            double rz = x0 * sin + z0 * cos;
+            double projectionScale = (rx * x0 + rz * z0) / (x0 * x0 + z0 * z0);
+            this.rotated[0] = rx - projectionScale * x0;
+            this.rotated[1] = rz - projectionScale * z0;
         }
     }
 }

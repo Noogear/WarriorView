@@ -53,7 +53,7 @@ public class ViewUtil {
                 int entityId = PacketUtil.getAutoEntityId();
                 Vector3d finalLoc = offset.getPosition(location);
                 packetHolo(entityId, finalLoc, players, value, isShadow, viewRange, isSeeThrough, textFormat, textOpacity, backGroundColor, scale);
-                animation.play(entityId, finalLoc, location.getDirection().normalize(), players, null);
+                animation.play(entityId, finalLoc, location.getDirection(), players, null);
             }
         }.async();
 

@@ -55,7 +55,7 @@ public class AnimationTask {
                     tasks.forEach(Runnable::run);
                 }
             };
-            runnable.asyncTimer(interval, interval);
+            runnable.async(interval, interval);
         }
 
         public void addTask(Runnable task) {
