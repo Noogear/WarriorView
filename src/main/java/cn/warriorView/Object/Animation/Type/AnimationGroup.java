@@ -1,5 +1,6 @@
-package cn.warriorView.Object.Animation;
+package cn.warriorView.Object.Animation.Type;
 
+import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Util.PacketUtil;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
@@ -7,7 +8,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -19,24 +19,6 @@ public class AnimationGroup implements IAnimation {
     private Set<Player> currentPlayers;
     private int currentEntityId;
     private Vector currentUnitVec;
-
-    public static IAnimation create(List<IAnimation> animations) {
-        if (animations.isEmpty()) {
-            throw new IllegalArgumentException("Animation list cannot be empty");
-        }
-        if (animations.size() == 1) {
-            return animations.getFirst();
-        }
-        AnimationGroup container = new AnimationGroup();
-        for (IAnimation animation : animations) {
-            if (animation instanceof AnimationGroup) {
-                container.animationQueue.addAll(((AnimationGroup) animation).animationQueue);
-            } else {
-                container.addAnimation(animation);
-            }
-        }
-        return container;
-    }
 
     public void addAnimation(IAnimation animation) {
         animationQueue.offer(animation);

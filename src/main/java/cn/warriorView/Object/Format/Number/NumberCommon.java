@@ -1,5 +1,7 @@
 package cn.warriorView.Object.Format.Number;
 
+import cn.warriorView.Object.Format.INumber;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 

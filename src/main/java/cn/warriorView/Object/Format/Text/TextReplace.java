@@ -1,5 +1,6 @@
 package cn.warriorView.Object.Format.Text;
 
+import cn.warriorView.Object.Format.IText;
 import cn.warriorView.Util.TextUtils;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;

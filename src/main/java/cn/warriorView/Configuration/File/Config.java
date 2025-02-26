@@ -4,6 +4,9 @@ import cn.warriorView.Configuration.Form.Comments;
 import cn.warriorView.Configuration.Form.ConfigurationFile;
 import cn.warriorView.Configuration.Form.ConfigurationPart;
 
+import java.lang.reflect.Array;
+import java.util.List;
+
 public class Config extends ConfigurationFile {
 
     @Comments("版本号, 请勿修改")
@@ -57,8 +60,8 @@ public class Config extends ConfigurationFile {
             @Comments({"数字显示的位置, 可使用: eye, foot.","下方在特殊配置文件中, 如果涉及到生物之间的攻击, 还可使用damage代表精确攻击的位置"})
             public String position = "eye";
 
-            @Comments("默认动画类型, 需要你去animation.yml文件中进行配置")
-            public String animation = "1";
+            @Comments({"默认动画类型, 支持以列表形式填写多个, 多个则随机", "需要你去animation.yml文件中进行配置"})
+            public List<String> animation = List.of("2");
 
             @Comments("相对向上偏移")
             public double offsetUp = 0;
@@ -117,8 +120,8 @@ public class Config extends ConfigurationFile {
             @Comments("数字显示的位置, 可使用: eye, foot")
             public String position = "foot";
 
-            @Comments("默认动画类型, 需要你去animation.yml文件中进行配置")
-            public String animation = "2";
+            @Comments({"默认动画类型, 支持以列表形式填写多个, 多个则随机", "需要你去animation.yml文件中进行配置"})
+            public List<String> animation = List.of("2");
 
             @Comments("相对向上偏移")
             public double offsetUp = 0;

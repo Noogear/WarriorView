@@ -10,14 +10,17 @@
 # interval省略时默认为2. move-count省略时默认为8, 其他参数在被省略时默认为0
 
 1:
-  - type: up-and-approach
-    max: [2, 0.3]
-    speed:
-      - [1.15, -1.15]
-      - 0.05
-    angle: [0, 30]
+  - type: up
+    max: 2
+    speed: [1.15, -1.15]
     interval: 2
-    move-count: 8
+    move-count: 4
+  - type: approach
+    max: 0.3
+    angle: 30
+    speed: 0.05
+    interval: 2
+    move-count: 4
 
 2:
   - type: up

@@ -3,11 +3,13 @@ package cn.warriorView.View;
 import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Format.TextFormat;
 import cn.warriorView.Object.Offset;
-import cn.warriorView.Object.Scale;
+import cn.warriorView.Object.Scale.IScale;
+
+import java.util.List;
 
 public record ViewParams(
         TextFormat textFormat,
-        Scale scale,
+        IScale scale,
         boolean shadow,
         byte textOpacity,
         float viewRange,
@@ -15,7 +17,7 @@ public record ViewParams(
         int backgroundColor,
         boolean seeThrough,
         boolean onlyPlayer,
-        IAnimation IAnimation,
+        List<IAnimation> animations,
         String position,
         Offset offset
 ) {

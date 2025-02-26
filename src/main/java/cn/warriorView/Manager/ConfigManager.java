@@ -5,7 +5,7 @@ import cn.warriorView.Configuration.File.Language;
 import cn.warriorView.Configuration.Form.ConfigurationManager;
 import cn.warriorView.Main;
 import cn.warriorView.Object.Offset;
-import cn.warriorView.Object.Scale;
+import cn.warriorView.Object.Scale.ScaleFactory;
 import cn.warriorView.Util.MathUtil;
 import cn.warriorView.Util.RegistryUtil;
 import cn.warriorView.Util.XLogger;
@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.Set;
 
 public class ConfigManager {
@@ -153,14 +154,14 @@ public class ConfigManager {
         );
     }
 
-    private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, double opacity, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, String animation, String position, double offsetUp, double offsetApproach) {
+    private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, double opacity, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, List<String> animation, String position, double offsetUp, double offsetApproach) {
         if (section == null) {
             if ("DAMAGE".equalsIgnoreCase(position)) {
                 throw new RuntimeException("The default config cannot use \"damage\" as the position.");
             }
             return new ViewParams(
                     formatManager.getTextFormat(textFormat, replacement),
-                    Scale.create(scale),
+                    ScaleFactory.create(scale),
                     shadow,
                     MathUtil.opacityFromPercent(opacity),
                     viewRange,
@@ -175,7 +176,7 @@ public class ConfigManager {
         }
         return new ViewParams(
                 formatManager.getTextFormat(section.getString("text-format", textFormat), section.getString("replacement", replacement)),
-                Scale.create(section.getString("scale", scale)),
+                ScaleFactory.create(section.getString("scale", scale)),
                 section.getBoolean("shadow", shadow),
                 MathUtil.opacityFromPercent(section.getDouble("opacity", opacity)),
                 MathUtil.round(section.getDouble("view-range", viewRange), 1),
@@ -183,7 +184,7 @@ public class ConfigManager {
                 section.getInt("background-color", backgroundColor),
                 section.getBoolean("see-through", seeThrough),
                 section.getBoolean("only-player", onlyPlayer),
-                animationManager.getAnimation(section.getString("animation", animation)),
+                animationManager.getAnimation(section.getStringList("animation"), animation),
                 section.getString("position", position),
                 new Offset(section.getDouble("offset-up", offsetUp), section.getDouble("offset-approach", offsetApproach))
         );

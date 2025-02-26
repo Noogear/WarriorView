@@ -1,7 +1,5 @@
 package cn.warriorView.Object.Format;
 
-import cn.warriorView.Object.Format.Number.INumber;
-import cn.warriorView.Object.Format.Text.IText;
 import cn.warriorView.Util.TextUtils;
 import net.kyori.adventure.text.Component;
 

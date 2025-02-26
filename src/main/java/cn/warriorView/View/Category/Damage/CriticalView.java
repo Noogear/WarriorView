@@ -31,7 +31,7 @@ public class CriticalView extends DamageOtherView {
                 case EYE -> entity.getEyeLocation();
                 default -> entity.getLocation();
             };
-            ViewUtil.spawnDisplay(IAnimation, shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage, offset);
+            ViewUtil.spawnDisplay(animation(), shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage, offset);
             return;
         }
         super.spawn(event, damage);

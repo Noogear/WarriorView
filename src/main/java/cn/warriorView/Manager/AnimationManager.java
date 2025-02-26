@@ -1,11 +1,10 @@
 package cn.warriorView.Manager;
 
-import cn.warriorView.Object.Animation.AnimationGroup;
+import cn.warriorView.Object.Animation.AnimationFactory;
 import cn.warriorView.Object.Animation.AnimationParams;
 import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Animation.Type.Approach;
 import cn.warriorView.Object.Animation.Type.Up;
-import cn.warriorView.Object.Animation.Type.UpAndApproach;
 import cn.warriorView.Util.FileUtil;
 import cn.warriorView.Util.MathUtil;
 import cn.warriorView.Util.XLogger;
@@ -27,8 +26,32 @@ public class AnimationManager {
         animationMap.clear();
     }
 
-    public IAnimation getAnimation(String name) {
-        return animationMap.get(name);
+    public List<IAnimation> getAnimation(List<String> names) {
+        List<IAnimation> result = new ArrayList<>();
+        if (names == null) return result;
+        for (String name : names) {
+            IAnimation anim = animationMap.get(name);
+            if (anim != null) result.add(anim);
+        }
+        return result;
+    }
+
+    public List<IAnimation> getAnimation(List<String> primaryNames, List<String> fallbackNames) {
+        List<String> safePrimary = (primaryNames != null) ? primaryNames : Collections.emptyList();
+        List<String> safeFallback = (fallbackNames != null) ? fallbackNames : Collections.emptyList();
+        List<IAnimation> primaryResult = getAnimation(safePrimary);
+        if (!safePrimary.isEmpty() && !primaryResult.isEmpty()) {
+            return primaryResult;
+        }
+        List<IAnimation> fallbackResult = getAnimation(safeFallback);
+        if (!fallbackResult.isEmpty()) {
+            return fallbackResult;
+        }
+        String errorMsg = String.format(
+                "No animations found in both lists.%nPrimary list: %s%nFallback list: %s",
+                safePrimary, safeFallback
+        );
+        throw new IllegalArgumentException(errorMsg);
     }
 
     public void load(YamlConfiguration yamlConfiguration) {
@@ -48,13 +71,9 @@ public class AnimationManager {
                     case "approach":
                         animations.add(new Approach(createAnimation(animationSec)));
                         break;
-                    case "upandapproach":
-                        List<AnimationParams> paramsList = createCompoundAnimation(animationSec);
-                        animations.add(new UpAndApproach(paramsList.get(0), paramsList.get(1)));
-                        break;
                 }
             }
-            animationMap.put(topKey, AnimationGroup.create(animations));
+            animationMap.put(topKey, AnimationFactory.getGroup(animations));
         }
         XLogger.info("Successfully load " + animationMap.size() + " animation(s)");
     }
@@ -73,63 +92,6 @@ public class AnimationManager {
                 moveCount,
                 initial
         );
-    }
-
-    public List<AnimationParams> createCompoundAnimation(ConfigurationSection animationSec) {
-        double[] max = MathUtil.coverListToArray(animationSec.getDoubleList("max"), 2, -1);
-        double[][] speeds = loadSpeedRanges(animationSec);
-        double[] angle = MathUtil.coverListToArray(animationSec.getDoubleList("angle"), 2, 0);
-        long[] interval = MathUtil.coverListToArray(animationSec.getLongList("interval"), 2, 2);
-        int[] moveCount = MathUtil.coverListToArray(animationSec.getIntegerList("move-count"), 2, 4);
-
-        AnimationParams params1 = new AnimationParams(
-                MathUtil.round(max[0]),
-                MathUtil.round(speeds[0][0]),
-                MathUtil.round(speeds[0][1]),
-                angle[0],
-                MathUtil.convertIntToByte(moveCount[0]),
-                interval[0]
-        );
-
-        AnimationParams params2 = new AnimationParams(
-                MathUtil.round(max[1]),
-                MathUtil.round(speeds[1][0]),
-                MathUtil.round(speeds[1][1]),
-                angle[1],
-                MathUtil.convertIntToByte(moveCount[1]),
-                interval[1]
-        );
-
-        return Arrays.asList(params1, params2);
-    }
-
-    public double[][] loadSpeedRanges(ConfigurationSection config) {
-        List<?> speedList = config.getList("speed");
-        double[][] result = new double[2][2];
-        Arrays.fill(result[0], 0.0);
-        Arrays.fill(result[1], 0.0);
-
-        if (speedList == null || speedList.isEmpty()) return result;
-
-        for (int phase = 0; phase < 2 && phase < speedList.size(); phase++) {
-            Object entry = speedList.get(phase);
-            if (entry instanceof List<?> pair) {
-                result[phase][0] = parseDouble(!pair.isEmpty() ? pair.get(0) : 0.0);
-                result[phase][1] = parseDouble(pair.size() > 1 ? pair.get(1) : result[phase][0]);
-            } else if (entry instanceof Number) {
-                result[phase][0] = ((Number) entry).doubleValue();
-                result[phase][1] = result[phase][0];
-            }
-        }
-        return result;
-    }
-
-    private double parseDouble(Object obj) {
-        try {
-            return Double.parseDouble(obj.toString());
-        } catch (Exception e) {
-            return 0.0;
-        }
     }
 
 }

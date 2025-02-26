@@ -1,9 +1,9 @@
 package cn.warriorView.Manager;
 
-import cn.warriorView.Object.Format.Number.INumber;
+import cn.warriorView.Object.Format.INumber;
+import cn.warriorView.Object.Format.IText;
 import cn.warriorView.Object.Format.Number.NumberCommon;
 import cn.warriorView.Object.Format.Number.NumberQuantize;
-import cn.warriorView.Object.Format.Text.IText;
 import cn.warriorView.Object.Format.Text.TextCommon;
 import cn.warriorView.Object.Format.Text.TextReplace;
 import cn.warriorView.Object.Format.TextFormat;

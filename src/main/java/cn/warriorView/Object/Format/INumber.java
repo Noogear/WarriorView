@@ -1,4 +1,4 @@
-package cn.warriorView.Object.Format.Number;
+package cn.warriorView.Object.Format;
 
 public interface INumber {
 

@@ -1,6 +1,9 @@
 package cn.warriorView.Manager;
 
-import cn.warriorView.View.Category.Damage.*;
+import cn.warriorView.View.Category.Damage.CriticalView;
+import cn.warriorView.View.Category.Damage.DamageOtherView;
+import cn.warriorView.View.Category.Damage.DamageView;
+import cn.warriorView.View.Category.Damage.ProjectileView;
 import cn.warriorView.View.Category.IDamageDisplay;
 import cn.warriorView.View.Category.Regain.RegainView;
 import cn.warriorView.View.ViewParams;

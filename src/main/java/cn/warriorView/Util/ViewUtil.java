@@ -3,7 +3,8 @@ package cn.warriorView.Util;
 import cn.warriorView.Object.Animation.IAnimation;
 import cn.warriorView.Object.Format.TextFormat;
 import cn.warriorView.Object.Offset;
-import cn.warriorView.Object.Scale;
+import cn.warriorView.Object.Scale.IScale;
+import cn.warriorView.Object.Scale.Type.ScaleRange;
 import cn.warriorView.Util.Scheduler.XRunnable;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
 import com.github.retrooper.packetevents.util.Vector3d;
@@ -39,7 +40,7 @@ public class ViewUtil {
             TextFormat textFormat,
             byte textOpacity,
             int backGroundColor,
-            Scale scale,
+            IScale scale,
             Location location,
             Player player,
             double value,
@@ -68,7 +69,7 @@ public class ViewUtil {
             TextFormat textFormat,
             byte textOpacity,
             int backGroundColor,
-            Scale scale,
+            IScale scale,
             LivingEntity entity,
             LivingEntity attacker,
             Player player,
@@ -104,7 +105,7 @@ public class ViewUtil {
             TextFormat textFormat,
             byte textOpacity,
             int backGroundColor,
-            Scale scale
+            IScale scale
     ) {
         TextDisplayMeta meta = (TextDisplayMeta) EntityMeta.createMeta(entityId, EntityTypes.TEXT_DISPLAY);
         meta.setBillboardConstraints(AbstractDisplayMeta.BillboardConstraints.CENTER);
@@ -117,7 +118,7 @@ public class ViewUtil {
         meta.setTextOpacity(textOpacity);
         meta.setUseDefaultBackground(false);
         meta.setBackgroundColor(backGroundColor);
-        meta.setScale(scale.getRandom());
+        meta.setScale(scale.get());
         spawnPack.setEntityId(entityId);
         spawnPack.setPosition(location);
         PacketUtil.sendPacketToPlayers(spawnPack, players);

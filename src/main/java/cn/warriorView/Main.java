@@ -15,6 +15,7 @@ import me.tofaa.entitylib.EntityLib;
 import me.tofaa.entitylib.spigot.SpigotEntityLibPlatform;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 
@@ -64,6 +65,7 @@ public final class Main extends JavaPlugin {
     public void onDisable() {
         PacketEvents.getAPI().terminate();
         XScheduler.get().cancelTasks();
+        HandlerList.unregisterAll(this);
     }
 
     public ViewManager getViewManager() {

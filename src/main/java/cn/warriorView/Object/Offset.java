@@ -18,7 +18,7 @@ public class Offset {
     }
 
     public Vector3d getPosition(Location location) {
-       Vector vector = location.getDirection().normalize();
+        Vector vector = location.getDirection().normalize();
         return new Vector3d(location.getX() + vector.getX() * approach, location.getY() + up, location.getZ() + vector.getZ() * approach);
     }
 }
