@@ -1,4 +1,4 @@
-package cn.warriorView.View.Category.Damage;
+package cn.warriorView.View.Category;
 
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;

@@ -13,7 +13,7 @@ public class AnimationTask {
 
     public static AnimationTask getInstance() {
         if (instance == null) {
-            synchronized (AnimationTask.class)  {
+            synchronized (AnimationTask.class) {
                 if (instance == null) {
                     instance = new AnimationTask();
                 }

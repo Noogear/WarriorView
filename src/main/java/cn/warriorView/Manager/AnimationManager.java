@@ -60,7 +60,7 @@ public class AnimationManager {
     }
 
     public AnimationParams createAnimation(ConfigurationSection animationSec) {
-        double max = animationSec.getDouble("max", 0);
+        double max = animationSec.getDouble("max", -1);
         float[] speed = MathUtil.coverListToArray(animationSec.getFloatList("speed"), 2, 0);
         double angle = animationSec.getDouble("angle", 0);
         long initial = animationSec.getLong("interval", 2);
@@ -76,7 +76,7 @@ public class AnimationManager {
     }
 
     public List<AnimationParams> createCompoundAnimation(ConfigurationSection animationSec) {
-        double[] max = MathUtil.coverListToArray(animationSec.getDoubleList("max"), 2, 0);
+        double[] max = MathUtil.coverListToArray(animationSec.getDoubleList("max"), 2, -1);
         double[][] speeds = loadSpeedRanges(animationSec);
         double[] angle = MathUtil.coverListToArray(animationSec.getDoubleList("angle"), 2, 0);
         long[] interval = MathUtil.coverListToArray(animationSec.getLongList("interval"), 2, 2);

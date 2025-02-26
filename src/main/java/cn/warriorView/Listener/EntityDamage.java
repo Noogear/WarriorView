@@ -2,7 +2,7 @@ package cn.warriorView.Listener;
 
 import cn.warriorView.Main;
 import cn.warriorView.View.Category.Damage.CriticalView;
-import cn.warriorView.View.Category.Damage.IDamageDisplay;
+import cn.warriorView.View.Category.IDamageDisplay;
 import org.bukkit.entity.AreaEffectCloud;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.EventHandler;

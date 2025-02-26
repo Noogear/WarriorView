@@ -5,6 +5,7 @@ import cn.warriorView.Object.Format.TextFormat;
 import cn.warriorView.Object.Offset;
 import cn.warriorView.Object.Scale;
 import cn.warriorView.Util.ViewUtil;
+import cn.warriorView.View.Category.IDamageDisplay;
 import cn.warriorView.View.ViewParams;
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;

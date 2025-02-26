@@ -79,7 +79,7 @@ public class Up implements IAnimation {
 
         @Override
         public void run() {
-            if (!(max > 0 && y >= max)) {
+            if (max < 0 || y < max) {
                 speed += acceleration;
                 y += speed;
                 if (onRotation) {

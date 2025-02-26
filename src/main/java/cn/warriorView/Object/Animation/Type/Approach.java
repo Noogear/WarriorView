@@ -78,7 +78,7 @@ public class Approach implements IAnimation {
 
         @Override
         public void run() {
-            if (!(max > 0 && move >= max)) {
+            if (max < 0 || move < max) {
                 speed += acceleration;
                 move += speed;
                 if (onRotation) {

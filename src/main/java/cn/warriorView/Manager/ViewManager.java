@@ -1,6 +1,7 @@
 package cn.warriorView.Manager;
 
 import cn.warriorView.View.Category.Damage.*;
+import cn.warriorView.View.Category.IDamageDisplay;
 import cn.warriorView.View.Category.Regain.RegainView;
 import cn.warriorView.View.ViewParams;
 import org.bukkit.event.entity.EntityDamageEvent;

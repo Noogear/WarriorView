@@ -7,7 +7,6 @@ import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
