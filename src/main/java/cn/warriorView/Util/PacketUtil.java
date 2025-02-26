@@ -2,7 +2,6 @@ package cn.warriorView.Util;
 
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.manager.player.PlayerManager;
-import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -26,10 +25,6 @@ public class PacketUtil {
             if (p == null) continue;
             playerManager.sendPacket(p, packet);
         }
-    }
-
-    public static Vector3d locationToV3d(Location location) {
-        return new Vector3d(location.getX(), location.getY(), location.getZ());
     }
 
     public static Set<Player> getNearbyPlayer(Location location, byte marge) {

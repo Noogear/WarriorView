@@ -5,8 +5,6 @@
 # interval: 代表间隔
 # move-count代表移动步数
 
-# 如果type使用up-and-approach时，每个参数需要传入两组参数, 分别对应up和approach
-
 # interval省略时默认为2. move-count省略时默认为8, 其他参数在被省略时默认为0
 
 1:
