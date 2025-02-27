@@ -60,6 +60,7 @@ public class Up implements IAnimation {
         private double y;
         private byte count = 0;
         private double speed = baseSpeed;
+        private double distance = max;
 
 
         public Updater(int entityId, Vector3d location, Vector unitVec, Set<Player> players, Consumer<Vector3d> onComplete) {
@@ -79,7 +80,7 @@ public class Up implements IAnimation {
 
         @Override
         public void run() {
-            if (max < 0 || y < max) {
+            if (max < 0 || distance > 0) {
                 speed += acceleration;
                 y += speed;
                 if (onRotation) {
@@ -89,6 +90,7 @@ public class Up implements IAnimation {
                     teleportPacket.setPosition(initialLocation.withY(y));
                 }
                 PacketUtil.sendPacketToPlayers(teleportPacket, players);
+                distance -= Math.abs(speed);
             }
 
             count++;

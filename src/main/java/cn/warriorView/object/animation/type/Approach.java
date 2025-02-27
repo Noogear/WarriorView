@@ -57,9 +57,10 @@ public class Approach implements IAnimation {
         private final double z;
         private final double y;
         private final double[] rotated = new double[2];
-        private double move;
+        private double move = 0;
         private byte count = 0;
         private double speed = baseSpeed;
+        private double distance = max;
 
         public Updater(int entityId, Vector3d location, Vector unitVec, Set<Player> players, Consumer<Vector3d> onComplete) {
             this.initialLocation = location;
@@ -67,7 +68,6 @@ public class Approach implements IAnimation {
             this.x = finalVec.getX();
             this.y = finalVec.getY();
             this.z = finalVec.getZ();
-            this.move = 0;
             this.players = players;
             this.onComplete = onComplete;
             this.teleportPacket = new WrapperPlayServerEntityTeleport(entityId, location, 0f, 0f, false);
@@ -78,7 +78,7 @@ public class Approach implements IAnimation {
 
         @Override
         public void run() {
-            if (max < 0 || move < max) {
+            if (max < 0 || distance > 0) {
                 speed += acceleration;
                 move += speed;
                 if (onRotation) {
@@ -88,6 +88,7 @@ public class Approach implements IAnimation {
                     teleportPacket.setPosition(initialLocation.add(x * move, y * move, z * move));
                 }
                 PacketUtil.sendPacketToPlayers(teleportPacket, players);
+                distance -= Math.abs(speed);
             }
 
             count++;
