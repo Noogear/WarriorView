@@ -1,18 +1,21 @@
-package cn.warriorView.View.Category.Damage;
+package cn.warriorView.view.category.damage;
 
-import cn.warriorView.Object.Animation.IAnimation;
-import cn.warriorView.Object.Format.TextFormat;
-import cn.warriorView.Object.Offset;
-import cn.warriorView.Object.Scale.IScale;
-import cn.warriorView.Util.ViewUtil;
-import cn.warriorView.View.Category.IDamageDisplay;
-import cn.warriorView.View.ViewParams;
+import cn.warriorView.object.Offset;
+import cn.warriorView.object.animation.IAnimation;
+import cn.warriorView.object.format.TextFormat;
+import cn.warriorView.object.scale.IScale;
+import cn.warriorView.util.ViewUtil;
+import cn.warriorView.view.ViewParams;
+import cn.warriorView.view.category.IDamageDisplay;
+import cn.warriorView.view.meta.MetaFactory;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -20,32 +23,24 @@ public class DamageView implements IDamageDisplay {
 
     final TextFormat textFormat;
     final IScale scale;
-    final boolean shadow;
-    final byte textOpacity;
-    final float viewRange;
     final byte viewMarge;
-    final int backgroundColor;
-    final boolean seeThrough;
     final boolean onlyPlayer;
     final List<IAnimation> animations;
     final int length;
     final Position position;
     final Offset offset;
+    final List<EntityData> basicSpawnData;
 
     public DamageView(ViewParams params) {
         this.textFormat = params.textFormat();
         this.scale = params.scale();
-        this.shadow = params.shadow();
-        this.textOpacity = params.textOpacity();
-        this.viewRange = params.viewRange();
         this.viewMarge = params.viewMarge();
-        this.backgroundColor = params.backgroundColor();
-        this.seeThrough = params.seeThrough();
         this.onlyPlayer = params.onlyPlayer();
         this.animations = params.animations();
         this.length = animations.size();
         this.position = Position.valueOf(params.position().toUpperCase());
         this.offset = params.offset();
+        this.basicSpawnData = MetaFactory.basicCreate(params);
     }
 
     @Override
@@ -58,7 +53,7 @@ public class DamageView implements IDamageDisplay {
             if (this.onlyPlayer) return;
         }
         Location damageLocation = (this.position == Position.EYE) ? entity.getEyeLocation() : entity.getLocation();
-        ViewUtil.spawnDisplay(animation(), shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, damageLocation, player, damage, offset);
+        ViewUtil.spawnDisplay(animation(), viewMarge, textFormat, scale, damageLocation, player, damage, offset, new ArrayList<>(basicSpawnData));
     }
 
     @Override

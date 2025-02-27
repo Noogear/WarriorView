@@ -1,4 +1,4 @@
-package cn.warriorView.Util.Scheduler;
+package cn.warriorView.util.scheduler;
 
 import cn.warriorView.Main;
 

@@ -1,6 +1,6 @@
-package cn.warriorView.Configuration.Form;
+package cn.warriorView.configuration.form;
 
-import cn.warriorView.Util.XLogger;
+import cn.warriorView.util.XLogger;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;

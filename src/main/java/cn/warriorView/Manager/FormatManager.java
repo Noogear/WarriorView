@@ -1,13 +1,13 @@
-package cn.warriorView.Manager;
+package cn.warriorView.manager;
 
-import cn.warriorView.Object.Format.INumber;
-import cn.warriorView.Object.Format.IText;
-import cn.warriorView.Object.Format.Number.NumberCommon;
-import cn.warriorView.Object.Format.Number.NumberQuantize;
-import cn.warriorView.Object.Format.Text.TextCommon;
-import cn.warriorView.Object.Format.Text.TextReplace;
-import cn.warriorView.Object.Format.TextFormat;
-import cn.warriorView.Util.TextUtils;
+import cn.warriorView.object.format.INumber;
+import cn.warriorView.object.format.IText;
+import cn.warriorView.object.format.TextFormat;
+import cn.warriorView.object.format.number.NumberCommon;
+import cn.warriorView.object.format.number.NumberQuantize;
+import cn.warriorView.object.format.text.TextCommon;
+import cn.warriorView.object.format.text.TextReplace;
+import cn.warriorView.util.TextUtils;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 

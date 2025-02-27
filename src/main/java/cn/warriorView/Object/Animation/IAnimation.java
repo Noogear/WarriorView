@@ -1,4 +1,4 @@
-package cn.warriorView.Object.Animation;
+package cn.warriorView.object.animation;
 
 import com.github.retrooper.packetevents.util.Vector3d;
 import org.bukkit.entity.Player;

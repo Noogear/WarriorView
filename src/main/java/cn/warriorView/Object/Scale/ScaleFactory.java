@@ -1,8 +1,8 @@
-package cn.warriorView.Object.Scale;
+package cn.warriorView.object.scale;
 
-import cn.warriorView.Object.Scale.Type.ScaleCommon;
-import cn.warriorView.Object.Scale.Type.ScaleRange;
-import cn.warriorView.Util.MathUtil;
+import cn.warriorView.object.scale.type.ScaleCommon;
+import cn.warriorView.object.scale.type.ScaleRange;
+import cn.warriorView.util.MathUtil;
 import com.github.retrooper.packetevents.util.Vector3f;
 
 import java.util.ArrayList;

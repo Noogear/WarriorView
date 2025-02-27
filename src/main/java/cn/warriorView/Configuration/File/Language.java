@@ -1,6 +1,6 @@
-package cn.warriorView.Configuration.File;
+package cn.warriorView.configuration.file;
 
-import cn.warriorView.Configuration.Form.ConfigurationFile;
+import cn.warriorView.configuration.form.ConfigurationFile;
 
 public class Language extends ConfigurationFile {
 

@@ -1,6 +1,6 @@
-package cn.warriorView.Object.Animation;
+package cn.warriorView.object.animation;
 
-import cn.warriorView.Object.Animation.Type.AnimationGroup;
+import cn.warriorView.object.animation.type.AnimationGroup;
 
 import java.util.List;
 

@@ -1,6 +1,6 @@
-package cn.warriorView.Object.Format.Number;
+package cn.warriorView.object.format.number;
 
-import cn.warriorView.Object.Format.INumber;
+import cn.warriorView.object.format.INumber;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

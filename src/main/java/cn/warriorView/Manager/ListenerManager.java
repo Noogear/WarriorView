@@ -1,9 +1,9 @@
-package cn.warriorView.Manager;
+package cn.warriorView.manager;
 
-import cn.warriorView.Configuration.File.Config;
-import cn.warriorView.Listener.EntityDamage;
-import cn.warriorView.Listener.RegainHealth;
 import cn.warriorView.Main;
+import cn.warriorView.configuration.file.Config;
+import cn.warriorView.listener.EntityDamage;
+import cn.warriorView.listener.RegainHealth;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.PluginManager;
 

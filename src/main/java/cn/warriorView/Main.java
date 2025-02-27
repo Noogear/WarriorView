@@ -1,13 +1,13 @@
 package cn.warriorView;
 
-import cn.warriorView.Configuration.File.Language;
-import cn.warriorView.Manager.ConfigManager;
-import cn.warriorView.Manager.ListenerManager;
-import cn.warriorView.Manager.ViewManager;
-import cn.warriorView.Util.MsgUtil;
-import cn.warriorView.Util.Scheduler.XRunnable;
-import cn.warriorView.Util.Scheduler.XScheduler;
-import cn.warriorView.Util.XLogger;
+import cn.warriorView.configuration.file.Language;
+import cn.warriorView.manager.ConfigManager;
+import cn.warriorView.manager.ListenerManager;
+import cn.warriorView.manager.ViewManager;
+import cn.warriorView.util.MsgUtil;
+import cn.warriorView.util.scheduler.XRunnable;
+import cn.warriorView.util.scheduler.XScheduler;
+import cn.warriorView.util.XLogger;
 import com.github.retrooper.packetevents.PacketEvents;
 import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
 import me.tofaa.entitylib.APIConfig;

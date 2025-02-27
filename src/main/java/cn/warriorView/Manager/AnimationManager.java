@@ -1,13 +1,13 @@
-package cn.warriorView.Manager;
+package cn.warriorView.manager;
 
-import cn.warriorView.Object.Animation.AnimationFactory;
-import cn.warriorView.Object.Animation.AnimationParams;
-import cn.warriorView.Object.Animation.IAnimation;
-import cn.warriorView.Object.Animation.Type.Approach;
-import cn.warriorView.Object.Animation.Type.Up;
-import cn.warriorView.Util.FileUtil;
-import cn.warriorView.Util.MathUtil;
-import cn.warriorView.Util.XLogger;
+import cn.warriorView.object.animation.AnimationFactory;
+import cn.warriorView.object.animation.AnimationParams;
+import cn.warriorView.object.animation.IAnimation;
+import cn.warriorView.object.animation.type.Approach;
+import cn.warriorView.object.animation.type.Up;
+import cn.warriorView.util.FileUtil;
+import cn.warriorView.util.MathUtil;
+import cn.warriorView.util.XLogger;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 

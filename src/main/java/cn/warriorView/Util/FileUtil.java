@@ -1,4 +1,4 @@
-package cn.warriorView.Util;
+package cn.warriorView.util;
 
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.MemoryConfiguration;

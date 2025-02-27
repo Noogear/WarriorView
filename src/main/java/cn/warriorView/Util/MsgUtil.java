@@ -1,6 +1,6 @@
-package cn.warriorView.Util;
+package cn.warriorView.util;
 
-import cn.warriorView.Configuration.File.Language;
+import cn.warriorView.configuration.file.Language;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.command.CommandSender;
 

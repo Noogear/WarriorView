@@ -1,9 +1,9 @@
-package cn.warriorView.View;
+package cn.warriorView.view;
 
-import cn.warriorView.Object.Animation.IAnimation;
-import cn.warriorView.Object.Format.TextFormat;
-import cn.warriorView.Object.Offset;
-import cn.warriorView.Object.Scale.IScale;
+import cn.warriorView.object.Offset;
+import cn.warriorView.object.animation.IAnimation;
+import cn.warriorView.object.format.TextFormat;
+import cn.warriorView.object.scale.IScale;
 
 import java.util.List;
 

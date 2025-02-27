@@ -1,4 +1,4 @@
-package cn.warriorView.Object.Animation;
+package cn.warriorView.object.animation;
 
 public record AnimationParams(
         float max,

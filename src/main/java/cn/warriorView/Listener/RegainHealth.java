@@ -1,7 +1,7 @@
-package cn.warriorView.Listener;
+package cn.warriorView.listener;
 
 import cn.warriorView.Main;
-import cn.warriorView.View.Category.Regain.RegainView;
+import cn.warriorView.view.category.regain.RegainView;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;

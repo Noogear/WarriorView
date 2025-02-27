@@ -1,4 +1,4 @@
-package cn.warriorView.Util;
+package cn.warriorView.util;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

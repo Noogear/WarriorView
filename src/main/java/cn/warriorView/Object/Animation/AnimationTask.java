@@ -1,6 +1,6 @@
-package cn.warriorView.Object.Animation;
+package cn.warriorView.object.animation;
 
-import cn.warriorView.Util.Scheduler.XRunnable;
+import cn.warriorView.util.scheduler.XRunnable;
 
 import java.util.Map;
 import java.util.Set;

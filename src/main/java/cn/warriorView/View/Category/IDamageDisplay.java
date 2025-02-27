@@ -1,6 +1,6 @@
-package cn.warriorView.View.Category;
+package cn.warriorView.view.category;
 
-import cn.warriorView.Object.Animation.IAnimation;
+import cn.warriorView.object.animation.IAnimation;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 

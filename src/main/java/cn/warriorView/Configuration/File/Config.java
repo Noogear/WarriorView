@@ -1,10 +1,9 @@
-package cn.warriorView.Configuration.File;
+package cn.warriorView.configuration.file;
 
-import cn.warriorView.Configuration.Form.Comments;
-import cn.warriorView.Configuration.Form.ConfigurationFile;
-import cn.warriorView.Configuration.Form.ConfigurationPart;
+import cn.warriorView.configuration.form.Comments;
+import cn.warriorView.configuration.form.ConfigurationFile;
+import cn.warriorView.configuration.form.ConfigurationPart;
 
-import java.lang.reflect.Array;
 import java.util.List;
 
 public class Config extends ConfigurationFile {

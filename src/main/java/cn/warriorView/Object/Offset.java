@@ -1,4 +1,4 @@
-package cn.warriorView.Object;
+package cn.warriorView.object;
 
 import com.github.retrooper.packetevents.util.Vector3d;
 import org.bukkit.Location;

@@ -1,4 +1,4 @@
-package cn.warriorView.Util;
+package cn.warriorView.util;
 
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;

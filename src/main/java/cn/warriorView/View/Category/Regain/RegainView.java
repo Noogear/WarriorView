@@ -1,16 +1,19 @@
-package cn.warriorView.View.Category.Regain;
+package cn.warriorView.view.category.regain;
 
-import cn.warriorView.Object.Animation.IAnimation;
-import cn.warriorView.Object.Format.TextFormat;
-import cn.warriorView.Object.Offset;
-import cn.warriorView.Object.Scale.IScale;
-import cn.warriorView.Util.ViewUtil;
-import cn.warriorView.View.ViewParams;
+import cn.warriorView.object.Offset;
+import cn.warriorView.object.animation.IAnimation;
+import cn.warriorView.object.format.TextFormat;
+import cn.warriorView.object.scale.IScale;
+import cn.warriorView.util.ViewUtil;
+import cn.warriorView.view.ViewParams;
+import cn.warriorView.view.meta.MetaFactory;
+import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -20,29 +23,21 @@ public class RegainView {
     final int length;
     private final TextFormat textFormat;
     private final IScale scale;
-    private final boolean shadow;
-    private final byte textOpacity;
-    private final float viewRange;
     private final byte viewMarge;
-    private final int backgroundColor;
-    private final boolean seeThrough;
     private final List<IAnimation> animations;
     private final Offset offset;
+    private final List<EntityData> basicSpawnData;
 
     public RegainView(ViewParams params) {
         this.textFormat = params.textFormat();
         this.scale = params.scale();
-        this.shadow = params.shadow();
-        this.textOpacity = params.textOpacity();
-        this.viewRange = params.viewRange();
         this.viewMarge = params.viewMarge();
-        this.backgroundColor = params.backgroundColor();
-        this.seeThrough = params.seeThrough();
         this.onlyPlayer = params.onlyPlayer();
         this.animations = params.animations();
         this.length = animations.size();
         this.position = Position.valueOf(params.position().toUpperCase());
         this.offset = params.offset();
+        this.basicSpawnData = MetaFactory.basicCreate(params);
     }
 
     public void spawn(EntityRegainHealthEvent event) {
@@ -56,7 +51,7 @@ public class RegainView {
             if (this.onlyPlayer) return;
         }
         Location regainLocation = (this.position == Position.EYE) ? entity.getEyeLocation() : entity.getLocation();
-        ViewUtil.spawnDisplay(animation(), shadow, viewRange, viewMarge, seeThrough, textFormat, textOpacity, backgroundColor, scale, regainLocation, player, regain, offset);
+        ViewUtil.spawnDisplay(animation(), viewMarge, textFormat, scale, regainLocation, player, regain, offset, new ArrayList<>(basicSpawnData));
 
     }
 

@@ -1,7 +1,7 @@
-package cn.warriorView.Object.Animation.Type;
+package cn.warriorView.object.animation.type;
 
-import cn.warriorView.Object.Animation.IAnimation;
-import cn.warriorView.Util.PacketUtil;
+import cn.warriorView.object.animation.IAnimation;
+import cn.warriorView.util.PacketUtil;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
 import org.bukkit.entity.Player;

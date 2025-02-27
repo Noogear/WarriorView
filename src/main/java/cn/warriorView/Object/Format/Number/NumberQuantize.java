@@ -1,7 +1,7 @@
-package cn.warriorView.Object.Format.Number;
+package cn.warriorView.object.format.number;
 
-import cn.warriorView.Object.Format.INumber;
-import cn.warriorView.Util.TextUtils;
+import cn.warriorView.object.format.INumber;
+import cn.warriorView.util.TextUtils;
 
 import java.util.Map;
 

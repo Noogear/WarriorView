@@ -1,4 +1,4 @@
-package cn.warriorView.Object.Format;
+package cn.warriorView.object.format;
 
 import net.kyori.adventure.text.Component;
 

@@ -1,4 +1,4 @@
-package cn.warriorView.Util.Scheduler.task;
+package cn.warriorView.util.scheduler.task;
 
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.NotNull;

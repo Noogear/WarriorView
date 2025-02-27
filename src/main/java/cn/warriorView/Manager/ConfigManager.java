@@ -1,15 +1,15 @@
-package cn.warriorView.Manager;
+package cn.warriorView.manager;
 
-import cn.warriorView.Configuration.File.Config;
-import cn.warriorView.Configuration.File.Language;
-import cn.warriorView.Configuration.Form.ConfigurationManager;
 import cn.warriorView.Main;
-import cn.warriorView.Object.Offset;
-import cn.warriorView.Object.Scale.ScaleFactory;
-import cn.warriorView.Util.MathUtil;
-import cn.warriorView.Util.RegistryUtil;
-import cn.warriorView.Util.XLogger;
-import cn.warriorView.View.ViewParams;
+import cn.warriorView.configuration.file.Config;
+import cn.warriorView.configuration.file.Language;
+import cn.warriorView.configuration.form.ConfigurationManager;
+import cn.warriorView.object.Offset;
+import cn.warriorView.object.scale.ScaleFactory;
+import cn.warriorView.util.MathUtil;
+import cn.warriorView.util.RegistryUtil;
+import cn.warriorView.util.XLogger;
+import cn.warriorView.view.ViewParams;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.entity.EntityDamageEvent;

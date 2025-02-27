@@ -1,4 +1,4 @@
-package cn.warriorView.Util.Scheduler.task;
+package cn.warriorView.util.scheduler.task;
 
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.plugin.Plugin;

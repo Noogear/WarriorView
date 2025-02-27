@@ -1,8 +1,8 @@
-package cn.warriorView.Util.Scheduler;
+package cn.warriorView.util.scheduler;
 
 import cn.warriorView.Main;
-import cn.warriorView.Util.Scheduler.task.BukkitTaskWrapper;
-import cn.warriorView.Util.Scheduler.task.ITaskWrapper;
+import cn.warriorView.util.scheduler.task.BukkitTaskWrapper;
+import cn.warriorView.util.scheduler.task.ITaskWrapper;
 import org.bukkit.Bukkit;
 import org.jetbrains.annotations.NotNull;
 

@@ -1,6 +1,6 @@
-package cn.warriorView.Object.Format;
+package cn.warriorView.object.format;
 
-import cn.warriorView.Util.TextUtils;
+import cn.warriorView.util.TextUtils;
 import net.kyori.adventure.text.Component;
 
 import java.util.regex.Matcher;

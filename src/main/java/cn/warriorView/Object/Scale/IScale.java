@@ -1,4 +1,4 @@
-package cn.warriorView.Object.Scale;
+package cn.warriorView.object.scale;
 
 import com.github.retrooper.packetevents.util.Vector3f;
 

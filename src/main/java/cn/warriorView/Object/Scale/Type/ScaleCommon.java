@@ -1,6 +1,6 @@
-package cn.warriorView.Object.Scale.Type;
+package cn.warriorView.object.scale.type;
 
-import cn.warriorView.Object.Scale.IScale;
+import cn.warriorView.object.scale.IScale;
 import com.github.retrooper.packetevents.util.Vector3f;
 
 public class ScaleCommon implements IScale {

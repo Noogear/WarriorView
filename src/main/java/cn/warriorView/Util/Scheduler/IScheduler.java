@@ -1,6 +1,6 @@
-package cn.warriorView.Util.Scheduler;
+package cn.warriorView.util.scheduler;
 
-import cn.warriorView.Util.Scheduler.task.ITaskWrapper;
+import cn.warriorView.util.scheduler.task.ITaskWrapper;
 import org.jetbrains.annotations.NotNull;
 
 /**

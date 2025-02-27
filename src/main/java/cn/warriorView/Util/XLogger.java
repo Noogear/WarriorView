@@ -1,4 +1,4 @@
-package cn.warriorView.Util;
+package cn.warriorView.util;
 
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.Nullable;

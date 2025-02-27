@@ -1,12 +1,12 @@
-package cn.warriorView.Manager;
+package cn.warriorView.manager;
 
-import cn.warriorView.View.Category.Damage.CriticalView;
-import cn.warriorView.View.Category.Damage.DamageOtherView;
-import cn.warriorView.View.Category.Damage.DamageView;
-import cn.warriorView.View.Category.Damage.ProjectileView;
-import cn.warriorView.View.Category.IDamageDisplay;
-import cn.warriorView.View.Category.Regain.RegainView;
-import cn.warriorView.View.ViewParams;
+import cn.warriorView.view.ViewParams;
+import cn.warriorView.view.category.IDamageDisplay;
+import cn.warriorView.view.category.damage.CriticalView;
+import cn.warriorView.view.category.damage.DamageOtherView;
+import cn.warriorView.view.category.damage.DamageView;
+import cn.warriorView.view.category.damage.ProjectileView;
+import cn.warriorView.view.category.regain.RegainView;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 

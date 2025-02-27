@@ -1,4 +1,4 @@
-package cn.warriorView.Configuration.Form;
+package cn.warriorView.configuration.form;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
