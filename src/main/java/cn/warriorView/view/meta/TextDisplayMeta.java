@@ -13,27 +13,17 @@ import static cn.warriorView.util.PacketUtil.isVersion;
 
 public class TextDisplayMeta {
 
-    public static final boolean ABOVE_1_20_2 = isVersion(ServerVersion.V_1_20_2, VersionComparison.NEWER_THAN_OR_EQUALS);
-    public static final byte OFFSET = 0;
-    public static final byte MAX_OFFSET = OFFSET + 8;
-    public static final byte DISPLAY_OFFSET = MAX_OFFSET;
-    public static final byte DISPLAY_MAX_OFFSET;
-    static {
-        if (ABOVE_1_20_2) {
-            DISPLAY_MAX_OFFSET = DISPLAY_OFFSET + 15;
-        } else {
-            DISPLAY_MAX_OFFSET = DISPLAY_OFFSET + 14;
-        }
-    }
-    public static final byte TEXT_OFFSET = DISPLAY_MAX_OFFSET;
-    public static final byte TEXT_MAX_OFFSET = offset(TEXT_OFFSET, 5);
+    private static final boolean ABOVE_1_20_2 = isVersion(ServerVersion.V_1_20_2, VersionComparison.NEWER_THAN_OR_EQUALS);
+    private static final byte OFFSET = 0;
+    private static final byte DISPLAY_OFFSET = OFFSET + 8;
+    private static final byte TEXT_OFFSET = (byte) (ABOVE_1_20_2 ? DISPLAY_OFFSET + 15 : DISPLAY_OFFSET + 14);
     private static final byte SHADOW = 1;
     private static final byte SEE_THROUGH = 2;
     private static final byte USE_DEFAULT_BACKGROUND = 4;
     private static final byte ALIGN_LEFT = 8;
     private static final byte ALIGN_RIGHT = 16;
 
-    protected static byte offset(byte value, int amount) {
+    private static byte offset(byte value, int amount) {
         return (byte) (value + amount);
     }
 
