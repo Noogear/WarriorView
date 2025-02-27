@@ -5,14 +5,11 @@ import cn.warriorView.manager.ConfigManager;
 import cn.warriorView.manager.ListenerManager;
 import cn.warriorView.manager.ViewManager;
 import cn.warriorView.util.MsgUtil;
+import cn.warriorView.util.XLogger;
 import cn.warriorView.util.scheduler.XRunnable;
 import cn.warriorView.util.scheduler.XScheduler;
-import cn.warriorView.util.XLogger;
 import com.github.retrooper.packetevents.PacketEvents;
 import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
-import me.tofaa.entitylib.APIConfig;
-import me.tofaa.entitylib.EntityLib;
-import me.tofaa.entitylib.spigot.SpigotEntityLibPlatform;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.event.HandlerList;
@@ -37,9 +34,6 @@ public final class Main extends JavaPlugin {
         new XLogger(this);
 
         PacketEvents.getAPI().init();
-        SpigotEntityLibPlatform platform = new SpigotEntityLibPlatform(this);
-        APIConfig settings = new APIConfig(PacketEvents.getAPI());
-        EntityLib.init(platform, settings);
 
         viewManager = new ViewManager();
         try {
