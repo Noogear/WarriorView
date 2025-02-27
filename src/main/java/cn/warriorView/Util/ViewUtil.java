@@ -9,7 +9,6 @@ import cn.warriorView.view.meta.TextDisplayMeta;
 import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
 import com.github.retrooper.packetevents.util.Vector3d;
-import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBundle;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import org.bukkit.Location;
@@ -94,8 +93,7 @@ public class ViewUtil {
                 entityId, Optional.of(uuid), EntityTypes.TEXT_DISPLAY,
                 location, 0f, 0f, 0f, 0, Optional.empty());
 
-        PacketUtil.sendPacketToPlayers(spawnPack, players);
-        PacketUtil.sendPacketToPlayers(metaPack, players);
+        PacketUtil.sendPacketToPlayers(spawnPack, metaPack, players);
 
     }
 

@@ -29,6 +29,14 @@ public class PacketUtil {
         }
     }
 
+    public static void sendPacketToPlayers(PacketWrapper<?> packet1, PacketWrapper<?> packet2, Set<Player> players) {
+        for (Player p : players) {
+            if (p == null) continue;
+            playerManager.sendPacket(p, packet1);
+            playerManager.sendPacket(p, packet2);
+        }
+    }
+
     public static Set<Player> getNearbyPlayer(Location location, byte marge) {
         if (marge <= 1) {
             return Collections.emptySet();
