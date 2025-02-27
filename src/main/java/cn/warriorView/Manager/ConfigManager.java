@@ -50,9 +50,7 @@ public class ConfigManager {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        viewManager.init();
-        animationManager.init();
-        formatManager.init();
+        init();
         if (!Config.enabled) {
             XLogger.info("WarriorView is not enabled!");
             return;
@@ -62,6 +60,12 @@ public class ConfigManager {
         loadDamageView(loadOrCreateConfig(Config.damageEntity.apply, "views/damage_cause.yml"));
         loadRegainHealth(loadOrCreateConfig(Config.regainHealth.apply, "views/regain_reason.yml"));
 
+    }
+
+    public void init() {
+        viewManager.init();
+        animationManager.init();
+        formatManager.init();
     }
 
     private void loadDamageView(YamlConfiguration viewFile) {

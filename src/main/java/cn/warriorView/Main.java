@@ -59,6 +59,7 @@ public final class Main extends JavaPlugin {
     public void onDisable() {
         PacketEvents.getAPI().terminate();
         XScheduler.get().cancelTasks();
+        configManager.init();
         HandlerList.unregisterAll(this);
     }
 
