@@ -58,11 +58,13 @@ public final class Main extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        PacketEvents.getAPI().terminate();
-        XScheduler.get().cancelTasks();
-        configManager.init();
-        HandlerList.unregisterAll(this);
-        AnimationTask.getInstance().init();
+        try{
+            PacketEvents.getAPI().terminate();
+            XScheduler.get().cancelTasks();
+            configManager.init();
+            HandlerList.unregisterAll(this);
+            AnimationTask.getInstance().init();
+        } catch (Exception ignored) {}
     }
 
     public ViewManager getViewManager() {

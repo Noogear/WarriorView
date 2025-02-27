@@ -22,7 +22,7 @@ public final class NumberQuantize implements INumber {
     private final int maxUnitIndex;
     private final ThreadLocal<StringBuilder> buffer;
 
-    private NumberQuantize(double[] thresholds, String[] units) {
+    public NumberQuantize(double[] thresholds, String[] units) {
         this.thresholds = thresholds;
         this.units = new char[units.length][];
         for (int i = 0; i < units.length; i++) {
@@ -32,29 +32,7 @@ public final class NumberQuantize implements INumber {
         this.buffer = ThreadLocal.withInitial(() -> new StringBuilder(32));
     }
 
-    public static NumberQuantize create(Map<Integer, String> unitMap) {
-        if (unitMap.isEmpty()) {
-            throw new IllegalArgumentException("Unit map cannot be empty");
-        }
-
-        var sortedEntries = unitMap.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .toList();
-
-        double[] thresholds = new double[sortedEntries.size()];
-        String[] units = new String[sortedEntries.size()];
-
-        for (int i = 0; i < sortedEntries.size(); i++) {
-            int exp = sortedEntries.get(i).getKey();
-            thresholds[i] = (exp >= 0 && exp < POW10_CACHE.length) ?
-                    POW10_CACHE[exp] : Math.pow(10, exp);
-            units[i] = TextUtils.unescapeUnicode(sortedEntries.get(i).getValue());
-        }
-
-        return new NumberQuantize(thresholds, units);
-    }
-
-    private static void reverseSegment(StringBuilder sb, int start, int end) {
+    private void reverseSegment(StringBuilder sb, int start, int end) {
         while (start < end) {
             char temp = sb.charAt(start);
             sb.setCharAt(start++, sb.charAt(end));

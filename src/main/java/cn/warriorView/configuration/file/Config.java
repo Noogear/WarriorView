@@ -70,7 +70,7 @@ public class Config extends ConfigurationFile {
         }
 
         @Comments("特殊配置文件路径, 在下方文件中添加了造成伤害的原因才能正常使用")
-        public String apply = "views/damage_cause.yml";
+        public String apply = "damage_cause.yml";
 
     }
 
@@ -130,7 +130,7 @@ public class Config extends ConfigurationFile {
         }
 
         @Comments("特殊配置文件路径, 在下方文件中添加了治疗的原因才能正常使用")
-        public String apply = "views/regain_reason.yml";
+        public String apply = "regain_reason.yml";
 
     }
 

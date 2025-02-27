@@ -2,6 +2,7 @@ package cn.warriorView.object.format.text;
 
 import cn.warriorView.object.format.IText;
 import cn.warriorView.util.TextUtils;
+import cn.warriorView.util.XLogger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 
@@ -17,54 +18,15 @@ public class TextReplace implements IText {
     private final boolean hasAsciiReplace;
     private final boolean hasExtendedReplace;
 
-    protected TextReplace(String[] numMap, String[] asciiMap,
-                          Map<Character, String> extendedMap,
-                          boolean hasNum, boolean hasAscii, boolean hasExt) {
+    public TextReplace(String[] numMap, String[] asciiMap,
+                       Map<Character, String> extendedMap,
+                       boolean hasNum, boolean hasAscii, boolean hasExt) {
         System.arraycopy(numMap, 0, this.numberMap, 0, 10);
         System.arraycopy(asciiMap, 0, this.asciiMap, 0, 128);
         this.extendedMap = Map.copyOf(extendedMap);
         this.hasNumberReplace = hasNum;
         this.hasAsciiReplace = hasAscii;
         this.hasExtendedReplace = hasExt;
-    }
-
-    public static TextReplace create(Map<String, String> rules) {
-        String[] numMap = new String[10];
-        Arrays.setAll(numMap, i -> String.valueOf((char) ('0' + i)));
-
-        boolean hasNumberReplace = false;
-        String[] ascii = new String[128];
-        boolean hasAsciiReplace = false;
-        Map<Character, String> extended = new HashMap<>();
-        boolean hasExtendedReplace = false;
-
-        for (Map.Entry<String, String> e : rules.entrySet()) {
-            String key = e.getKey();
-            String val = e.getValue() != null ? TextUtils.unescapeUnicode(e.getValue()) : "";
-
-            if (key.length() != 1) {
-                throw new IllegalArgumentException("Rule key must be single character: " + key);
-            }
-            char k = key.charAt(0);
-
-            if (k >= '0' && k <= '9') {
-                int index = k - '0';
-                numMap[index] = val;
-                if (!String.valueOf(k).equals(val)) {
-                    hasNumberReplace = true;
-                }
-            } else {
-                if (k < 128) {
-                    ascii[k] = val;
-                    hasAsciiReplace = true;
-                } else {
-                    extended.put(k, val);
-                    hasExtendedReplace = true;
-                }
-            }
-        }
-        return new TextReplace(numMap, ascii, extended,
-                hasNumberReplace, hasAsciiReplace, hasExtendedReplace);
     }
 
     @Override

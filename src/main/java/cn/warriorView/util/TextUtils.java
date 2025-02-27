@@ -3,9 +3,10 @@ package cn.warriorView.util;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public final class TextUtils {
+public class TextUtils {
     private static final Pattern UNICODE_PATTERN = Pattern.compile("\\\\u([0-9a-fA-F]{4})");
-    private static final Pattern FORMAT_REGEX = Pattern.compile("^(.*?)%(\\d+)f(.*)$");
+    private static final Pattern FORMAT_REGEX =
+            Pattern.compile("^(.*?)%(?:\\.(\\d+))?f(.*)$", Pattern.DOTALL);
     private static final ThreadLocal<StringBuilder> TL_BUILDER =
             ThreadLocal.withInitial(() -> new StringBuilder(16));
 

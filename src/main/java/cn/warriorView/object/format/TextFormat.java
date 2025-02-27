@@ -21,11 +21,6 @@ public class TextFormat {
         this.textFormat = textFormat;
     }
 
-    public static TextFormat create(String text, INumber numberFormat, IText textFormat) {
-        Matcher matcher = TextUtils.formatMatch(text);
-        return new TextFormat(matcher.group(1), matcher.group(3), Integer.parseInt(matcher.group(2)), numberFormat, textFormat);
-    }
-
     public Component get(double value) {
         return textFormat.format(numberFormat.format(prefix, suffix, precision, value));
     }

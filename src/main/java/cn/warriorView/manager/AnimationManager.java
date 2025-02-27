@@ -5,10 +5,10 @@ import cn.warriorView.object.animation.AnimationParams;
 import cn.warriorView.object.animation.IAnimation;
 import cn.warriorView.object.animation.type.Approach;
 import cn.warriorView.object.animation.type.Up;
-import cn.warriorView.util.FileUtil;
 import cn.warriorView.util.MathUtil;
 import cn.warriorView.util.XLogger;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.MemoryConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.util.*;
@@ -57,11 +57,14 @@ public class AnimationManager {
     public void load(YamlConfiguration yamlConfiguration) {
         Set<String> topKeys = yamlConfiguration.getKeys(false);
         for (String topKey : topKeys) {
-            ConfigurationSection section = yamlConfiguration.getConfigurationSection(topKey);
-            if (section == null) continue;
-
+            List<Map<?, ?>> rawAnimations = yamlConfiguration.getMapList(topKey);
             List<IAnimation> animations = new LinkedList<>();
-            for (ConfigurationSection animationSec : FileUtil.getSectionList(section, topKey)) {
+            for (Map<?, ?> map : rawAnimations) {
+                MemoryConfiguration animationSec = new MemoryConfiguration();
+                for (Map.Entry<?, ?> entry : map.entrySet()) {
+                    String key = entry.getKey().toString();
+                    animationSec.set(key, entry.getValue());
+                }
                 String type = animationSec.getString("type");
                 if (type == null) continue;
                 switch (type.replace("-", "").toLowerCase()) {
@@ -75,7 +78,7 @@ public class AnimationManager {
             }
             animationMap.put(topKey, AnimationFactory.getGroup(animations));
         }
-        XLogger.info("Successfully load " + animationMap.size() + " animation(s)");
+        XLogger.info("Successfully  load " + animationMap.size() + " animation(s)");
     }
 
     public AnimationParams createAnimation(ConfigurationSection animationSec) {

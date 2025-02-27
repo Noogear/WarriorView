@@ -57,8 +57,8 @@ public class ConfigManager {
         }
         formatManager.load(loadOrCreateConfig(Config.replacement, "replacement.yml"));
         animationManager.load(loadOrCreateConfig(Config.animation, "animation.yml"));
-        loadDamageView(loadOrCreateConfig(Config.damageEntity.apply, "views/damage_cause.yml"));
-        loadRegainHealth(loadOrCreateConfig(Config.regainHealth.apply, "views/regain_reason.yml"));
+        loadDamageView(loadOrCreateConfig(Config.damageEntity.apply, "damage_cause.yml"));
+        loadRegainHealth(loadOrCreateConfig(Config.regainHealth.apply, "regain_reason.yml"));
 
     }
 
@@ -69,7 +69,7 @@ public class ConfigManager {
     }
 
     private void loadDamageView(YamlConfiguration viewFile) {
-        try {
+
             Set<String> topKeys = viewFile.getKeys(false);
             for (String key : topKeys) {
                 ConfigurationSection section = viewFile.getConfigurationSection(key);
@@ -90,9 +90,7 @@ public class ConfigManager {
                 viewManager.addDamageViews(cause, viewParams);
             }
             XLogger.info("Successfully load %s damage view(s)", viewManager.getDamageViews().size());
-        } catch (Exception e) {
-            XLogger.err("Failed to load damage views: %s", e);
-        }
+
     }
 
     private void loadRegainHealth(YamlConfiguration viewFile) {
