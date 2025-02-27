@@ -4,6 +4,7 @@ import cn.warriorView.configuration.file.Language;
 import cn.warriorView.manager.ConfigManager;
 import cn.warriorView.manager.ListenerManager;
 import cn.warriorView.manager.ViewManager;
+import cn.warriorView.object.animation.AnimationTask;
 import cn.warriorView.util.MsgUtil;
 import cn.warriorView.util.XLogger;
 import cn.warriorView.util.scheduler.XRunnable;
@@ -61,6 +62,7 @@ public final class Main extends JavaPlugin {
         XScheduler.get().cancelTasks();
         configManager.init();
         HandlerList.unregisterAll(this);
+        AnimationTask.getInstance().init();
     }
 
     public ViewManager getViewManager() {

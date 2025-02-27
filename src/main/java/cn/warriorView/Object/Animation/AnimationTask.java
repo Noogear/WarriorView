@@ -22,6 +22,11 @@ public class AnimationTask {
         return instance;
     }
 
+    public void init() {
+        taskGroups.values().forEach(TaskGroup::cancel);
+        taskGroups.clear();
+    }
+
     public void scheduleTask(long interval, Runnable task) {
         TaskGroup group = taskGroups.computeIfAbsent(interval, k -> new TaskGroup(interval));
         group.addTask(task);
