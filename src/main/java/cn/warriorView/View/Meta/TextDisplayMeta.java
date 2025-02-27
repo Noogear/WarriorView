@@ -32,7 +32,7 @@ public class TextDisplayMeta {
     private static final byte USE_DEFAULT_BACKGROUND = 4;
     private static final byte ALIGN_LEFT = 8;
     private static final byte ALIGN_RIGHT = 16;
-    
+
     protected static byte offset(byte value, int amount) {
         return (byte) (value + amount);
     }

@@ -9,6 +9,7 @@ import cn.warriorView.view.meta.TextDisplayMeta;
 import com.github.retrooper.packetevents.protocol.entity.data.EntityData;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
 import com.github.retrooper.packetevents.util.Vector3d;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBundle;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import org.bukkit.Location;
@@ -23,20 +24,7 @@ import java.util.UUID;
 
 public class ViewUtil {
 
-    private static final ThreadLocal<WrapperPlayServerSpawnEntity> threadLocalSpawnPack =
-            ThreadLocal.withInitial(() -> new WrapperPlayServerSpawnEntity(
-                    0,
-                    Optional.of(UUID.randomUUID()),
-                    EntityTypes.TEXT_DISPLAY,
-                    null,
-                    0f, 0f, 0f, 0, Optional.empty()
-            ));
-
-    private static final ThreadLocal<WrapperPlayServerEntityMetadata> threadLocalMetaPack =
-            ThreadLocal.withInitial(() -> new WrapperPlayServerEntityMetadata(
-                    0,
-                    (List<EntityData>) null
-            ));
+    private static final UUID uuid = UUID.randomUUID();
 
     public static void spawnDisplay(
             IAnimation animation,
@@ -60,7 +48,6 @@ public class ViewUtil {
                 animation.play(entityId, finalLoc, location.getDirection(), players, null);
             }
         }.async();
-
     }
 
     public static void spawnDisplay(
@@ -89,7 +76,6 @@ public class ViewUtil {
                 animation.play(entityId, finalLoc, unitVec.multiply(-1), players, null);
             }
         }.async();
-
     }
 
     public static void packetHolo(
@@ -101,18 +87,16 @@ public class ViewUtil {
             IScale scale,
             List<EntityData> basicSpawnData
     ) {
-        WrapperPlayServerEntityMetadata metaPack = threadLocalMetaPack.get();
         basicSpawnData.add(TextDisplayMeta.scale(scale.get()));
         basicSpawnData.add(TextDisplayMeta.text(textFormat.get(value)));
-        metaPack.setEntityId(entityId);
-        metaPack.setEntityMetadata(basicSpawnData);
-
-        WrapperPlayServerSpawnEntity spawnPack = threadLocalSpawnPack.get();
-        spawnPack.setEntityId(entityId);
-        spawnPack.setPosition(location);
+        WrapperPlayServerEntityMetadata metaPack = new WrapperPlayServerEntityMetadata(entityId, basicSpawnData);
+        WrapperPlayServerSpawnEntity spawnPack = new WrapperPlayServerSpawnEntity(
+                entityId, Optional.of(uuid), EntityTypes.TEXT_DISPLAY,
+                location, 0f, 0f, 0f, 0, Optional.empty());
 
         PacketUtil.sendPacketToPlayers(spawnPack, players);
         PacketUtil.sendPacketToPlayers(metaPack, players);
+
     }
 
 }
