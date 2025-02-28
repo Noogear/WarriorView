@@ -14,6 +14,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
@@ -55,11 +56,12 @@ public class ConfigManager {
             XLogger.info("WarriorView is not enabled!");
             return;
         }
-        formatManager.load(loadOrCreateConfig(Config.replacement, "replacement.yml"));
-        animationManager.load(loadOrCreateConfig(Config.animation, "animation.yml"));
-        loadDamageView(loadOrCreateConfig(Config.damageEntity.apply, "damage_cause.yml"));
-        loadRegainHealth(loadOrCreateConfig(Config.regainHealth.apply, "regain_reason.yml"));
-
+        YamlConfiguration replaceConfig = new YamlConfiguration();
+        replaceConfig.options().pathSeparator(':');
+        formatManager.load(loadOrCreateConfig(Config.replacement, "replacement.yml", replaceConfig));
+        animationManager.load(loadOrCreateConfig(Config.animation, "animation.yml", null));
+        loadDamageView(loadOrCreateConfig(Config.damageEntity.apply, "damage_cause.yml", null));
+        loadRegainHealth(loadOrCreateConfig(Config.regainHealth.apply, "regain_reason.yml", null));
     }
 
     public void init() {
@@ -69,7 +71,7 @@ public class ConfigManager {
     }
 
     private void loadDamageView(YamlConfiguration viewFile) {
-
+        try {
             Set<String> topKeys = viewFile.getKeys(false);
             for (String key : topKeys) {
                 ConfigurationSection section = viewFile.getConfigurationSection(key);
@@ -90,7 +92,9 @@ public class ConfigManager {
                 viewManager.addDamageViews(cause, viewParams);
             }
             XLogger.info("Successfully load %s damage view(s)", viewManager.getDamageViews().size());
-
+        } catch (Exception e) {
+            XLogger.err("Failed to load damage views: %s", e);
+        }
     }
 
     private void loadRegainHealth(YamlConfiguration viewFile) {
@@ -112,7 +116,6 @@ public class ConfigManager {
         }
 
     }
-
 
     private ViewParams buildDamageViewParams(ConfigurationSection section) {
         Config.DamageEntity.Defaults defaults = Config.DamageEntity.defaults;
@@ -159,7 +162,7 @@ public class ConfigManager {
     private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, double opacity, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, List<String> animation, String position, double offsetUp, double offsetApproach) {
         if (section == null) {
             if ("DAMAGE".equalsIgnoreCase(position)) {
-                throw new RuntimeException("The default config cannot use \"damage\" as the position.");
+                XLogger.err("The default config cannot use \"damage\" as the position.");
             }
             return new ViewParams(
                     formatManager.getTextFormat(textFormat, replacement),
@@ -193,14 +196,14 @@ public class ConfigManager {
     }
 
 
-    public YamlConfiguration loadOrCreateConfig(String targetFileName, String sourceResource) throws ConfigLoadingException {
+    public YamlConfiguration loadOrCreateConfig(String targetFileName, String sourceResource, @Nullable YamlConfiguration config) throws ConfigLoadingException {
         Path configFilePath = plugin.getDataFolder().toPath().resolve(targetFileName);
         Path parentDir = configFilePath.getParent();
 
         try {
             Files.createDirectories(parentDir);
         } catch (IOException e) {
-            throw new ConfigLoadingException("Failed to create parent directories for config file", e);
+            XLogger.err("Failed to create parent directories for config file" + e);
         }
 
         if (!Files.exists(configFilePath)) {
@@ -211,17 +214,32 @@ public class ConfigManager {
                 }
 
                 Files.copy(inputStream, configFilePath, StandardCopyOption.REPLACE_EXISTING);
-                return YamlConfiguration.loadConfiguration(configFilePath.toFile());
+                if (config == null) {
+                    return YamlConfiguration.loadConfiguration(configFilePath.toFile());
+                } else {
+                    try {
+                        config.load(configFilePath.toFile());
+                    } catch (Exception e) {
+                        XLogger.err("Failed to load config file" + e);
+                    }
+                    return config;
+                }
+
             } catch (IOException e) {
-                throw new ConfigLoadingException("Failed to copy config file from resource", e);
+                XLogger.err("Failed to copy config file from resource" + e);
             }
         }
-
-        try {
+        if (config == null) {
             return YamlConfiguration.loadConfiguration(configFilePath.toFile());
-        } catch (Exception e) {
-            throw new ConfigLoadingException("Failed to load existing config file", e);
+        } else {
+            try {
+                config.load(configFilePath.toFile());
+            } catch (Exception e) {
+                XLogger.err("Failed to load existing config file" + e);
+            }
+            return config;
         }
+
     }
 
     private void createEmptyConfig(Path configFilePath) throws IOException {

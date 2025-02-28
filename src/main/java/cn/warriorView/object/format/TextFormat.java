@@ -1,9 +1,6 @@
 package cn.warriorView.object.format;
 
-import cn.warriorView.util.TextUtils;
 import net.kyori.adventure.text.Component;
-
-import java.util.regex.Matcher;
 
 public class TextFormat {
 

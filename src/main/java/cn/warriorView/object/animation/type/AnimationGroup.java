@@ -8,15 +8,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
-import java.util.Set;
 import java.util.function.Consumer;
 
 public class AnimationGroup implements IAnimation {
     private final Queue<IAnimation> animationQueue = new LinkedList<>();
     private Consumer<Vector3d> groupCompleteCallback;
     private Vector3d currentLocation;
-    private Set<Player> currentPlayers;
+    private List<Player> currentPlayers;
     private int currentEntityId;
     private Vector currentUnitVec;
 
@@ -25,7 +25,7 @@ public class AnimationGroup implements IAnimation {
     }
 
     @Override
-    public void play(int entityId, Vector3d location, Vector unitVec, Set<Player> players, Consumer<Vector3d> onComplete) {
+    public void play(int entityId, Vector3d location, Vector unitVec, List<Player> players, Consumer<Vector3d> onComplete) {
         this.currentEntityId = entityId;
         this.currentLocation = location;
         this.currentUnitVec = unitVec;

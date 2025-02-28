@@ -1,13 +1,9 @@
 package cn.warriorView.object.format.text;
 
 import cn.warriorView.object.format.IText;
-import cn.warriorView.util.TextUtils;
-import cn.warriorView.util.XLogger;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 
 public class TextReplace implements IText {

@@ -1,9 +1,6 @@
 package cn.warriorView.object.format.number;
 
 import cn.warriorView.object.format.INumber;
-import cn.warriorView.util.TextUtils;
-
-import java.util.Map;
 
 public final class NumberQuantize implements INumber {
     private static final char[] DIGITS = "0123456789".toCharArray();

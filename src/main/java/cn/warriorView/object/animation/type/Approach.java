@@ -9,7 +9,7 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEn
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
-import java.util.Set;
+import java.util.List;
 import java.util.function.Consumer;
 
 public class Approach implements IAnimation {
@@ -42,7 +42,7 @@ public class Approach implements IAnimation {
     }
 
     @Override
-    public void play(int entityId, Vector3d location, Vector unitVec, Set<Player> players, Consumer<Vector3d> onComplete) {
+    public void play(int entityId, Vector3d location, Vector unitVec, List<Player> players, Consumer<Vector3d> onComplete) {
         Updater updater = new Updater(entityId, location, unitVec, players, onComplete);
         AnimationTask.getInstance().scheduleTask(interval, updater);
     }
@@ -50,7 +50,7 @@ public class Approach implements IAnimation {
     private class Updater implements Runnable {
         private final Vector3d initialLocation;
         private final WrapperPlayServerEntityTeleport teleportPacket;
-        private final Set<Player> players;
+        private final List<Player> players;
         private final Consumer<Vector3d> onComplete;
         private final boolean onRotation;
         private final double x;
@@ -62,7 +62,7 @@ public class Approach implements IAnimation {
         private double speed = baseSpeed;
         private double distance = max;
 
-        public Updater(int entityId, Vector3d location, Vector unitVec, Set<Player> players, Consumer<Vector3d> onComplete) {
+        public Updater(int entityId, Vector3d location, Vector unitVec, List<Player> players, Consumer<Vector3d> onComplete) {
             this.initialLocation = location;
             Vector finalVec = unitVec.clone().normalize();
             this.x = finalVec.getX();
