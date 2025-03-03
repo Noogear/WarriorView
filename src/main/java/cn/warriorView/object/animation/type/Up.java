@@ -89,7 +89,10 @@ public class Up implements IAnimation {
                 } else {
                     teleportPacket.setPosition(initialLocation.withY(y));
                 }
-                PacketUtil.sendPacketToPlayers(teleportPacket, players);
+                if (!PacketUtil.sendPacketToPlayers(teleportPacket, players)) {
+                    AnimationTask.getInstance().cancelTask(interval, this);
+                    return;
+                }
                 distance -= Math.abs(speed);
             }
 

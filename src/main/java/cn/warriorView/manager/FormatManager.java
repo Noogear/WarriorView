@@ -54,7 +54,6 @@ public class FormatManager {
                 Map<String, String> replace = new HashMap<>();
                 for (String key : replaceSection.getKeys(false)) {
                     String val = TextUtils.unescapeUnicode(replaceSection.getString(key));
-                    XLogger.info("replace: " + key + " -> " + val);
                     if (key.length() != 1) {
                         XLogger.err("replace key must be single character: " + key);
                         continue;

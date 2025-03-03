@@ -19,10 +19,11 @@ import org.bukkit.util.Vector;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ViewUtil {
 
-    private static final UUID uuid = UUID.randomUUID();
+    private static final AtomicInteger autoEntityId = new AtomicInteger(1000000);
 
     public static void spawnDisplay(
             IAnimation animation,
@@ -40,7 +41,7 @@ public class ViewUtil {
         new XRunnable() {
             @Override
             public void run() {
-                int entityId = PacketUtil.getAutoEntityId();
+                int entityId = autoEntityId.incrementAndGet();
                 Vector3d finalLoc = offset.getPosition(location);
                 packetHolo(entityId, finalLoc, players, value, textFormat, scale, basicSpawnData);
                 animation.play(entityId, finalLoc, location.getDirection(), players, null);
@@ -69,7 +70,7 @@ public class ViewUtil {
                 Location attackerLocation = attacker.getEyeLocation();
                 Vector unitVec = attackerLocation.getDirection().normalize();
                 Vector3d finalLoc = offset.getPosition(attackerLocation.add(unitVec.multiply(attackerLocation.distance(entityLocation))), unitVec);
-                int entityId = PacketUtil.getAutoEntityId();
+                int entityId = autoEntityId.incrementAndGet();
                 packetHolo(entityId, finalLoc, players, value, textFormat, scale, basicSpawnData);
                 animation.play(entityId, finalLoc, unitVec.multiply(-1), players, null);
             }
@@ -89,11 +90,10 @@ public class ViewUtil {
         basicSpawnData.add(TextDisplayMeta.text(textFormat.get(value)));
         WrapperPlayServerEntityMetadata metaPack = new WrapperPlayServerEntityMetadata(entityId, basicSpawnData);
         WrapperPlayServerSpawnEntity spawnPack = new WrapperPlayServerSpawnEntity(
-                entityId, Optional.of(uuid), EntityTypes.TEXT_DISPLAY,
+                entityId, Optional.of(UUID.randomUUID()), EntityTypes.TEXT_DISPLAY,
                 location, 0f, 0f, 0f, 0, Optional.empty());
 
         PacketUtil.sendPacketToPlayers(spawnPack, metaPack, players);
-
     }
 
 }

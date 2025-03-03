@@ -16,25 +16,28 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class PacketUtil {
 
     private static final PlayerManager playerManager = PacketEvents.getAPI().getPlayerManager();
-    private static final AtomicInteger autoEntityId = new AtomicInteger(1000000);
 
-    public static int getAutoEntityId() {
-        return autoEntityId.incrementAndGet();
-    }
-
-    public static void sendPacketToPlayers(PacketWrapper<?> packet, List<Player> players) {
-        players.removeIf(player -> {
-            if (player == null) {
-                return true;
-            } else {
-                playerManager.sendPacket(player, packet);
-                return false;
-            }
-        });
+    public static boolean sendPacketToPlayers(PacketWrapper<?> packet, List<Player> players) {
+        if (players == null || players.isEmpty()) {
+            return false;
+        } else {
+            players.removeIf(P -> {
+                if (P == null) {
+                    return true;
+                } else {
+                    playerManager.sendPacket(P, packet);
+                    return false;
+                }
+            });
+            return true;
+        }
     }
 
     public static void sendPacketToPlayers(PacketWrapper<?> packet1, PacketWrapper<?> packet2, List<Player> players) {
         for (Player p : players) {
+            if (p == null) {
+                continue;
+            }
             playerManager.sendPacket(p, packet1);
             playerManager.sendPacket(p, packet2);
         }
@@ -45,10 +48,6 @@ public class PacketUtil {
             return Collections.emptyList();
         }
         return new ArrayList<>(location.getNearbyPlayers(marge));
-    }
-
-    public static int getProtocolVersion() {
-        return PacketEvents.getAPI().getServerManager().getVersion().getProtocolVersion();
     }
 
     public static boolean isVersion(ServerVersion targetVersion, VersionComparison comparison) {

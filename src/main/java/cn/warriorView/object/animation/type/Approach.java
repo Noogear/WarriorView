@@ -87,7 +87,10 @@ public class Approach implements IAnimation {
                 } else {
                     teleportPacket.setPosition(initialLocation.add(x * move, y * move, z * move));
                 }
-                PacketUtil.sendPacketToPlayers(teleportPacket, players);
+                if (!PacketUtil.sendPacketToPlayers(teleportPacket, players)) {
+                    AnimationTask.getInstance().cancelTask(interval, this);
+                    return;
+                }
                 distance -= Math.abs(speed);
             }
 
