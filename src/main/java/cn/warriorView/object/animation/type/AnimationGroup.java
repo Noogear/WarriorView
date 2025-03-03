@@ -63,7 +63,6 @@ public class AnimationGroup implements IAnimation {
                 terminateAnimation();
                 return;
             }
-
             IAnimation next = remainingAnims.poll();
             next.play(entityId, currentPosition, direction, viewers, newPos -> {
                 currentPosition = newPos;
