@@ -7,47 +7,76 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDe
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.function.Consumer;
 
 public class AnimationGroup implements IAnimation {
-    private final Queue<IAnimation> animationQueue = new LinkedList<>();
-    private Consumer<Vector3d> groupCompleteCallback;
-    private Vector3d currentLocation;
-    private List<Player> currentPlayers;
-    private int currentEntityId;
-    private Vector currentUnitVec;
+    private final List<IAnimation> animationCache = new ArrayList<>();
 
-    public void addAnimation(IAnimation animation) {
-        animationQueue.offer(animation);
+    public void addAnimation(IAnimation anim) {
+        animationCache.add(anim);
     }
 
     @Override
-    public void play(int entityId, Vector3d location, Vector unitVec, List<Player> players, Consumer<Vector3d> onComplete) {
-        this.currentEntityId = entityId;
-        this.currentLocation = location;
-        this.currentUnitVec = unitVec;
-        this.currentPlayers = players;
-        this.groupCompleteCallback = onComplete;
-        playNextAnimation();
+    public void play(int entityId, Vector3d location, Vector direction,
+                     List<Player> viewers, Consumer<Vector3d> callback) {
+        PlayContext ctx = new PlayContext(
+                entityId,
+                location,
+                direction,
+                viewers,
+                callback,
+                new LinkedList<>(animationCache)
+        );
+        ctx.startPlayback();
     }
 
-    private void playNextAnimation() {
-        if (animationQueue.isEmpty()) {
-            if (groupCompleteCallback != null) {
-                groupCompleteCallback.accept(currentLocation);
-            }
-            PacketUtil.sendPacketToPlayers(new WrapperPlayServerDestroyEntities(currentEntityId), currentPlayers);
-            currentPlayers.clear();
-            return;
+    private static class PlayContext {
+        final int entityId;
+        final Vector direction;
+        final List<Player> viewers;
+        final Consumer<Vector3d> callback;
+
+        final Queue<IAnimation> remainingAnims;
+        Vector3d currentPosition;
+
+        PlayContext(int eid, Vector3d pos, Vector dir,
+                    List<Player> pls, Consumer<Vector3d> cb,
+                    Queue<IAnimation> queue) {
+            entityId = eid;
+            currentPosition = pos;
+            direction = dir;
+            viewers = pls;
+            callback = cb;
+            remainingAnims = queue;
         }
 
-        IAnimation nextAnim = animationQueue.poll();
-        nextAnim.play(currentEntityId, currentLocation, currentUnitVec, currentPlayers, newLocation -> {
-            currentLocation = newLocation;
-            playNextAnimation();
-        });
+        void startPlayback() {
+            playNext();
+        }
+
+        private void playNext() {
+            if (remainingAnims.isEmpty()) {
+                terminateAnimation();
+                return;
+            }
+
+            IAnimation next = remainingAnims.poll();
+            next.play(entityId, currentPosition, direction, viewers, newPos -> {
+                currentPosition = newPos;
+                playNext();
+            });
+        }
+
+        private void terminateAnimation() {
+            PacketUtil.sendPacketToPlayers(new WrapperPlayServerDestroyEntities(entityId), viewers);
+            viewers.clear();
+            if (callback != null) {
+                callback.accept(currentPosition);
+            }
+        }
     }
 }
