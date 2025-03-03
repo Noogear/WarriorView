@@ -21,11 +21,11 @@ public class PacketUtil {
         if (players == null || players.isEmpty()) {
             return false;
         } else {
-            players.removeIf(P -> {
-                if (P == null) {
+            players.removeIf(p -> {
+                if (p == null) {
                     return true;
                 } else {
-                    playerManager.sendPacket(P, packet);
+                    playerManager.sendPacket(p, packet);
                     return false;
                 }
             });

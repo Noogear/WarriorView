@@ -65,6 +65,7 @@ public class FormatManager {
                 textMap.put(topKey, text);
             }
         }
+        XLogger.info("Successfully load " + Math.max(textMap.size(), numberMap.size()) + " replacement(s)");
     }
 
     public TextFormat getTextFormat(String text, String rule) {

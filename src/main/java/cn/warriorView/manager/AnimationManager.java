@@ -78,7 +78,7 @@ public class AnimationManager {
             }
             animationMap.put(topKey, AnimationFactory.getGroup(animations));
         }
-        XLogger.info("Successfully  load " + animationMap.size() + " animation(s)");
+        XLogger.info("Successfully load " + animationMap.size() + " animation(s)");
     }
 
     public AnimationParams createAnimation(ConfigurationSection animationSec) {
