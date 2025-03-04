@@ -48,11 +48,9 @@ public class Approach implements IAnimation {
         private final WrapperPlayServerEntityTeleport teleportPacket;
         private final List<Player> players;
         private final Consumer<Vector3d> onComplete;
-        private final boolean onRotation;
         private final double x;
         private final double z;
         private final double y;
-        private final double[] rotated = new double[2];
         private double move = 0;
         private byte count = 0;
         private double speed = baseSpeed;
@@ -61,14 +59,18 @@ public class Approach implements IAnimation {
         public Updater(int entityId, Vector3d location, Vector direction, List<Player> players, Consumer<Vector3d> onComplete) {
             this.initialLocation = location;
             Vector finalVec = direction.clone().normalize();
-            this.x = finalVec.getX();
-            this.y = direction.normalize().getY();
-            this.z = finalVec.getZ();
+            this.y = finalVec.getY();
+            if (isRotation) {
+                double[] rotated = rotate(finalVec.getX(), finalVec.getZ());
+                this.x = rotated[0];
+                this.z = rotated[1];
+            } else {
+                this.x = finalVec.getX();
+                this.z = finalVec.getZ();
+            }
             this.players = players;
             this.onComplete = onComplete;
             this.teleportPacket = new WrapperPlayServerEntityTeleport(entityId, null, 0f, 0f, false);
-            this.onRotation = (isRotation) && (x != 0 || z != 0);
-            rotate(x, z);
         }
 
         @Override
@@ -76,11 +78,7 @@ public class Approach implements IAnimation {
             if (max < 0 || distance > 0) {
                 speed += acceleration;
                 move += speed;
-                if (onRotation) {
-                    teleportPacket.setPosition(initialLocation.add(move * rotated[0], y * move, move * rotated[1]));
-                } else {
-                    teleportPacket.setPosition(initialLocation.add(x * move, y * move, z * move));
-                }
+                teleportPacket.setPosition(initialLocation.add(x * move, y * move, z * move));
                 if (!PacketUtil.sendPacketToPlayers(teleportPacket, players)) {
                     AnimationTask.getInstance().cancelTask(interval, this);
                     return;
@@ -94,9 +92,11 @@ public class Approach implements IAnimation {
             }
         }
 
-        public void rotate(double x0, double z0) {
-            this.rotated[0] = x0 * cosCache + z0 * sinCache;
-            this.rotated[1] = z0 * cosCache - x0 * sinCache;
+        public double[] rotate(double x0, double z0) {
+            return new double[]{
+                    x0 * cosCache + z0 * sinCache,
+                    z0 * cosCache - x0 * sinCache
+            };
         }
     }
 }
