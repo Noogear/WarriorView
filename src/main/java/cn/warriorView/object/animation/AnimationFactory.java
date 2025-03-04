@@ -8,7 +8,7 @@ import java.util.List;
 
 public class AnimationFactory {
 
-    public static IAnimation getGroup(List<IAnimation> animations) {
+    public static IAnimation create(List<IAnimation> animations) {
         if (animations.size() == 1) {
             IAnimation single = animations.getFirst();
             return (entityId, location, direction, viewers, callback) -> single.play(entityId, location, direction, viewers, newPos -> {

@@ -76,7 +76,7 @@ public class AnimationManager {
                         break;
                 }
             }
-            animationMap.put(topKey, AnimationFactory.getGroup(animations));
+            animationMap.put(topKey, AnimationFactory.create(animations));
         }
         XLogger.info("Successfully load " + animationMap.size() + " animation(s)");
     }
