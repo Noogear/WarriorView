@@ -68,11 +68,11 @@ public class ViewUtil {
             public void run() {
                 Location entityLocation = entity.getEyeLocation();
                 Location attackerLocation = attacker.getEyeLocation();
-                Vector unitVec = attackerLocation.getDirection().normalize();
-                Vector3d finalLoc = offset.getPosition(attackerLocation.add(unitVec.multiply(attackerLocation.distance(entityLocation))), unitVec);
+                Vector direction = attackerLocation.getDirection();
+                Vector3d finalLoc = offset.getPosition(attackerLocation.add(direction.normalize().multiply(attackerLocation.distance(entityLocation))), direction);
                 int entityId = autoEntityId.incrementAndGet();
                 packetHolo(entityId, finalLoc, players, value, textFormat, scale, basicSpawnData);
-                animation.play(entityId, finalLoc, unitVec.multiply(-1), players, null);
+                animation.play(entityId, finalLoc, direction.multiply(-1), players, null);
             }
         }.async();
     }

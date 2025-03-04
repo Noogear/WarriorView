@@ -4,6 +4,7 @@ import cn.warriorView.object.animation.AnimationParams;
 import cn.warriorView.object.animation.AnimationTask;
 import cn.warriorView.object.animation.IAnimation;
 import cn.warriorView.util.PacketUtil;
+import cn.warriorView.util.XLogger;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
 import org.bukkit.entity.Player;
@@ -16,8 +17,8 @@ public class Up implements IAnimation {
     private final float max;
     private final float baseSpeed;
     private final float acceleration;
-    private final double[] cosCache;
-    private final double[] sinCache;
+    private final double cosCache;
+    private final double sinCache;
     private final boolean isRotation;
     private final int moveCount;
     private final long interval;
@@ -29,14 +30,9 @@ public class Up implements IAnimation {
         this.moveCount = params.moveCount();
         this.interval = params.interval();
 
-        double radianStep = Math.toRadians(params.angle());
-        this.cosCache = new double[moveCount];
-        this.sinCache = new double[moveCount];
-        for (int step = 0; step < moveCount; step++) {
-            double totalRad = radianStep * step;
-            cosCache[step] = Math.cos(totalRad);
-            sinCache[step] = Math.sin(totalRad);
-        }
+        double theta = Math.toRadians(params.angle());
+        this.cosCache = Math.cos(theta);
+        this.sinCache = Math.sin(theta);
 
         this.isRotation = params.angle() != 0;
     }
@@ -53,42 +49,36 @@ public class Up implements IAnimation {
         private final WrapperPlayServerEntityTeleport teleportPacket;
         private final List<Player> players;
         private final Consumer<Vector3d> onComplete;
-        private final boolean onRotation;
-        private final double x;
-        private final double z;
-        private final double[] rotated = new double[2];
-        private final double denominator;
-        private double y;
+        private final double[] rotated = new double[3];
+        private double move;
         private byte count = 0;
         private double speed = baseSpeed;
         private double distance = max;
 
 
-        public Updater(int entityId, Vector3d location, Vector unitVec, List<Player> players, Consumer<Vector3d> onComplete) {
+        public Updater(int entityId, Vector3d location, Vector direction, List<Player> players, Consumer<Vector3d> onComplete) {
             this.initialLocation = location;
-            Vector finalVec = unitVec.clone().setY(0).normalize();
-            this.x = finalVec.getX() * acceleration;
-            this.y = location.getY();
-            this.z = finalVec.getZ() * acceleration;
+            if(isRotation){
+                this.move = 0;
+            } else {
+                this.move = location.getY();
+            }
             this.players = players;
             this.onComplete = onComplete;
-            this.teleportPacket = new WrapperPlayServerEntityTeleport(entityId, location, 0f, 0f, false);
-            this.onRotation = (isRotation) && (x != 0 || z != 0);
-            this.rotated[0] = 0;
-            this.rotated[1] = 0;
-            this.denominator = x * x + z * z;
+            this.teleportPacket = new WrapperPlayServerEntityTeleport(entityId, null, 0f, 0f, false);
+            Vector finalVec = direction.clone().setY(0).normalize();
+            rotate(finalVec.getX(), finalVec.getZ());
         }
 
         @Override
         public void run() {
             if (max < 0 || distance > 0) {
                 speed += acceleration;
-                y += speed;
-                if (onRotation) {
-                    rotate(x, z, count);
-                    teleportPacket.setPosition(initialLocation.add(rotated[0], y, rotated[1]));
+                move += speed;
+                if (isRotation) {
+                    teleportPacket.setPosition(initialLocation.add(rotated[0] * move, rotated[1] * move, rotated[2] * move));
                 } else {
-                    teleportPacket.setPosition(initialLocation.withY(y));
+                    teleportPacket.setPosition(initialLocation.withY(move));
                 }
                 if (!PacketUtil.sendPacketToPlayers(teleportPacket, players)) {
                     AnimationTask.getInstance().cancelTask(interval, this);
@@ -96,7 +86,6 @@ public class Up implements IAnimation {
                 }
                 distance -= Math.abs(speed);
             }
-
             count++;
             if (count >= moveCount) {
                 AnimationTask.getInstance().cancelTask(interval, this);
@@ -104,14 +93,10 @@ public class Up implements IAnimation {
             }
         }
 
-        public void rotate(double x0, double z0, byte step) {
-            double cos = cosCache[step];
-            double sin = sinCache[step];
-            double rx = x0 * cos - z0 * sin;
-            double rz = x0 * sin + z0 * cos;
-            double projectionScale = (rx * x0 + rz * z0) / denominator;
-            this.rotated[0] = rx - projectionScale * x0;
-            this.rotated[1] = rz - projectionScale * z0;
+        public void rotate(double x, double z) {
+            rotated[0] = z * sinCache;
+            rotated[1] = cosCache;
+            rotated[2] = -x * sinCache;
         }
     }
 }

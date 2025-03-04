@@ -16,8 +16,8 @@ public class Approach implements IAnimation {
     private final float max;
     private final float baseSpeed;
     private final float acceleration;
-    private final double[] cosCache;
-    private final double[] sinCache;
+    private final double cosCache;
+    private final double sinCache;
     private final boolean isRotation;
     private final int moveCount;
     private final long interval;
@@ -29,14 +29,9 @@ public class Approach implements IAnimation {
         this.moveCount = params.moveCount();
         this.interval = params.interval();
 
-        double radianStep = Math.toRadians(params.angle());
-        this.cosCache = new double[moveCount];
-        this.sinCache = new double[moveCount];
-        for (int step = 0; step < moveCount; step++) {
-            double totalRad = radianStep * step;
-            cosCache[step] = Math.cos(totalRad) * acceleration;
-            sinCache[step] = Math.sin(totalRad) * acceleration;
-        }
+        double theta = Math.toRadians(params.angle());
+        this.cosCache = Math.cos(theta);
+        this.sinCache = Math.sin(theta);
 
         this.isRotation = params.angle() != 0;
     }
@@ -63,18 +58,17 @@ public class Approach implements IAnimation {
         private double speed = baseSpeed;
         private double distance = max;
 
-        public Updater(int entityId, Vector3d location, Vector unitVec, List<Player> players, Consumer<Vector3d> onComplete) {
+        public Updater(int entityId, Vector3d location, Vector direction, List<Player> players, Consumer<Vector3d> onComplete) {
             this.initialLocation = location;
-            Vector finalVec = unitVec.clone().normalize();
+            Vector finalVec = direction.clone().normalize();
             this.x = finalVec.getX();
-            this.y = finalVec.getY();
+            this.y = direction.normalize().getY();
             this.z = finalVec.getZ();
             this.players = players;
             this.onComplete = onComplete;
-            this.teleportPacket = new WrapperPlayServerEntityTeleport(entityId, location, 0f, 0f, false);
+            this.teleportPacket = new WrapperPlayServerEntityTeleport(entityId, null, 0f, 0f, false);
             this.onRotation = (isRotation) && (x != 0 || z != 0);
-            this.rotated[0] = 0;
-            this.rotated[1] = 0;
+            rotate(x, z);
         }
 
         @Override
@@ -83,8 +77,7 @@ public class Approach implements IAnimation {
                 speed += acceleration;
                 move += speed;
                 if (onRotation) {
-                    rotate(x, z, count);
-                    teleportPacket.setPosition(initialLocation.add(x * move + rotated[0], y * move, z * move + rotated[1]));
+                    teleportPacket.setPosition(initialLocation.add(move * rotated[0], y * move, move * rotated[1]));
                 } else {
                     teleportPacket.setPosition(initialLocation.add(x * move, y * move, z * move));
                 }
@@ -94,7 +87,6 @@ public class Approach implements IAnimation {
                 }
                 distance -= Math.abs(speed);
             }
-
             count++;
             if (count >= moveCount) {
                 AnimationTask.getInstance().cancelTask(interval, this);
@@ -102,13 +94,9 @@ public class Approach implements IAnimation {
             }
         }
 
-        public void rotate(double x0, double z0, byte step) {
-            double cos = cosCache[step];
-            double sin = sinCache[step];
-            this.rotated[0] = x0 * cos + z0 * sin;
-            this.rotated[1] = z0 * cos - x0 * sin;
+        public void rotate(double x0, double z0) {
+            this.rotated[0] = x0 * cosCache + z0 * sinCache;
+            this.rotated[1] = z0 * cosCache - x0 * sinCache;
         }
     }
-
-
 }
