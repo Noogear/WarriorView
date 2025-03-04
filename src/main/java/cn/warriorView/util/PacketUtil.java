@@ -46,7 +46,7 @@ public class PacketUtil {
         if (marge <= 1) {
             return Collections.emptyList();
         }
-        return new ArrayList<>(location.getNearbyPlayers(marge));
+        return new ArrayList<>(location.getWorld().getNearbyEntitiesByType(Player.class, location, marge, marge, marge, null));
     }
 
     public static boolean isVersion(ServerVersion targetVersion, VersionComparison comparison) {
