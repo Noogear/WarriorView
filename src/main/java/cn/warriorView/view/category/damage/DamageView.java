@@ -52,8 +52,7 @@ public class DamageView implements IDamageDisplay {
         } else {
             if (this.onlyPlayer) return;
         }
-        Location damageLocation = (this.position == Position.EYE) ? entity.getEyeLocation() : entity.getLocation();
-        ViewUtil.spawnDisplay(animation(), viewMarge, textFormat, scale, damageLocation, player, damage, offset, new ArrayList<>(basicSpawnData));
+        ViewUtil.spawnDisplay(animation(), viewMarge, textFormat, scale, this.position.getLocation(entity), player, damage, offset, new ArrayList<>(basicSpawnData));
     }
 
     @Override
@@ -67,7 +66,19 @@ public class DamageView implements IDamageDisplay {
     }
 
     public enum Position {
-        EYE,
-        FOOT
+        EYE {
+            @Override
+            public Location getLocation(LivingEntity entity) {
+                return entity.getEyeLocation();
+            }
+        },
+        FOOT {
+            @Override
+            public Location getLocation(LivingEntity entity) {
+                return entity.getLocation();
+            }
+        };
+
+        public abstract Location getLocation(LivingEntity entity);
     }
 }

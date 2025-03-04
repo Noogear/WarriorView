@@ -50,8 +50,7 @@ public class RegainView {
         } else {
             if (this.onlyPlayer) return;
         }
-        Location regainLocation = (this.position == Position.EYE) ? entity.getEyeLocation() : entity.getLocation();
-        ViewUtil.spawnDisplay(animation(), viewMarge, textFormat, scale, regainLocation, player, regain, offset, new ArrayList<>(basicSpawnData));
+        ViewUtil.spawnDisplay(animation(), viewMarge, textFormat, scale, this.position.getLocation(entity), player, regain, offset, new ArrayList<>(basicSpawnData));
 
     }
 
@@ -60,7 +59,19 @@ public class RegainView {
     }
 
     public enum Position {
-        EYE,
-        FOOT
+        EYE {
+            @Override
+            public Location getLocation(LivingEntity entity) {
+                return entity.getEyeLocation();
+            }
+        },
+        FOOT {
+            @Override
+            public Location getLocation(LivingEntity entity) {
+                return entity.getLocation();
+            }
+        };
+
+        public abstract Location getLocation(LivingEntity entity);
     }
 }

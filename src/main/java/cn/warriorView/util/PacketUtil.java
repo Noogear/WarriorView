@@ -11,14 +11,13 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class PacketUtil {
 
     private static final PlayerManager playerManager = PacketEvents.getAPI().getPlayerManager();
 
     public static boolean sendPacketToPlayers(PacketWrapper<?> packet, List<Player> players) {
-        if (players == null || players.isEmpty()) {
+        if (players.isEmpty()) {
             return false;
         } else {
             players.removeIf(p -> {

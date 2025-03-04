@@ -29,8 +29,6 @@ public record ViewParams(
         if (viewMarge < 0) {
             throw new IllegalArgumentException("View Marge cannot be negative");
         }
-
-
     }
 
 }

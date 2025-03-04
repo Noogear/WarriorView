@@ -38,9 +38,7 @@ public class AnimationGroup implements IAnimation {
         final int entityId;
         final Vector direction;
         final List<Player> viewers;
-        final Consumer<Vector3d> callback;
-
-        final Queue<IAnimation> remainingAnims;
+        final Queue<IAnimation> animationQueue;
         Vector3d currentPosition;
 
         PlayContext(int eid, Vector3d pos, Vector dir,
@@ -50,8 +48,7 @@ public class AnimationGroup implements IAnimation {
             currentPosition = pos;
             direction = dir;
             viewers = pls;
-            callback = cb;
-            remainingAnims = queue;
+            animationQueue = queue;
         }
 
         void startPlayback() {
@@ -59,23 +56,16 @@ public class AnimationGroup implements IAnimation {
         }
 
         private void playNext() {
-            if (remainingAnims.isEmpty()) {
-                terminateAnimation();
+            if (animationQueue.isEmpty()) {
+                PacketUtil.sendPacketToPlayers(new WrapperPlayServerDestroyEntities(entityId), viewers);
+                viewers.clear();
                 return;
             }
-            IAnimation next = remainingAnims.poll();
+            IAnimation next = animationQueue.poll();
             next.play(entityId, currentPosition, direction, viewers, newPos -> {
                 currentPosition = newPos;
                 playNext();
             });
-        }
-
-        private void terminateAnimation() {
-            PacketUtil.sendPacketToPlayers(new WrapperPlayServerDestroyEntities(entityId), viewers);
-            viewers.clear();
-            if (callback != null) {
-                callback.accept(currentPosition);
-            }
         }
     }
 }

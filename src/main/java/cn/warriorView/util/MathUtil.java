@@ -3,8 +3,6 @@ package cn.warriorView.util;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
 
 public class MathUtil {
 
@@ -34,13 +32,6 @@ public class MathUtil {
         return (byte) Math.round(clamped * 2.55); // 255/100=2.55
     }
 
-    public static <K> int parallelCount(Map<K, ?> map1, Map<K, ?> map2) {
-        return (int) Stream.concat(
-                map1.keySet().stream(),
-                map2.keySet().stream()
-        ).distinct().count();
-    }
-
     public static float[] coverListToArray(List<Float> list, int length, float defaultValue) {
         float[] array = new float[length];
         int listSize = (list != null) ? list.size() : 0;
@@ -50,30 +41,4 @@ public class MathUtil {
         return array;
     }
 
-    public static int[] coverListToArray(List<Integer> list, int length, int defaultValue) {
-        int[] array = new int[length];
-        int listSize = (list != null) ? list.size() : 0;
-        for (int i = 0; i < length; i++) {
-            array[i] = (i < listSize && list.get(i) != null) ? list.get(i) : defaultValue;
-        }
-        return array;
-    }
-
-    public static long[] coverListToArray(List<Long> list, int length, long defaultValue) {
-        long[] array = new long[length];
-        int listSize = (list != null) ? list.size() : 0;
-        for (int i = 0; i < length; i++) {
-            array[i] = (i < listSize && list.get(i) != null) ? list.get(i) : defaultValue;
-        }
-        return array;
-    }
-
-    public static double[] coverListToArray(List<Double> list, int length, double defaultValue) {
-        double[] array = new double[length];
-        int listSize = (list != null) ? list.size() : 0;
-        for (int i = 0; i < length; i++) {
-            array[i] = (i < listSize && list.get(i) != null) ? list.get(i) : defaultValue;
-        }
-        return array;
-    }
 }

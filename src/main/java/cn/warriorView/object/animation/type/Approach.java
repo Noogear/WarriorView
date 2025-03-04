@@ -43,6 +43,7 @@ public class Approach implements IAnimation {
 
     @Override
     public void play(int entityId, Vector3d location, Vector unitVec, List<Player> players, Consumer<Vector3d> onComplete) {
+        if (players.isEmpty()) return;
         Updater updater = new Updater(entityId, location, unitVec, players, onComplete);
         AnimationTask.getInstance().scheduleTask(interval, updater);
     }

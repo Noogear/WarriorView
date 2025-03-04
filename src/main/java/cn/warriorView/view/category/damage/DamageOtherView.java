@@ -71,7 +71,6 @@ public class DamageOtherView implements IDamageDisplay {
                 break;
         }
         ViewUtil.spawnDisplay(animation(), viewMarge, textFormat, scale, damageLocation, player, damage, offset, new ArrayList<>(basicSpawnData));
-
     }
 
     @Override
