@@ -98,8 +98,8 @@ public class Up implements IAnimation {
 
             count++;
             if (count >= moveCount) {
-                onComplete.accept(initialLocation.add(rotated[0], y, rotated[1]));
                 AnimationTask.getInstance().cancelTask(interval, this);
+                onComplete.accept(teleportPacket.getPosition());
             }
         }
 

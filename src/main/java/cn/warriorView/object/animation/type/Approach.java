@@ -96,8 +96,8 @@ public class Approach implements IAnimation {
 
             count++;
             if (count >= moveCount) {
-                onComplete.accept(initialLocation.add(x * move + rotated[0], y * move, z * move + rotated[1]));
                 AnimationTask.getInstance().cancelTask(interval, this);
+                onComplete.accept(teleportPacket.getPosition());
             }
         }
 
