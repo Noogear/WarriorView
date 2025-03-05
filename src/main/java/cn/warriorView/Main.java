@@ -61,9 +61,9 @@ public final class Main extends JavaPlugin {
         try{
             PacketEvents.getAPI().terminate();
             XScheduler.get().cancelTasks();
-            configManager.init();
             HandlerList.unregisterAll(this);
             AnimationTask.getInstance().init();
+            configManager.init();
         } catch (Exception ignored) {}
     }
 

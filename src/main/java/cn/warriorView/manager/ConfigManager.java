@@ -163,6 +163,7 @@ public class ConfigManager {
         if (section == null) {
             if ("DAMAGE".equalsIgnoreCase(position)) {
                 XLogger.err("The default config cannot use \"damage\" as the position.");
+                position = "EYE";
             }
             return new ViewParams(
                     formatManager.getTextFormat(textFormat, replacement),

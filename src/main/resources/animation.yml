@@ -5,7 +5,7 @@
 # interval: 代表间隔, 尽量不要高于5
 # move-count: 代表移动次数
 
-# interval省略时默认为2. move-count省略时默认为8, 其他参数在被省略时默认为0
+# interval省略时默认为2. move-count省略时默认为8，max省略时默认为-1，其他参数在被省略时默认为0
 
 1:
   - type: up

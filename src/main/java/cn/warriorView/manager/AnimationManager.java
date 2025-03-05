@@ -51,7 +51,8 @@ public class AnimationManager {
                 "No animations found in both lists.%nPrimary list: %s%nFallback list: %s",
                 safePrimary, safeFallback
         );
-        throw new IllegalArgumentException(errorMsg);
+        XLogger.info(errorMsg);
+        return Collections.emptyList();
     }
 
     public void load(YamlConfiguration yamlConfiguration) {

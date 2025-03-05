@@ -4,7 +4,6 @@ import cn.warriorView.object.animation.AnimationParams;
 import cn.warriorView.object.animation.AnimationTask;
 import cn.warriorView.object.animation.IAnimation;
 import cn.warriorView.util.PacketUtil;
-import cn.warriorView.util.XLogger;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
 import org.bukkit.entity.Player;
@@ -58,7 +57,7 @@ public class Up implements IAnimation {
 
         public Updater(int entityId, Vector3d location, Vector direction, List<Player> players, Consumer<Vector3d> onComplete) {
             this.initialLocation = location;
-            if(isRotation){
+            if (isRotation) {
                 this.move = 0;
             } else {
                 this.move = location.getY();

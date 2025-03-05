@@ -3,6 +3,7 @@ package cn.warriorView.object.format;
 import cn.warriorView.object.format.number.NumberQuantize;
 import cn.warriorView.object.format.text.TextReplace;
 import cn.warriorView.util.TextUtils;
+import cn.warriorView.util.XLogger;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -58,10 +59,6 @@ public class FormatFactory {
     }
 
     public static NumberQuantize createNumberFormat(Map<Integer, String> unitMap) {
-        if (unitMap.isEmpty()) {
-            throw new IllegalArgumentException("Unit map cannot be empty");
-        }
-
         var sortedEntries = unitMap.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .toList();
@@ -82,7 +79,8 @@ public class FormatFactory {
     public static TextFormat create(String text, INumber number, IText textFormat) {
         Matcher matcher = TextUtils.formatMatch(text);
         if (!matcher.find()) {
-            throw new IllegalArgumentException("Invalid format string: " + text);
+            XLogger.err("Invalid format string: " + text);
+            return new TextFormat("", "", 0, number, textFormat);
         }
 
         String prefix = matcher.group(1) != null ? matcher.group(1) : "";
@@ -94,7 +92,7 @@ public class FormatFactory {
             try {
                 decimalPlaces = Integer.parseInt(decimalPart);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid decimal format: " + decimalPart);
+                XLogger.err("Invalid decimal format: " + decimalPart);
             }
         }
         return new TextFormat(prefix, suffix, decimalPlaces, number, textFormat);
