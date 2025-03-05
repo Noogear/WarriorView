@@ -36,10 +36,6 @@ public class AnimationTask {
         TaskGroup group = taskGroups.get(interval);
         if (group != null) {
             group.removeTask(task);
-            if (group.isEmpty()) {
-                group.cancel();
-                taskGroups.remove(interval);
-            }
         }
     }
 
@@ -47,6 +43,7 @@ public class AnimationTask {
         private final long interval;
         private final Set<Runnable> tasks = new CopyOnWriteArraySet<>();
         private XRunnable runnable;
+        private boolean isActive = false;
 
         public TaskGroup(long interval) {
             this.interval = interval;
@@ -61,23 +58,29 @@ public class AnimationTask {
                 }
             };
             runnable.async(interval, interval);
+            isActive = true;
         }
 
         public void addTask(Runnable task) {
             tasks.add(task);
+            if (!isActive) {
+                start();
+            }
         }
 
         public void removeTask(Runnable task) {
             tasks.remove(task);
-        }
-
-        public boolean isEmpty() {
-            return tasks.isEmpty();
+            if (tasks.isEmpty()) {
+                cancel();
+            }
         }
 
         public void cancel() {
-            runnable.cancel();
+            if (runnable != null) {
+                runnable.cancel();
+            }
             tasks.clear();
+            isActive = false;
         }
     }
 
