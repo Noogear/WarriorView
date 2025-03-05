@@ -40,9 +40,7 @@ public class RegainView {
         this.basicSpawnData = MetaFactory.basicCreate(params);
     }
 
-    public void spawn(EntityRegainHealthEvent event) {
-        double regain = event.getAmount();
-        if (regain <= 0.01) return;
+    public void spawn(EntityRegainHealthEvent event, double value) {
         LivingEntity entity = (LivingEntity) event.getEntity();
         Player player = null;
         if (entity instanceof Player p) {
@@ -50,7 +48,7 @@ public class RegainView {
         } else {
             if (this.onlyPlayer) return;
         }
-        ViewUtil.spawnDisplay(animation(), viewMarge, textFormat, scale, this.position.getLocation(entity), player, regain, offset, new ArrayList<>(basicSpawnData));
+        ViewUtil.spawnDisplay(animation(), viewMarge, textFormat, scale, this.position.getLocation(entity), player, value, offset, new ArrayList<>(basicSpawnData));
 
     }
 

@@ -22,6 +22,9 @@ public class Config extends ConfigurationFile {
         @Comments("功能开关")
         public boolean enabled = true;
 
+        @Comments("低于或等于该数值的伤害将不会显示")
+        public double ignoreValue = 0.01;
+
         @Comments("默认配置")
         public static Defaults defaults = new Defaults();
         public static class Defaults extends ConfigurationPart {
@@ -82,6 +85,9 @@ public class Config extends ConfigurationFile {
         @Comments("功能开关")
         public boolean enabled = true;
 
+        @Comments("低于或等于该数值的治疗将不会显示")
+        public double ignoreValue = 0.01;
+
         @Comments("默认配置")
         public static Defaults defaults = new Defaults();
         public static class Defaults extends ConfigurationPart {
@@ -139,5 +145,6 @@ public class Config extends ConfigurationFile {
 
     @Comments("字符替换配置文件路径")
     public static String replacement = "replacement.yml";
+
 
 }
