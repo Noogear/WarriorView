@@ -4,6 +4,7 @@ import cn.warriorView.object.animation.AnimationFactory;
 import cn.warriorView.object.animation.AnimationParams;
 import cn.warriorView.object.animation.IAnimation;
 import cn.warriorView.object.animation.type.Approach;
+import cn.warriorView.object.animation.type.Slant;
 import cn.warriorView.object.animation.type.Up;
 import cn.warriorView.util.MathUtil;
 import cn.warriorView.util.XLogger;
@@ -74,6 +75,12 @@ public class AnimationManager {
                         break;
                     case "approach":
                         animations.add(new Approach(createAnimation(animationSec)));
+                        break;
+                    case "slant":
+                        animations.add(new Slant(createAnimation(animationSec)));
+                        break;
+                    default:
+                        XLogger.err("Unknown animation type: " + type);
                         break;
                 }
             }
