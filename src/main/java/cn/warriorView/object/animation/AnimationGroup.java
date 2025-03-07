@@ -6,10 +6,7 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDe
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Queue;
+import java.util.*;
 import java.util.function.Consumer;
 
 public class AnimationGroup implements IAnimation {
@@ -21,7 +18,7 @@ public class AnimationGroup implements IAnimation {
 
     @Override
     public void play(int entityId, Vector3d location, Vector direction,
-                     List<Player> viewers, Consumer<Vector3d> callback) {
+                     Set<Player> viewers, Consumer<Vector3d> callback) {
         PlayContext ctx = new PlayContext(
                 entityId,
                 location,
@@ -36,12 +33,12 @@ public class AnimationGroup implements IAnimation {
     private static class PlayContext {
         final int entityId;
         final Vector direction;
-        final List<Player> viewers;
+        final Set<Player> viewers;
         final Queue<IAnimation> animationQueue;
         Vector3d currentPosition;
 
         PlayContext(int eid, Vector3d pos, Vector dir,
-                    List<Player> pls, Consumer<Vector3d> cb,
+                    Set<Player> pls, Consumer<Vector3d> cb,
                     Queue<IAnimation> queue) {
             entityId = eid;
             currentPosition = pos;

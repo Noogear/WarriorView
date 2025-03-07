@@ -18,6 +18,7 @@ import org.bukkit.util.Vector;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -36,7 +37,7 @@ public class ViewUtil {
             Offset offset,
             List<EntityData> basicSpawnData
     ) {
-        List<Player> players = PacketUtil.getNearbyPlayer(location, viewMarge);
+        Set<Player> players = PacketUtil.getNearbyPlayer(location, viewMarge);
         players.add(player);
         new XRunnable() {
             @Override
@@ -61,7 +62,7 @@ public class ViewUtil {
             Offset offset,
             List<EntityData> basicSpawnData
     ) {
-        List<Player> players = PacketUtil.getNearbyPlayer(entity.getEyeLocation(), viewMarge);
+        Set<Player> players = PacketUtil.getNearbyPlayer(entity.getEyeLocation(), viewMarge);
         players.add(player);
         new XRunnable() {
             @Override
@@ -80,7 +81,7 @@ public class ViewUtil {
     public static void packetHolo(
             int entityId,
             Vector3d location,
-            List<Player> players,
+            Set<Player> players,
             double value,
             TextFormat textFormat,
             IScale scale,

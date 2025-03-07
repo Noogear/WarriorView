@@ -6,7 +6,7 @@ import com.github.retrooper.packetevents.util.Vector3d;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
-import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public class Approach extends BaseAnimation {
@@ -20,7 +20,7 @@ public class Approach extends BaseAnimation {
     }
 
     @Override
-    protected BaseUpdater createUpdater(int entityId, Vector3d location, Vector direction, List<Player> players, Consumer<Vector3d> onComplete) {
+    protected BaseUpdater createUpdater(int entityId, Vector3d location, Vector direction, Set<Player> players, Consumer<Vector3d> onComplete) {
         return new ApproachUpdater(entityId, location, direction, players, onComplete);
     }
 
@@ -29,7 +29,7 @@ public class Approach extends BaseAnimation {
         private final double z;
         private final double y;
 
-        public ApproachUpdater(int entityId, Vector3d location, Vector direction, List<Player> players, Consumer<Vector3d> onComplete) {
+        public ApproachUpdater(int entityId, Vector3d location, Vector direction, Set<Player> players, Consumer<Vector3d> onComplete) {
             super(entityId, location, players, onComplete);
             this.y = direction.getY();
             if (isRotation) {

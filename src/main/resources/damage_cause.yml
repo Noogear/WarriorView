@@ -46,7 +46,7 @@ CUSTOM:
   only-player: false
 
 POISON:
-  text-format: "<dark_green>☠️%.1f"
+  text-format: "<dark_green>☠%.1f"
 
 LIGHTNING:
   text-format: "<aqua>⚡%.2f"
@@ -56,7 +56,7 @@ LIGHTNING:
   scale: 1.2
 
 FREEZE:
-  text-format: "<blue>❄️%.2f"
+  text-format: "<blue>❄%.2f"
   only-player: true
   animation: 3
   position: eye

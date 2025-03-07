@@ -6,7 +6,7 @@ import com.github.retrooper.packetevents.util.Vector3d;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
-import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public class Slant extends BaseAnimation {
@@ -22,7 +22,7 @@ public class Slant extends BaseAnimation {
     }
 
     @Override
-    protected BaseUpdater createUpdater(int entityId, Vector3d location, Vector direction, List<Player> players, Consumer<Vector3d> onComplete) {
+    protected BaseUpdater createUpdater(int entityId, Vector3d location, Vector direction, Set<Player> players, Consumer<Vector3d> onComplete) {
         return new SlantUpdater(entityId, location, direction, players, onComplete);
     }
 
@@ -31,7 +31,7 @@ public class Slant extends BaseAnimation {
         private final double z;
         private final double y;
 
-        public SlantUpdater(int entityId, Vector3d location, Vector direction, List<Player> players, Consumer<Vector3d> onComplete) {
+        public SlantUpdater(int entityId, Vector3d location, Vector direction, Set<Player> players, Consumer<Vector3d> onComplete) {
             super(entityId, location, players, onComplete);
             this.y = direction.getY();
             if (isRotation) {

@@ -8,20 +8,19 @@ import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public class PacketUtil {
 
     private static final PlayerManager playerManager = PacketEvents.getAPI().getPlayerManager();
 
-    public static boolean sendPacketToPlayers(PacketWrapper<?> packet, List<Player> players) {
+    public static boolean sendPacketToPlayers(PacketWrapper<?> packet, Set<Player> players) {
         if (players.isEmpty()) {
             return false;
         } else {
             players.removeIf(p -> {
-                if (p == null) {
+                if (p == null || !p.isOnline()) {
                     return true;
                 } else {
                     playerManager.sendPacket(p, packet);
@@ -32,21 +31,23 @@ public class PacketUtil {
         }
     }
 
-    public static void sendPacketToPlayers(PacketWrapper<?> packet1, PacketWrapper<?> packet2, List<Player> players) {
-        for (Player p : players) {
+    public static void sendPacketToPlayers(PacketWrapper<?> packet1, PacketWrapper<?> packet2, Set<Player> players) {
+        players.removeIf(p -> {
             if (p == null) {
-                continue;
+                return true;
+            } else {
+                playerManager.sendPacket(p, packet1);
+                playerManager.sendPacket(p, packet2);
+                return false;
             }
-            playerManager.sendPacket(p, packet1);
-            playerManager.sendPacket(p, packet2);
-        }
+        });
     }
 
-    public static List<Player> getNearbyPlayer(Location location, byte marge) {
+    public static HashSet<Player> getNearbyPlayer(Location location, byte marge) {
         if (marge <= 1) {
-            return Collections.emptyList();
+            return new HashSet<>();
         }
-        return new ArrayList<>(location.getWorld().getNearbyEntitiesByType(Player.class, location, marge, marge, marge, null));
+        return new HashSet<>(location.getWorld().getNearbyEntitiesByType(Player.class, location, marge, marge, marge, null));
     }
 
     public static boolean isVersion(ServerVersion targetVersion, VersionComparison comparison) {

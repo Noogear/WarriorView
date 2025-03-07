@@ -6,7 +6,7 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEn
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
-import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public abstract class BaseAnimation implements IAnimation {
@@ -33,26 +33,26 @@ public abstract class BaseAnimation implements IAnimation {
     }
 
     @Override
-    public void play(int entityId, Vector3d location, Vector unitVec, List<Player> players, Consumer<Vector3d> onComplete) {
+    public void play(int entityId, Vector3d location, Vector unitVec, Set<Player> players, Consumer<Vector3d> onComplete) {
         if (players.isEmpty()) return;
         AnimationTask.getInstance().scheduleTask(interval, createUpdater(entityId, location, processDirection(unitVec), players, onComplete));
     }
 
     protected abstract Vector processDirection(Vector original);
 
-    protected abstract BaseUpdater createUpdater(int entityId, Vector3d location, Vector direction, List<Player> players, Consumer<Vector3d> onComplete);
+    protected abstract BaseUpdater createUpdater(int entityId, Vector3d location, Vector direction, Set<Player> players, Consumer<Vector3d> onComplete);
 
     protected abstract class BaseUpdater implements Runnable {
         protected final Vector3d initialLocation;
         protected final WrapperPlayServerEntityTeleport teleportPacket;
-        protected final List<Player> players;
+        protected final Set<Player> players;
         protected final Consumer<Vector3d> onComplete;
         protected double speed = baseSpeed;
         protected double distance = max;
         protected byte count = 0;
         protected double move = 0;
 
-        public BaseUpdater(int entityId, Vector3d location, List<Player> players, Consumer<Vector3d> onComplete) {
+        public BaseUpdater(int entityId, Vector3d location, Set<Player> players, Consumer<Vector3d> onComplete) {
             this.initialLocation = location;
             this.players = players;
             this.onComplete = onComplete;

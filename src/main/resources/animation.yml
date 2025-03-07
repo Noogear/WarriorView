@@ -2,33 +2,26 @@
 # max: 运动距离的最大限制（超越限制后会停下来）, 设置负数则取消限制, 设置为0时动画将禁止不动
 # speed: 速度，可以填入一个数组, 数组第一位代表初始速度, 第二位代表最大速度(可省略)
 # angle: 代表角度, 角度会让运行轨迹向左右偏移
-# interval: 代表间隔, 尽量不要高于5
-# move-count: 代表移动次数
+# interval: 代表间隔, 尽量不要高于6, 不要低于2
+# move-count: 代表移动次数, 动画移动过于频繁也是会占网络资源的
 
 # interval省略时默认为2. move-count省略时默认为8，max省略时默认为-1，其他参数在被省略时默认为0
 
 1:
   - type: up
-    max: 2
     speed: [1.15, -1.15]
-    interval: 2
-    move-count: 4
-  - type: approach
-    max: 0.3
-    angle: 30
-    speed: 0.05
-    interval: 2
-    move-count: 4
+    interval: 3
+    move-count: 5
 
 2:
-  - type: up
-    max: 2
-    speed: [1.15, -1.15]
-    interval: 2
-    move-count: 4
   - type: approach
-    max: 0.3
-    angle: 30
-    speed: 0.05
-    interval: 2
-    move-count: 4
+    speed: 0.5
+    interval: 5
+    move-count: 2
+
+3:
+  - type: up
+    speed: -1
+    interval: 5
+    move-count: 2
+
