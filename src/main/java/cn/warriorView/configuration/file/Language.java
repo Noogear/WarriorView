@@ -8,6 +8,8 @@ public class Language extends ConfigurationFile {
 
     public static String prefix = "<yellow><b>WarriorView</b></yellow> <gray>>></gray> <white>";
 
-    public static String reload = "Plugin reload succeeded. Time taken: %s ms";
+    public static String reload = "Plugin reload succeeded. Time taken: %s ms.";
+
+    public static String stopAll = "All animations have been stopped.";
 
 }

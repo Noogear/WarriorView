@@ -4,6 +4,7 @@ import cn.warriorView.object.Offset;
 import cn.warriorView.object.animation.IAnimation;
 import cn.warriorView.object.format.TextFormat;
 import cn.warriorView.object.scale.IScale;
+import cn.warriorView.util.XLogger;
 
 import java.util.List;
 
@@ -23,11 +24,18 @@ public record ViewParams(
 ) {
     public ViewParams {
         if (viewRange < 0) {
-            throw new IllegalArgumentException("View range cannot be negative");
+            viewRange = 0;
+            XLogger.err("View range cannot be negative");
         }
 
         if (viewMarge < 0) {
-            throw new IllegalArgumentException("View Marge cannot be negative");
+            viewMarge = 0;
+            XLogger.err("View Marge cannot be negative");
+        }
+
+        if(textOpacity <0 || textOpacity > 100) {
+            textOpacity = 100;
+            XLogger.err("TextOpacity must be between 0 and 100");
         }
     }
 

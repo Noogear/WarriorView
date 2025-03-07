@@ -1,5 +1,8 @@
 package cn.warriorView;
 
+import cn.warriorView.configuration.file.Language;
+import cn.warriorView.object.animation.AnimationTask;
+import cn.warriorView.util.MsgUtil;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -17,7 +20,7 @@ public class Commands implements CommandExecutor, TabCompleter {
 
     public Commands(Main main) {
         this.plugin = main;
-        subcommands = new ArrayList<>(List.of("reload"));
+        subcommands = new ArrayList<>(List.of("reload", "stop"));
     }
 
     @Override
@@ -30,12 +33,17 @@ public class Commands implements CommandExecutor, TabCompleter {
             return false;
         }
 
-        if ("reload".equalsIgnoreCase(args[0])) {
-            plugin.reload(sender);
+        switch (args[0].toLowerCase()) {
+            case "reload":
+                plugin.reload(sender);
+                break;
+            case "stop":
+                AnimationTask.getInstance().init();
+                MsgUtil.send(sender, Language.stopAll);
+                break;
         }
         return true;
     }
-
 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String alias, String[] args) {
