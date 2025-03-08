@@ -5,7 +5,7 @@ import cn.warriorView.util.XLogger;
 public record AnimationParams(
         float max,
         float baseSpeed,
-        float maxSpeed,
+        float acceleration,
         double angle,
         int moveCount,
         long interval

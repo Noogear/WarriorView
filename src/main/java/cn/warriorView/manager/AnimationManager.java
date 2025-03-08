@@ -91,14 +91,21 @@ public class AnimationManager {
 
     public AnimationParams createAnimation(ConfigurationSection animationSec) {
         double max = animationSec.getDouble("max", -1);
-        float[] speed = MathUtil.coverListToArray(animationSec.getFloatList("speed"), 2, 0);
+        long initial = animationSec.getLong("interval", 3);
+        byte moveCount = MathUtil.convertIntToByte(animationSec.getInt("move-count", 4));
+        float [] speed= new float[2];
+        if (animationSec.isList("speed"))  {
+            speed = MathUtil.coverListToArray(animationSec.getFloatList("speed"), 2, 0);
+            speed[1] = MathUtil.round((speed[1] - speed[0]) / moveCount);
+        } else {
+            speed[0] = (float) animationSec.getDouble("speed", 0);
+            speed[1] = 0;
+        }
         double angle = animationSec.getDouble("angle", 0);
-        long initial = animationSec.getLong("interval", 2);
-        byte moveCount = MathUtil.convertIntToByte(animationSec.getInt("move-count", 8));
         return new AnimationParams(
                 MathUtil.round(max),
                 MathUtil.round(speed[0]),
-                MathUtil.round(speed[1]),
+                speed[1],
                 angle,
                 moveCount,
                 initial

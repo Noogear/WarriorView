@@ -29,7 +29,11 @@ public class Up extends BaseAnimation {
 
         public UpUpdater(int entityId, Vector3d location, Vector direction, Set<Player> players, Consumer<Vector3d> onComplete) {
             super(entityId, location, players, onComplete);
-            if (isRotation) rotate(direction.getX(), direction.getZ());
+            if (isRotation) {
+                rotate(direction.getX(), direction.getZ());
+            } else {
+                this.move = location.getY();
+            }
         }
 
         @Override

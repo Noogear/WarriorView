@@ -1,6 +1,7 @@
 package cn.warriorView.object.animation;
 
 import cn.warriorView.util.PacketUtil;
+import cn.warriorView.util.XLogger;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
 import org.bukkit.entity.Player;
@@ -22,7 +23,7 @@ public abstract class BaseAnimation implements IAnimation {
     protected BaseAnimation(AnimationParams params) {
         this.max = params.max();
         this.baseSpeed = params.baseSpeed();
-        this.acceleration = (params.maxSpeed() - params.baseSpeed()) / params.moveCount();
+        this.acceleration = params.acceleration();
         this.moveCount = params.moveCount();
         this.interval = params.interval();
 
