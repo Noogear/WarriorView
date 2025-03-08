@@ -32,11 +32,6 @@ public record ViewParams(
             viewMarge = 0;
             XLogger.err("View Marge cannot be negative");
         }
-
-        if(textOpacity <0 || textOpacity > 100) {
-            textOpacity = 100;
-            XLogger.err("TextOpacity must be between 0 and 100");
-        }
     }
 
 }
