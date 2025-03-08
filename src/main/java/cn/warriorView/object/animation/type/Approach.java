@@ -44,7 +44,7 @@ public class Approach extends BaseAnimation {
 
         @Override
         protected void updatePosition() {
-            teleportPacket.setPosition(initialLocation.add(x * move, y * move, z * move));
+            teleportPacket.setPosition(initialLocation.add(x * distance, y * move, z * distance));
         }
 
         private double[] rotate(double x0, double z0) {

@@ -39,7 +39,7 @@ public class Up extends BaseAnimation {
         @Override
         protected void updatePosition() {
             if (isRotation) {
-                teleportPacket.setPosition(initialLocation.add(rotated[0] * move, rotated[1] * move, rotated[2] * move));
+                teleportPacket.setPosition(initialLocation.add(rotated[0] * distance, rotated[1] * move, rotated[2] * distance));
             } else {
                 teleportPacket.setPosition(initialLocation.withY(move));
             }

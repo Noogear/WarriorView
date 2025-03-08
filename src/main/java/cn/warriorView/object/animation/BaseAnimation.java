@@ -49,7 +49,7 @@ public abstract class BaseAnimation implements IAnimation {
         protected final Set<Player> players;
         protected final Consumer<Vector3d> onComplete;
         protected double speed = baseSpeed;
-        protected double distance = max;
+        protected double distance = 0;
         protected byte count = 0;
         protected double move = 0;
 
@@ -62,10 +62,10 @@ public abstract class BaseAnimation implements IAnimation {
 
         @Override
         public void run() {
-            if (max < 0 || distance > 0) {
-                speed += acceleration;
+            if (max < 0 || distance < max) {
                 move += speed;
-                distance -= Math.abs(speed);
+                distance += Math.abs(speed);
+                speed += acceleration;
                 updatePosition();
                 if (!PacketUtil.sendPacketToPlayers(teleportPacket, players)) {
                     AnimationTask.getInstance().cancelTask(interval, this);
