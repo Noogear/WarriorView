@@ -1,6 +1,7 @@
 package cn.warriorView.object.animation;
 
 import cn.warriorView.util.PacketUtil;
+import cn.warriorView.util.scheduler.XRunnable;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityTeleport;
 import org.bukkit.entity.Player;
@@ -18,6 +19,7 @@ public abstract class BaseAnimation implements IAnimation {
     protected final boolean isRotation;
     protected final int moveCount;
     protected final long interval;
+    protected final ScheduleStrategy scheduleStrategy;
 
     protected BaseAnimation(AnimationParams params) {
         this.max = params.max();
@@ -30,19 +32,54 @@ public abstract class BaseAnimation implements IAnimation {
         this.cosCache = Math.cos(theta);
         this.sinCache = Math.sin(theta);
         this.isRotation = params.angle() != 0;
+        this.scheduleStrategy = ScheduleStrategy.fromMoveCount(params.moveCount());
     }
 
     @Override
     public void play(int entityId, Vector3d location, Vector unitVec, Set<Player> players, Consumer<Vector3d> onComplete) {
         if (players.isEmpty()) return;
-        AnimationTask.getInstance().scheduleTask(interval, createUpdater(entityId, location, processDirection(unitVec), players, onComplete));
+        BaseUpdater updater = createUpdater(entityId, location, processDirection(unitVec), players, onComplete);
+        scheduleStrategy.schedule(updater, interval);
     }
 
     protected abstract Vector processDirection(Vector original);
 
     protected abstract BaseUpdater createUpdater(int entityId, Vector3d location, Vector direction, Set<Player> players, Consumer<Vector3d> onComplete);
 
-    protected abstract class BaseUpdater implements Runnable {
+    public enum ScheduleStrategy {
+        SCHEDULED {
+            @Override
+            public void schedule(Runnable task, long interval) {
+                AnimationTask.getInstance().scheduleTask(interval, task);
+            }
+
+            @Override
+            public void cancel(Runnable task, long interval) {
+                AnimationTask.getInstance().cancelTask(interval, task);
+            }
+        },
+        ASYNC {
+            @Override
+            public void schedule(Runnable task, long interval) {
+                ((XRunnable) task).async(interval);
+            }
+
+            @Override
+            public void cancel(Runnable task, long interval) {
+                ((XRunnable) task).cancel();
+            }
+        };
+
+        public static ScheduleStrategy fromMoveCount(int moveCount) {
+            return moveCount == 1 ? ASYNC : SCHEDULED;
+        }
+
+        public abstract void schedule(Runnable task, long interval);
+
+        public abstract void cancel(Runnable task, long interval);
+    }
+
+    protected abstract class BaseUpdater extends XRunnable {
         protected final Vector3d initialLocation;
         protected final WrapperPlayServerEntityTeleport teleportPacket;
         protected final Set<Player> players;
@@ -67,12 +104,12 @@ public abstract class BaseAnimation implements IAnimation {
                 speed += acceleration;
                 updatePosition();
                 if (!PacketUtil.sendPacketToPlayers(teleportPacket, players)) {
-                    AnimationTask.getInstance().cancelTask(interval, this);
+                    scheduleStrategy.cancel(this, interval);
                     return;
                 }
             }
             if (++count >= moveCount) {
-                AnimationTask.getInstance().cancelTask(interval, this);
+                scheduleStrategy.cancel(this, interval);
                 onComplete.accept(teleportPacket.getPosition());
             }
         }
