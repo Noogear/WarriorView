@@ -8,7 +8,6 @@ import cn.warriorView.object.animation.AnimationTask;
 import cn.warriorView.util.MsgUtil;
 import cn.warriorView.util.XLogger;
 import cn.warriorView.util.scheduler.XRunnable;
-import cn.warriorView.util.scheduler.XScheduler;
 import com.github.retrooper.packetevents.PacketEvents;
 import io.github.retrooper.packetevents.factory.spigot.SpigotPacketEventsBuilder;
 import org.bukkit.command.CommandSender;
@@ -39,9 +38,9 @@ public final class Main extends JavaPlugin {
         viewManager = new ViewManager();
         try {
             Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
-            new XScheduler(this, true);
+            XRunnable.init(this, true);
         } catch (ClassNotFoundException e) {
-            new XScheduler(this, false);
+            XRunnable.init(this, false);
         }
         configManager = new ConfigManager(this);
         listenerManager = new ListenerManager(this);
@@ -58,13 +57,14 @@ public final class Main extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        try{
+        try {
             PacketEvents.getAPI().terminate();
-            XScheduler.get().cancelTasks();
+            XRunnable.getScheduler().cancelTasks();
             HandlerList.unregisterAll(this);
             AnimationTask.getInstance().init();
             configManager.init();
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
     public ViewManager getViewManager() {
