@@ -9,7 +9,7 @@ import java.util.List;
 public class Config extends ConfigurationFile {
 
     @Comments("版本号, 请勿修改")
-    public static int version = 2;
+    public static int version = 3;
 
     @Comments("总开关")
     public static boolean enabled = true;
