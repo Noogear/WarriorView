@@ -50,6 +50,7 @@ public abstract class BaseAnimation implements IAnimation {
         SCHEDULED {
             @Override
             public void schedule(XRunnable task, long interval) {
+                task.run();
                 AnimationTask.getInstance().scheduleTask(interval, task);
             }
 
@@ -61,7 +62,7 @@ public abstract class BaseAnimation implements IAnimation {
         ASYNC {
             @Override
             public void schedule(XRunnable task, long interval) {
-                task.async(interval);
+                task.run();
             }
 
             @Override
@@ -110,7 +111,12 @@ public abstract class BaseAnimation implements IAnimation {
             }
             if (++count >= moveCount) {
                 scheduleStrategy.cancel(this, interval);
-                onComplete.accept(teleportPacket.getPosition());
+                new XRunnable() {
+                    @Override
+                    public void run() {
+                        onComplete.accept(teleportPacket.getPosition());
+                    }
+                }.async(interval);
             }
         }
 
