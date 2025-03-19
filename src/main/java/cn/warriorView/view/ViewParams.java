@@ -20,7 +20,8 @@ public record ViewParams(
         boolean onlyPlayer,
         List<IAnimation> animations,
         String position,
-        Offset offset
+        Offset offset,
+        int teleportDuration
 ) {
     public ViewParams {
         if (viewRange < 0) {
@@ -31,6 +32,11 @@ public record ViewParams(
         if (viewMarge < 0) {
             viewMarge = 0;
             XLogger.err("View Marge cannot be negative");
+        }
+
+        if (teleportDuration < 0) {
+            teleportDuration = 1;
+            XLogger.err("Teleport duration cannot be negative");
         }
     }
 

@@ -134,7 +134,8 @@ public class ConfigManager {
                 defaults.animation,
                 defaults.position,
                 defaults.offsetUp,
-                defaults.offsetApproach
+                defaults.offsetApproach,
+                defaults.teleportDuration
         );
     }
 
@@ -155,11 +156,12 @@ public class ConfigManager {
                 defaults.animation,
                 defaults.position,
                 defaults.offsetUp,
-                defaults.offsetApproach
+                defaults.offsetApproach,
+                defaults.teleportDuration
         );
     }
 
-    private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, double opacity, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, List<String> animation, String position, double offsetUp, double offsetApproach) {
+    private ViewParams getViewParams(ConfigurationSection section, String textFormat, String replacement, String scale, boolean shadow, double opacity, float viewRange, byte viewMarge, int backgroundColor, boolean seeThrough, boolean onlyPlayer, List<String> animation, String position, double offsetUp, double offsetApproach, int teleportDuration) {
         if (section == null) {
             if ("DAMAGE".equalsIgnoreCase(position)) {
                 XLogger.err("The default config cannot use \"damage\" as the position.");
@@ -177,7 +179,8 @@ public class ConfigManager {
                     onlyPlayer,
                     animationManager.getAnimation(animation),
                     position,
-                    new Offset(offsetUp, offsetApproach)
+                    new Offset(offsetUp, offsetApproach),
+                    teleportDuration
             );
         }
         return new ViewParams(
@@ -192,7 +195,8 @@ public class ConfigManager {
                 section.getBoolean("only-player", onlyPlayer),
                 animationManager.getAnimation(section.getStringList("animation"), animation),
                 section.getString("position", position),
-                new Offset(section.getDouble("offset-up", offsetUp), section.getDouble("offset-approach", offsetApproach))
+                new Offset(section.getDouble("offset-up", offsetUp), section.getDouble("offset-approach", offsetApproach)),
+                section.getInt("teleport-duration", teleportDuration)
         );
     }
 

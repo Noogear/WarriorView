@@ -93,8 +93,8 @@ public class AnimationManager {
         double max = animationSec.getDouble("max", -1);
         long initial = animationSec.getLong("interval", 3);
         byte moveCount = MathUtil.convertIntToByte(animationSec.getInt("move-count", 4));
-        float [] speed= new float[2];
-        if (animationSec.isList("speed"))  {
+        float[] speed = new float[2];
+        if (animationSec.isList("speed")) {
             speed = MathUtil.coverListToArray(animationSec.getFloatList("speed"), 2, 0);
             speed[1] = MathUtil.round((speed[1] - speed[0]) / moveCount);
         } else {

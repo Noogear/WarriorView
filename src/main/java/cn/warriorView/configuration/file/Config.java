@@ -70,6 +70,9 @@ public class Config extends ConfigurationFile {
 
             @Comments("相对向玩家偏移, 如果没有玩家的时候只会向移动方向偏移")
             public double offsetApproach = 0;
+
+            @Comments("移动插值时间, 尽量大于动画的移动间隔, 越小移动越快, 越大移动越丝滑")
+            public int teleportDuration = 5;
         }
 
         @Comments("特殊配置文件路径, 在下方文件中添加了造成伤害的原因才能正常使用")
@@ -133,6 +136,9 @@ public class Config extends ConfigurationFile {
 
             @Comments("相对向玩家偏移, 如果没有玩家的时候只会向移动方向偏移")
             public double offsetApproach = 0;
+
+            @Comments("移动插值时间, 尽量大于动画的移动间隔, 越小移动越快, 越大移动越丝滑")
+            public int teleportDuration = 5;
         }
 
         @Comments("特殊配置文件路径, 在下方文件中添加了治疗的原因才能正常使用")
