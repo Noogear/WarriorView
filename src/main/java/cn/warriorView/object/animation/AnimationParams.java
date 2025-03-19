@@ -15,7 +15,7 @@ public record AnimationParams(
             interval = 1;
             XLogger.err("Animation interval must be greater than 1");
         }
-        if(moveCount < 0) {
+        if (moveCount < 0) {
             moveCount = 0;
             XLogger.err("Animation moveCount must be greater than 0");
         }

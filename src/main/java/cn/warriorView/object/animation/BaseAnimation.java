@@ -49,24 +49,24 @@ public abstract class BaseAnimation implements IAnimation {
     public enum ScheduleStrategy {
         SCHEDULED {
             @Override
-            public void schedule(Runnable task, long interval) {
+            public void schedule(XRunnable task, long interval) {
                 AnimationTask.getInstance().scheduleTask(interval, task);
             }
 
             @Override
-            public void cancel(Runnable task, long interval) {
+            public void cancel(XRunnable task, long interval) {
                 AnimationTask.getInstance().cancelTask(interval, task);
             }
         },
         ASYNC {
             @Override
-            public void schedule(Runnable task, long interval) {
-                ((XRunnable) task).async(interval);
+            public void schedule(XRunnable task, long interval) {
+                task.async(interval);
             }
 
             @Override
-            public void cancel(Runnable task, long interval) {
-                ((XRunnable) task).cancel();
+            public void cancel(XRunnable task, long interval) {
+                task.cancel();
             }
         };
 
@@ -74,9 +74,9 @@ public abstract class BaseAnimation implements IAnimation {
             return moveCount == 1 ? ASYNC : SCHEDULED;
         }
 
-        public abstract void schedule(Runnable task, long interval);
+        public abstract void schedule(XRunnable task, long interval);
 
-        public abstract void cancel(Runnable task, long interval);
+        public abstract void cancel(XRunnable task, long interval);
     }
 
     protected abstract class BaseUpdater extends XRunnable {

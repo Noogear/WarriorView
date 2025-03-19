@@ -28,13 +28,13 @@ public class AnimationTask {
         taskGroups.clear();
     }
 
-    public void scheduleTask(long interval, Runnable task) {
+    public void scheduleTask(long interval, XRunnable task) {
         if (task == null) return;
         taskGroups.computeIfAbsent(interval, k -> new TaskGroup(interval))
                 .addTask(task);
     }
 
-    public void cancelTask(long interval, Runnable task) {
+    public void cancelTask(long interval, XRunnable task) {
         TaskGroup group = taskGroups.get(interval);
         if (group != null) {
             group.removeTask(task);
@@ -48,8 +48,8 @@ public class AnimationTask {
     private static class TaskGroup {
         private final long interval;
         private final long intervalMs;
-        private final Set<Runnable> tasks = new CopyOnWriteArraySet<>();
-        private final Set<Runnable> pendingTasks = new CopyOnWriteArraySet<>();
+        private final Set<XRunnable> tasks = new CopyOnWriteArraySet<>();
+        private final Set<XRunnable> pendingTasks = new CopyOnWriteArraySet<>();
         private final AtomicLong nextExecutionTime = new AtomicLong();
         private XRunnable runnable;
 
@@ -68,7 +68,7 @@ public class AnimationTask {
                         tasks.addAll(pendingTasks);
                         pendingTasks.clear();
                     }
-                    tasks.forEach(Runnable::run);
+                    tasks.forEach(XRunnable::run);
                     nextExecutionTime.set(System.currentTimeMillis() + intervalMs);
                 }
             };
@@ -76,7 +76,7 @@ public class AnimationTask {
         }
 
 
-        public void addTask(Runnable task) {
+        public void addTask(XRunnable task) {
             long remainingMs = nextExecutionTime.get() - System.currentTimeMillis();
             if (remainingMs >= (intervalMs >> 1)) {
                 tasks.add(task);
@@ -85,7 +85,7 @@ public class AnimationTask {
             }
         }
 
-        public void removeTask(Runnable task) {
+        public void removeTask(XRunnable task) {
             tasks.remove(task);
         }
 
