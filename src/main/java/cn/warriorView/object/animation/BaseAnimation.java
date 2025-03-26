@@ -110,13 +110,13 @@ public abstract class BaseAnimation implements IAnimation {
                 }
             }
             if (++count >= moveCount) {
-                scheduleStrategy.cancel(this, interval);
                 new XRunnable() {
                     @Override
                     public void run() {
                         onComplete.accept(teleportPacket.getPosition());
                     }
                 }.async(interval);
+                scheduleStrategy.cancel(this, interval);
             }
         }
 
