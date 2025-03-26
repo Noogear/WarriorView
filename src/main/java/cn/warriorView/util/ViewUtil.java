@@ -64,11 +64,11 @@ public class ViewUtil {
     ) {
         Set<Player> players = PacketUtil.getNearbyPlayer(entity.getEyeLocation(), viewMarge);
         players.add(player);
+        Location entityLocation = entity.getEyeLocation();
+        Location attackerLocation = attacker.getEyeLocation();
         new XRunnable() {
             @Override
             public void run() {
-                Location entityLocation = entity.getEyeLocation();
-                Location attackerLocation = attacker.getEyeLocation();
                 Vector direction = attackerLocation.getDirection();
                 Vector3d finalLoc = offset.getPosition(attackerLocation.add(direction.normalize().multiply(attackerLocation.distance(entityLocation))), direction);
                 int entityId = autoEntityId.incrementAndGet();

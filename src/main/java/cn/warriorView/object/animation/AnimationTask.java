@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class AnimationTask {
     private static volatile AnimationTask instance;
@@ -29,9 +28,8 @@ public class AnimationTask {
     }
 
     public void scheduleTask(long interval, XRunnable task) {
-        if (task == null) return;
-        taskGroups.computeIfAbsent(interval, k -> new TaskGroup(interval))
-                .addTask(task);
+        TaskGroup group = taskGroups.computeIfAbsent(interval, k -> new TaskGroup(interval));
+        group.addTask(task);
     }
 
     public void cancelTask(long interval, XRunnable task) {
@@ -47,42 +45,26 @@ public class AnimationTask {
 
     private static class TaskGroup {
         private final long interval;
-        private final long intervalMs;
         private final Set<XRunnable> tasks = new CopyOnWriteArraySet<>();
-        private final Set<XRunnable> pendingTasks = new CopyOnWriteArraySet<>();
-        private final AtomicLong nextExecutionTime = new AtomicLong();
         private XRunnable runnable;
 
         public TaskGroup(long interval) {
             this.interval = interval;
-            this.intervalMs = interval * 50L;
             start();
         }
 
         private void start() {
-            nextExecutionTime.set(System.currentTimeMillis() + intervalMs);
             runnable = new XRunnable() {
                 @Override
                 public void run() {
-                    if (!pendingTasks.isEmpty()) {
-                        tasks.addAll(pendingTasks);
-                        pendingTasks.clear();
-                    }
                     tasks.forEach(XRunnable::run);
-                    nextExecutionTime.set(System.currentTimeMillis() + intervalMs);
                 }
             };
             runnable.async(interval, interval);
         }
 
-
         public void addTask(XRunnable task) {
-            long remainingMs = nextExecutionTime.get() - System.currentTimeMillis();
-            if (remainingMs >= (intervalMs >> 1)) {
-                tasks.add(task);
-            } else {
-                pendingTasks.add(task);
-            }
+            tasks.add(task);
         }
 
         public void removeTask(XRunnable task) {
@@ -96,8 +78,6 @@ public class AnimationTask {
         public void cancel() {
             runnable.cancel();
             tasks.clear();
-            pendingTasks.clear();
-            nextExecutionTime.set(0);
         }
     }
 
