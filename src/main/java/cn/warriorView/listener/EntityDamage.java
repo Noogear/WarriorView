@@ -35,6 +35,7 @@ public class EntityDamage implements Listener {
         EntityDamageEvent.DamageCause cause = event.getCause();
         IDamageDisplay viewDisplay = damageViews.get(cause);
         if (event instanceof EntityDamageByEntityEvent otherEvent) {
+            if (otherEvent.getDamager().getWorld() != event.getEntity().getWorld()) return;
             if (criticalEnabled && otherEvent.isCritical()) {
                 criticalView.spawn(otherEvent, value);
                 return;
