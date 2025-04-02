@@ -39,15 +39,12 @@ public class ViewUtil {
     ) {
         Set<Player> players = PacketUtil.getNearbyPlayer(location, viewMarge);
         players.add(player);
-        new XRunnable() {
-            @Override
-            public void run() {
-                int entityId = autoEntityId.incrementAndGet();
-                Vector3d finalLoc = offset.getPosition(location);
-                packetHolo(entityId, finalLoc, players, value, textFormat, scale, basicSpawnData);
-                animation.play(entityId, finalLoc, location.getDirection(), players, null);
-            }
-        }.async();
+        XRunnable.getScheduler().async(() -> {
+            int entityId = autoEntityId.incrementAndGet();
+            Vector3d finalLoc = offset.getPosition(location);
+            packetHolo(entityId, finalLoc, players, value, textFormat, scale, basicSpawnData);
+            animation.play(entityId, finalLoc, location.getDirection(), players, null);
+        });
     }
 
     public static void spawnDisplay(
@@ -66,16 +63,13 @@ public class ViewUtil {
         players.add(player);
         Location entityLocation = entity.getEyeLocation();
         Location attackerLocation = attacker.getEyeLocation();
-        new XRunnable() {
-            @Override
-            public void run() {
-                Vector direction = attackerLocation.getDirection();
-                Vector3d finalLoc = offset.getPosition(attackerLocation.add(direction.normalize().multiply(attackerLocation.distance(entityLocation))), direction);
-                int entityId = autoEntityId.incrementAndGet();
-                packetHolo(entityId, finalLoc, players, value, textFormat, scale, basicSpawnData);
-                animation.play(entityId, finalLoc, direction.multiply(-1), players, null);
-            }
-        }.async();
+        XRunnable.getScheduler().async(() -> {
+            Vector direction = attackerLocation.getDirection();
+            Vector3d finalLoc = offset.getPosition(attackerLocation.add(direction.normalize().multiply(attackerLocation.distance(entityLocation))), direction);
+            int entityId = autoEntityId.incrementAndGet();
+            packetHolo(entityId, finalLoc, players, value, textFormat, scale, basicSpawnData);
+            animation.play(entityId, finalLoc, direction.multiply(-1), players, null);
+        });
     }
 
     public static void packetHolo(
