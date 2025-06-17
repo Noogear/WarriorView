@@ -11,7 +11,9 @@ import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
 import com.github.retrooper.packetevents.util.Vector3d;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.UnsafeValues;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
@@ -20,11 +22,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class ViewUtil {
 
-    private static final AtomicInteger autoEntityId = new AtomicInteger(1000000);
+    private static final UnsafeValues unsafeValues = Bukkit.getUnsafe();
 
     public static void spawnDisplay(
             IAnimation animation,
@@ -40,7 +41,7 @@ public class ViewUtil {
         Set<Player> players = PacketUtil.getNearbyPlayer(location, viewMarge);
         players.add(player);
         XRunnable.getScheduler().async(() -> {
-            int entityId = autoEntityId.incrementAndGet();
+            int entityId = unsafeValues.nextEntityId();
             Vector3d finalLoc = offset.getPosition(location);
             packetHolo(entityId, finalLoc, players, value, textFormat, scale, basicSpawnData);
             animation.play(entityId, finalLoc, location.getDirection(), players, null);
@@ -66,7 +67,7 @@ public class ViewUtil {
         XRunnable.getScheduler().async(() -> {
             Vector direction = attackerLocation.getDirection();
             Vector3d finalLoc = offset.getPosition(attackerLocation.add(direction.normalize().multiply(attackerLocation.distance(entityLocation))), direction);
-            int entityId = autoEntityId.incrementAndGet();
+            int entityId = unsafeValues.nextEntityId();
             packetHolo(entityId, finalLoc, players, value, textFormat, scale, basicSpawnData);
             animation.play(entityId, finalLoc, direction.multiply(-1), players, null);
         });
