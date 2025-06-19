@@ -40,12 +40,11 @@ public class ViewUtil {
             players = PacketUtil.getNearbyPlayer(location, viewMarge);
         } else {
             players = new HashSet<>();
-            players.add(player);
         }
+        players.add(player);
         XRunnable.getScheduler().async(() -> {
             int entityId = unsafeValues.nextEntityId();
             Vector3d finalLoc = offset.getPosition(location);
-
             packetHolo(entityId, finalLoc, players, value, textFormat, scale, basicSpawnData);
             animation.play(entityId, finalLoc, location.getDirection(), players, null);
         });
@@ -68,7 +67,6 @@ public class ViewUtil {
             players = PacketUtil.getNearbyPlayer(entity.getEyeLocation(), viewMarge);
         } else {
             players = new HashSet<>();
-            players.add(player);
         }
         players.add(player);
         Location entityLocation = entity.getEyeLocation();
