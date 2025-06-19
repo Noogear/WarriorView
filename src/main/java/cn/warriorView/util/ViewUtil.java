@@ -18,10 +18,7 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 public class ViewUtil {
 
@@ -38,11 +35,17 @@ public class ViewUtil {
             Offset offset,
             List<EntityData> basicSpawnData
     ) {
-        Set<Player> players = PacketUtil.getNearbyPlayer(location, viewMarge);
-        players.add(player);
+        Set<Player> players;
+        if (viewMarge > 1) {
+            players = PacketUtil.getNearbyPlayer(location, viewMarge);
+        } else {
+            players = new HashSet<>();
+            players.add(player);
+        }
         XRunnable.getScheduler().async(() -> {
             int entityId = unsafeValues.nextEntityId();
             Vector3d finalLoc = offset.getPosition(location);
+
             packetHolo(entityId, finalLoc, players, value, textFormat, scale, basicSpawnData);
             animation.play(entityId, finalLoc, location.getDirection(), players, null);
         });
@@ -60,7 +63,13 @@ public class ViewUtil {
             Offset offset,
             List<EntityData> basicSpawnData
     ) {
-        Set<Player> players = PacketUtil.getNearbyPlayer(entity.getEyeLocation(), viewMarge);
+        Set<Player> players;
+        if (viewMarge > 1) {
+            players = PacketUtil.getNearbyPlayer(entity.getEyeLocation(), viewMarge);
+        } else {
+            players = new HashSet<>();
+            players.add(player);
+        }
         players.add(player);
         Location entityLocation = entity.getEyeLocation();
         Location attackerLocation = attacker.getEyeLocation();

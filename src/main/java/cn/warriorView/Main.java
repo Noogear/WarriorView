@@ -58,8 +58,8 @@ public final class Main extends JavaPlugin {
     @Override
     public void onDisable() {
         try {
-            PacketEvents.getAPI().terminate();
             XRunnable.getScheduler().cancelTasks();
+            PacketEvents.getAPI().terminate();
             HandlerList.unregisterAll(this);
             AnimationTask.getInstance().init();
             configManager.init();

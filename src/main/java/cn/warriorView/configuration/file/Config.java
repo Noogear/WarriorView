@@ -47,7 +47,7 @@ public class Config extends ConfigurationFile {
             @Comments("视距")
             public double viewRange = 1.0;
 
-            @Comments("可见玩家的范围, 设置为0时只有玩家本人可见")
+            @Comments("可见玩家的范围, 小于等于1时只有玩家本人可见")
             public int viewMarge = 16;
 
             @Comments("使用ARGB, 0时为透明")
@@ -113,7 +113,7 @@ public class Config extends ConfigurationFile {
             @Comments("视距")
             public double viewRange = 1.0;
 
-            @Comments("可见玩家的范围, 设置为0时只有玩家本人可见")
+            @Comments("可见玩家的范围, 小于等于1时只有玩家本人可见")
             public int viewMarge = 12;
 
             @Comments("使用ARGB, 0时为透明")

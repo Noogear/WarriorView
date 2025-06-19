@@ -44,9 +44,6 @@ public class PacketUtil {
     }
 
     public static HashSet<Player> getNearbyPlayer(Location location, byte marge) {
-        if (marge <= 1) {
-            return new HashSet<>();
-        }
         return new HashSet<>(location.getWorld().getNearbyEntitiesByType(Player.class, location, marge, marge, marge, null));
     }
 
