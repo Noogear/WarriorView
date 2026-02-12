@@ -1,0 +1,12 @@
+name: WarriorView
+version: '${version}'
+main: cn.warriorview.Main
+description: "高性能伤害/治愈数字显示插件"
+author: Noogear
+api-version: '1.21'
+folia-supported: true
+dependencies:
+  server:
+    packetevents:
+      load: BEFORE
+      required: true
