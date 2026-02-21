@@ -29,7 +29,7 @@ public final class ConstantFolder {
         if (targetType == Class.class)
             return resolveClass(text);
 
-        if (JvmTypeHelper.isNumericType(targetType)) {
+        if (JvmTypeUtils.isNumericType(targetType)) {
             Matcher m = BINARY_EXPR.matcher(text.trim());
             if (m.matches())
                 return foldArithmetic(m, targetType);

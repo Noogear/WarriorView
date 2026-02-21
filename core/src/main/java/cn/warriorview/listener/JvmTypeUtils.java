@@ -11,9 +11,9 @@ import org.objectweb.asm.commons.GeneratorAdapter;
  * 提供 {@link org.objectweb.asm.commons.GeneratorAdapter} 无法直接覆盖的补充能力：
  * 类型判断、操作符映射、{@link java.lang.StringBuilder#append} 描述符。
  */
-public final class JvmTypeHelper implements Opcodes {
+public final class JvmTypeUtils implements Opcodes {
 
-    private JvmTypeHelper() {
+    private JvmTypeUtils() {
     }
 
     /** 判断类型是否可进行数值比较（基本数值类型 + 装箱类型 + {@link java.lang.Number} 子类） */

@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.LongAdder;
  * 根据 YAML 配置编译事件处理字节码，通过 {@link org.objectweb.asm.commons.GeneratorAdapter}
  * 生成指令。
  *
- * @see cn.warriorview.listener.JvmTypeHelper
+ * @see cn.warriorview.listener.JvmTypeUtils
  * @see cn.warriorview.listener.AccessorPathResolver
  * @see cn.warriorview.listener.ConstantFolder
  */
@@ -290,7 +290,7 @@ public class AsmLogicCompiler implements Opcodes {
             return;
         }
 
-        if (JvmTypeHelper.isNumericType(meta.type)) {
+        if (JvmTypeUtils.isNumericType(meta.type)) {
             emitNumericComparison(ga, op, val, meta.type, failTarget);
             return;
         }
@@ -300,11 +300,11 @@ public class AsmLogicCompiler implements Opcodes {
 
     private static void emitNumericComparison(GeneratorAdapter ga, String op,
             Object val, Class<?> type, Label failTarget) {
-        Type primitiveType = JvmTypeHelper.numericPrimitiveType(type);
+        Type primitiveType = JvmTypeUtils.numericPrimitiveType(type);
         if (!type.isPrimitive())
             ga.unbox(primitiveType);
         pushNumericConstant(ga, val, primitiveType);
-        ga.ifCmp(primitiveType, JvmTypeHelper.toCompareMode(op), failTarget);
+        ga.ifCmp(primitiveType, JvmTypeUtils.toCompareMode(op), failTarget);
     }
 
     private static void pushNumericConstant(GeneratorAdapter ga, Object val, Type targetType) {
@@ -533,7 +533,7 @@ public class AsmLogicCompiler implements Opcodes {
                 VariableMeta vMeta = analysis.vars.get(varName);
                 ga.loadLocal(vMeta.slot);
                 ga.invokeVirtual(SB_TYPE,
-                        new Method("append", JvmTypeHelper.appendDescriptor(vMeta.type)));
+                        new Method("append", JvmTypeUtils.appendDescriptor(vMeta.type)));
             } else {
                 ga.push(arg);
                 ga.invokeVirtual(SB_TYPE, Method.getMethod("StringBuilder append (String)"));
