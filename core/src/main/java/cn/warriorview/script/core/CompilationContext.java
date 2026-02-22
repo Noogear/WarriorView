@@ -1,0 +1,203 @@
+package cn.warriorview.script.core;
+
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableList;
+
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * 编译上下文，管理变量槽位分配、类型信息传播、常量池和反射缓存。
+ * <p>
+ * 每次编译一个 {@link ScriptIR.ScriptUnit} 时创建一个实例。
+ */
+@SuppressWarnings("null")
+public final class CompilationContext {
+
+    /** 变量名 ↔ 局部变量槽位（双向映射） */
+    private final ImmutableBiMap<String, Integer> varSlots;
+
+    /** 变量名 → IR 类型 */
+    private final ImmutableMap<String, ScriptIR.IRType> typeTable;
+
+    /** 编译时已知常量 */
+    private final ImmutableMap<String, Object> constants;
+
+    /** 载荷类（如 Event） */
+    private final Class<?> payloadClass;
+
+    /** getter 方法反射缓存（跨编译复用） */
+    private static final LoadingCache<String, MethodHandle> METHOD_CACHE = CacheBuilder.newBuilder()
+            .maximumSize(256)
+            .expireAfterAccess(10, TimeUnit.MINUTES)
+            .build(new CacheLoader<>() {
+                @Override
+                public MethodHandle load(String key) throws Exception {
+                    // key 格式："className#methodName"
+                    int sep = key.indexOf('#');
+                    String className = key.substring(0, sep);
+                    String methodName = key.substring(sep + 1);
+                    Class<?> clazz = Class.forName(className);
+                    Method method = clazz.getMethod(methodName);
+                    return MethodHandles.lookup().unreflect(method);
+                }
+            });
+
+    /** PGO 分支权重数据（可选） */
+    private final Map<String, double[]> branchWeights = new HashMap<>();
+
+    /** 常量提升定义（由 ScriptOptimizer 填充） */
+    private ImmutableList<ConstantDef> hoistedConstants = ImmutableList.of();
+
+    /** 活跃变量集合（由 ScriptOptimizer 填充） */
+    private Set<String> liveVars = new HashSet<>();
+
+    /** 下一个可用的局部变量槽位 */
+    private final int nextSlot;
+
+    private CompilationContext(Builder builder) {
+        this.varSlots = builder.varSlots.build();
+        this.typeTable = builder.typeTable.build();
+        this.constants = builder.constants.build();
+        this.payloadClass = builder.payloadClass;
+        // slot 0 = this, slot 1 = payload 参数
+        this.nextSlot = 2 + this.varSlots.size();
+    }
+
+    public int getSlot(String varName) {
+        Integer slot = varSlots.get(varName);
+        if (slot == null) {
+            throw new IllegalArgumentException("Undefined variable: " + varName);
+        }
+        return slot;
+    }
+
+    public String getVarName(int slot) {
+        return varSlots.inverse().get(slot);
+    }
+
+    public ScriptIR.IRType getType(String varName) {
+        return typeTable.getOrDefault(varName, ScriptIR.IRType.OBJECT);
+    }
+
+    public boolean isConstant(String varName) {
+        return constants.containsKey(varName);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T getConstant(String varName) {
+        return (T) constants.get(varName);
+    }
+
+    public Class<?> payloadClass() {
+        return payloadClass;
+    }
+
+    public int nextSlot() {
+        return nextSlot;
+    }
+
+    /**
+     * 从缓存获取 MethodHandle。
+     */
+    public static MethodHandle resolveMethod(Class<?> owner, String methodName) {
+        try {
+            return METHOD_CACHE.get(owner.getName() + "#" + methodName);
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot resolve method: " + owner.getName() + "#" + methodName, e);
+        }
+    }
+
+    /**
+     * 获取方法的返回类型。
+     */
+    public static Class<?> resolveReturnType(Class<?> owner, String methodName) {
+        MethodHandle mh = resolveMethod(owner, methodName);
+        return mh.type().returnType();
+    }
+
+    public void putBranchWeights(String switchId, double[] weights) {
+        branchWeights.put(switchId, weights);
+    }
+
+    public double[] getBranchWeights(String switchId) {
+        return branchWeights.get(switchId);
+    }
+
+    // ======================== 优化器产出 ========================
+
+    /** 编译期需提升为 static final 的常量。 */
+    public record ConstantDef(String fieldName, ConstantKind kind, Object value) {
+    }
+
+    public enum ConstantKind {
+        PATTERN, STRING_SET, INT_ARRAY, DOUBLE_ARRAY
+    }
+
+    public void setHoistedConstants(ImmutableList<ConstantDef> constants) {
+        this.hoistedConstants = constants;
+    }
+
+    public ImmutableList<ConstantDef> hoistedConstants() {
+        return hoistedConstants;
+    }
+
+    public void setLiveVars(Set<String> vars) {
+        this.liveVars = vars;
+    }
+
+    public Set<String> liveVars() {
+        return liveVars;
+    }
+
+    // ======================== Builder ========================
+
+    public static Builder builder(Class<?> payloadClass) {
+        return new Builder(payloadClass);
+    }
+
+    public static final class Builder {
+        private final Class<?> payloadClass;
+        private final ImmutableBiMap.Builder<String, Integer> varSlots = ImmutableBiMap.builder();
+        private final ImmutableMap.Builder<String, ScriptIR.IRType> typeTable = ImmutableMap.builder();
+        private final ImmutableMap.Builder<String, Object> constants = ImmutableMap.builder();
+        private int slotCounter = 2; // 0=this, 1=payload
+
+        private Builder(Class<?> payloadClass) {
+            this.payloadClass = payloadClass;
+            // 预留 payload 的类型
+            typeTable.put("payload", ScriptIR.IRType.OBJECT);
+            varSlots.put("payload", 1);
+        }
+
+        /**
+         * 分配一个变量槽位。
+         */
+        public Builder addVar(String name, ScriptIR.IRType type) {
+            varSlots.put(name, slotCounter);
+            typeTable.put(name, type);
+            // double/long 占两个槽位
+            slotCounter += (type == ScriptIR.IRType.DOUBLE || type == ScriptIR.IRType.LONG) ? 2 : 1;
+            return this;
+        }
+
+        public Builder addConstant(String name, Object value) {
+            constants.put(name, value);
+            return this;
+        }
+
+        public CompilationContext build() {
+            return new CompilationContext(this);
+        }
+    }
+}

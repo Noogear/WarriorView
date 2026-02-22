@@ -1,2 +1,4 @@
 /api/build
 /core/build
+*.log
+*.txt
