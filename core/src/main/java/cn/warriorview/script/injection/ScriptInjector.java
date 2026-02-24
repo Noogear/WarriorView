@@ -40,7 +40,6 @@ public final class ScriptInjector {
     /**
      * 编译并注入一个 YAML 脚本。
      */
-    @SuppressWarnings("unchecked")
     public RegisteredScript inject(InputStream yamlInput) {
         CompilationPipeline.CompiledScript compiled = pipeline.compile(yamlInput);
 

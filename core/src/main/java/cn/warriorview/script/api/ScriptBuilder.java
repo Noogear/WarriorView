@@ -12,6 +12,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * 纯 Java 环境下的脚本无字面量（YAML）构建器。
@@ -119,10 +120,41 @@ public final class ScriptBuilder {
     }
 
     /**
-     * 追加一个拦截终止节点，这会彻底阻止脚本的向下运作，且有可能会直接取消对应 Bukkit Event（如果配置了相关的宿主支持）。
+     * 流程提前终止，等价于 {@code return null}。
      */
-    public ScriptBuilder interrupt() {
+    public ScriptBuilder returnEarly() {
         flow.add(new FlowNode(FlowNodeType.RETURN, ImmutableMap.of()));
+        return this;
+    }
+
+    /**
+     * 返回字符串字面量、变量或模板字符串。
+     * <ul>
+     * <li>{@code "{dmg}"} → 返回变量值（自动识别）</li>
+     * <li>{@code "HP:{hp} 伤:{dmg}"} → invokedynamic 模板拼接</li>
+     * <li>{@code "固定文本"} → 字符串字面量</li>
+     * </ul>
+     */
+    public ScriptBuilder returnValue(String value) {
+        flow.add(new FlowNode(FlowNodeType.RETURN_VALUE, ImmutableMap.of("value", value)));
+        return this;
+    }
+
+    /** 返回整数字面量。 */
+    public ScriptBuilder returnValue(int value) {
+        flow.add(new FlowNode(FlowNodeType.RETURN_VALUE, ImmutableMap.of("value", value)));
+        return this;
+    }
+
+    /** 返回浮点字面量。 */
+    public ScriptBuilder returnValue(double value) {
+        flow.add(new FlowNode(FlowNodeType.RETURN_VALUE, ImmutableMap.of("value", value)));
+        return this;
+    }
+
+    /** 返回布尔字面量。 */
+    public ScriptBuilder returnValue(boolean value) {
+        flow.add(new FlowNode(FlowNodeType.RETURN_VALUE, ImmutableMap.of("value", value)));
         return this;
     }
 
@@ -187,7 +219,7 @@ public final class ScriptBuilder {
     /**
      * 完成配置，直接将这套规则送去底层的 AOT 引擎！
      * <p>
-     * 
+     *
      * @return 一个可以随意反复被调用且运行速度等同等同于原生硬编码 Java 代码的回调函数
      */
     public Consumer<Object> compile() {
@@ -195,5 +227,18 @@ public final class ScriptBuilder {
         CompilationPipeline pipeline = new CompilationPipeline();
         CompiledScript compiled = pipeline.compile(scriptUnit);
         return (Consumer<Object>) compiled.newHandler();
+    }
+
+    /**
+     * 编译为计算函数（脚本包含 {@link FlowNodeType#RETURN_VALUE} 节点时使用）。
+     *
+     * @return Function&lt;Object, Object&gt;，入参为 payload 对象，返回值为 RETURN_VALUE
+     *         指定变量的装箱值
+     */
+    public Function<Object, Object> compileAsFunction() {
+        ScriptUnit scriptUnit = new ScriptUnit(payloadClass, 0, vars.build(), flow.build());
+        CompilationPipeline pipeline = new CompilationPipeline();
+        CompiledScript compiled = pipeline.compile(scriptUnit);
+        return compiled.newFunction();
     }
 }

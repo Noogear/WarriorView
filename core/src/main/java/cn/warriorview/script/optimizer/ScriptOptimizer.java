@@ -118,7 +118,7 @@ public final class ScriptOptimizer {
                     optimized.add(node.withFlag(FlowNode.FLAG_FOLDED));
                 } else {
                     optimized.add(new FlowNode(FlowNodeType.RETURN, ImmutableMap.of())
-                            .withFlag(FlowNode.FLAG_DEAD_AFTER));
+                            .withFlag(FlowNode.FLAG_DEAD_AFTER | FlowNode.FLAG_OPTIMIZER_INJECTED));
                     break;
                 }
             } else {
@@ -248,7 +248,7 @@ public final class ScriptOptimizer {
                     } else {
                         // 恒假 → 截断
                         optimized.add(new FlowNode(FlowNodeType.RETURN, ImmutableMap.of())
-                                .withFlag(FlowNode.FLAG_DEAD_AFTER));
+                                .withFlag(FlowNode.FLAG_DEAD_AFTER | FlowNode.FLAG_OPTIMIZER_INJECTED));
                         break;
                     }
                 }

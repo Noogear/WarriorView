@@ -61,6 +61,8 @@ public final class ScriptIR {
         public static final int FLAG_DEAD_AFTER = 1 << 2;
         /** 标记：变量未被引用（死变量） */
         public static final int FLAG_DEAD_VAR = 1 << 3;
+        /** 标记：由优化器自动注入，非用户显式定义 */
+        public static final int FLAG_OPTIMIZER_INJECTED = 1 << 4;
 
         /**
          * 仅 attrs 的简易构造（用于非数值节点）。
@@ -186,6 +188,8 @@ public final class ScriptIR {
         CHECK,
         SWITCH,
         RETURN,
+        /** 有值返回节点，编译产物为 Function<Object,Object> */
+        RETURN_VALUE,
         ACTION;
 
         private static final EnumMap<FlowNodeType, Supplier<FlowNodeHandler>> FACTORIES = new EnumMap<>(
@@ -210,6 +214,7 @@ public final class ScriptIR {
                 case "check" -> CHECK;
                 case "switch" -> SWITCH;
                 case "return" -> RETURN;
+                case "return_value" -> RETURN_VALUE;
                 case "action" -> ACTION;
                 default -> throw new IllegalArgumentException("Unknown flow node type: " + type);
             };

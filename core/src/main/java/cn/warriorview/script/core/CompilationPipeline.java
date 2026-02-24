@@ -7,6 +7,7 @@ import com.google.common.base.Preconditions;
 
 import java.io.InputStream;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * 编译管线，串联解析→优化→代码生成的全流程。
@@ -105,15 +106,26 @@ public final class CompilationPipeline {
             ScriptIR.ScriptUnit ir,
             Class<?> handlerClass,
             ScriptClassLoader loader) {
+
         /**
-         * 创建事件处理器实例。
+         * 创建 Consumer「副作用型」处理器实例。
+         * 内部实际为 Function，包装为 Consumer 以兼容现有 API。
+         */
+        public Consumer<Object> newHandler() {
+            Function<Object, Object> func = newFunction();
+            return func::apply; // 方法引用包装，零额外开销
+        }
+
+        /**
+         * 创建计算型处理器实例。
+         * 膀本返回 null（void RETURN），有值返回装箱后的变量（RETURN_VALUE）。
          */
         @SuppressWarnings("unchecked")
-        public Consumer<Object> newHandler() {
+        public Function<Object, Object> newFunction() {
             try {
-                return (Consumer<Object>) handlerClass.getDeclaredConstructor().newInstance();
+                return (Function<Object, Object>) handlerClass.getDeclaredConstructor().newInstance();
             } catch (ReflectiveOperationException e) {
-                throw new IllegalStateException("Cannot instantiate compiled handler", e);
+                throw new IllegalStateException("Cannot instantiate compiled function", e);
             }
         }
     }

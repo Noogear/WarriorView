@@ -70,13 +70,24 @@ public final class ScriptParser {
 
     /**
      * 解析单个流程节点，通过 {@link FlowNodeType} 枚举分发到对应 Handler。
+     * <p>
+     * 支持短语法：
+     * <ul>
+     * <li>无 {@code type} 且有 {@code action} 字段 → ACTION</li>
+     * <li>有 {@code return} 字段 → RETURN_VALUE（即 {@code - return: 42}）</li>
+     * </ul>
      */
     private FlowNode parseFlowNode(Map<String, Object> yaml) {
         String typeStr = (String) yaml.get("type");
-        // 无 type 但有 action 字段 → ACTION
-        FlowNodeType type = (typeStr == null && yaml.containsKey("action"))
-                ? FlowNodeType.ACTION
-                : FlowNodeType.fromYaml(typeStr);
+        FlowNodeType type;
+        if (typeStr == null && yaml.containsKey("action")) {
+            type = FlowNodeType.ACTION;
+        } else if (typeStr == null && yaml.containsKey("return")) {
+            // "– return: 42" 等短语法，路由到 ReturnNodeHandler
+            type = FlowNodeType.RETURN_VALUE;
+        } else {
+            type = FlowNodeType.fromYaml(typeStr);
+        }
         return type.handler().parse(yaml);
     }
 
@@ -96,14 +107,24 @@ public final class ScriptParser {
 
     /**
      * 将 YAML 中反序列化出来的节点列表转换为强类型的 AST 节点列表。
+     * <p>
+     * 支持 {@code - return} 纯字符串简写（SnakeYAML 将其解析为 String）。
      */
-    private ImmutableList<FlowNode> parseFlowNodes(List<Map<String, Object>> flowList) {
+    @SuppressWarnings("unchecked")
+    private ImmutableList<FlowNode> parseFlowNodes(List<?> flowList) {
         if (flowList == null || flowList.isEmpty()) {
             return ImmutableList.of();
         }
         ImmutableList.Builder<FlowNode> flow = ImmutableList.builder();
-        for (Map<String, Object> nodeMap : flowList) {
-            flow.add(parseFlowNode(nodeMap));
+        for (Object item : flowList) {
+            if (item instanceof String s && s.equalsIgnoreCase("return")) {
+                // 对应 YAML 中的 "- return"（空返回）
+                flow.add(FlowNodeType.RETURN.handler().parse(Map.of()));
+            } else if (item instanceof Map<?, ?> rawMap) {
+                flow.add(parseFlowNode((Map<String, Object>) rawMap));
+            } else {
+                throw new IllegalArgumentException("Unexpected flow node type: " + item);
+            }
         }
         return flow.build();
     }

@@ -144,14 +144,6 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler {
         }
     }
 
-    private static final java.util.Map<Class<?>, java.util.function.BiConsumer<MethodVisitor, String>> EMITTERS = java.util.Map
-            .of(
-                    boolean.class, (mv, arg) -> ASMUtils.emitIntConst(mv, Boolean.parseBoolean(arg) ? 1 : 0),
-                    int.class, (mv, arg) -> ASMUtils.emitIntConst(mv, Integer.parseInt(arg)),
-                    long.class, (mv, arg) -> ASMUtils.emitLongConst(mv, Long.parseLong(arg)),
-                    double.class, (mv, arg) -> ASMUtils.emitDoubleConst(mv, Double.parseDouble(arg)),
-                    float.class, (mv, arg) -> ASMUtils.emitFloatConst(mv, Float.parseFloat(arg)));
-
     /**
      * 统一动作调用发射。
      * <p>
@@ -176,19 +168,18 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler {
                 BytecodeCompiler.emitStringConcat(mv, arg, ctx);
             } else {
                 Class<?> unwrappedType = com.google.common.primitives.Primitives.unwrap(reqType);
-                var emitter = EMITTERS.get(unwrappedType);
-
-                if (emitter != null) {
-                    emitter.accept(mv, arg);
-                    if (unwrappedType != reqType) { // originally wrapper class
-                        ASMUtils.emitBox(mv, IRType.fromClass(reqType));
-                    }
-                } else if (unwrappedType.isEnum()) {
+                if (unwrappedType.isEnum()) {
                     // 枚举自动寻址
                     mv.visitFieldInsn(Opcodes.GETSTATIC, org.objectweb.asm.Type.getInternalName(unwrappedType),
                             arg.toUpperCase(), org.objectweb.asm.Type.getDescriptor(unwrappedType));
+                } else if (unwrappedType.isPrimitive()) {
+                    // 直接发射原始类型常量，无装箱需求
+                    Object parsed = unwrappedType == boolean.class
+                            ? Boolean.parseBoolean(arg)
+                            : ScriptParser.ValueParser.parseNumber(arg);
+                    ASMUtils.emitPrimitiveLiteral(mv, parsed, unwrappedType);
                 } else {
-                    // String 等默认兜底
+                    // String 或包装类型：直接 LDC
                     mv.visitLdcInsn(arg);
                 }
             }

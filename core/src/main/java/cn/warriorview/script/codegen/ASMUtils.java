@@ -40,6 +40,93 @@ public final class ASMUtils {
     }
 
     /**
+     * 发射：void return（RETURN 指令）
+     */
+    public static void emitVoidReturn(MethodVisitor mv) {
+        mv.visitInsn(Opcodes.RETURN);
+    }
+
+    /**
+     * 根据 Java 对象类型自动选择最优加载指令并将结果庋变为 {@code Object}。
+     * <ul>
+     * <li>{@code Integer} → {@code emitIntConst} + {@code Integer.valueOf}就</li>
+     * <li>{@code Double/Float} → {@code emitDoubleConst} +
+     * {@code Double.valueOf}</li>
+     * <li>{@code Long} → {@code emitLongConst} + {@code Long.valueOf}</li>
+     * <li>{@code Boolean} → {@code ICONST_0/1} + {@code Boolean.valueOf}</li>
+     * <li>{@code String} → {@code LDC}（已是 reference，无需装箱）</li>
+     * </ul>
+     * <p>
+     * 不支持的类型抛出 {@link IllegalArgumentException}。
+     */
+    public static void emitLiteral(MethodVisitor mv, Object value) {
+        if (value instanceof Integer i) {
+            emitIntConst(mv, i);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Integer", "valueOf",
+                    "(I)Ljava/lang/Integer;", false);
+        } else if (value instanceof Double d) {
+            emitDoubleConst(mv, d);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Double", "valueOf",
+                    "(D)Ljava/lang/Double;", false);
+        } else if (value instanceof Float f) {
+            emitFloatConst(mv, f);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Float", "valueOf",
+                    "(F)Ljava/lang/Float;", false);
+        } else if (value instanceof Long l) {
+            emitLongConst(mv, l);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Long", "valueOf",
+                    "(J)Ljava/lang/Long;", false);
+        } else if (value instanceof Boolean b) {
+            mv.visitInsn(b ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Boolean", "valueOf",
+                    "(Z)Ljava/lang/Boolean;", false);
+        } else if (value instanceof String s) {
+            mv.visitLdcInsn(s); // String 已是 reference，直接压栈
+        } else {
+            throw new IllegalArgumentException("emitLiteral: unsupported literal type: "
+                    + (value == null ? "null" : value.getClass().getName()));
+        }
+    }
+
+    /**
+     * 发射原始类型常量，不装箱，将栈顶元素直接为原始类型。
+     * 用于 Action 调用有原始类型形参时，避免装箱再拆箱的反模式。
+     */
+    public static void emitPrimitiveLiteral(MethodVisitor mv, Object parsed, Class<?> primitiveType) {
+        if (primitiveType == boolean.class) {
+            mv.visitInsn(((Boolean) parsed) ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
+        } else if (primitiveType == int.class) {
+            emitIntConst(mv, ((Number) parsed).intValue());
+        } else if (primitiveType == long.class) {
+            emitLongConst(mv, ((Number) parsed).longValue());
+        } else if (primitiveType == double.class) {
+            emitDoubleConst(mv, ((Number) parsed).doubleValue());
+        } else if (primitiveType == float.class) {
+            emitFloatConst(mv, ((Number) parsed).floatValue());
+        } else {
+            throw new IllegalArgumentException("emitPrimitiveLiteral: not a primitive type: " + primitiveType);
+        }
+    }
+
+    /**
+     * 介局变量加载：根据 {@link cn.warriorview.script.core.ScriptIR.IRType} 发射对应 XLOAD，
+     * 对于原始类型进行装箱，结果始终是 {@code Object}。
+     * 封装 {@link ReturnNodeHandler} 中的重复模式为共享工具。
+     */
+    public static void emitLoadBoxed(MethodVisitor mv, int slot,
+            cn.warriorview.script.core.ScriptIR.IRType type) {
+        switch (type) {
+            case INT, BOOLEAN -> mv.visitVarInsn(Opcodes.ILOAD, slot);
+            case LONG -> mv.visitVarInsn(Opcodes.LLOAD, slot);
+            case DOUBLE -> mv.visitVarInsn(Opcodes.DLOAD, slot);
+            default -> mv.visitVarInsn(Opcodes.ALOAD, slot);
+        }
+        if (type.isPrimitive()) {
+            emitBox(mv, type);
+        }
+    }
+
+    /**
      * 发射：var.equals("...") 的比较序列
      */
     public static void emitEquals(MethodVisitor mv) {

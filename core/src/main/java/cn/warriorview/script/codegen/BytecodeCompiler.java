@@ -24,7 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * ASM 字节码编译器。
@@ -42,7 +42,8 @@ import java.util.function.Consumer;
  */
 public final class BytecodeCompiler implements Opcodes {
 
-    private static final String CONSUMER_INTERNAL = Type.getInternalName(Consumer.class);
+    /** 所有脚本统一编译为此接口，简化内部模式选择 */
+    private static final String FUNCTION_INTERNAL = Type.getInternalName(Function.class);
     private static final String OBJECT_INTERNAL = "java/lang/Object";
 
     /** StringConcatFactory bootstrap handle */
@@ -56,28 +57,25 @@ public final class BytecodeCompiler implements Opcodes {
             false);
 
     public byte[] compile(ScriptUnit unit, CompilationContext ctx) {
-        // 利用类获取器获取当前引擎包路径，避免给未来用户二次迁移引擎造成“硬重构”困扰。
         String basePackage = BytecodeCompiler.class.getPackage().getName().replace('.', '/');
         String className = basePackage + "/generated/Script$" + Integer.toHexString(unit.hashCode());
         String payloadInternal = unit.payloadClass().replace('.', '/');
 
-        // 从优化器产出读取（零 node 依赖）
         List<ConstantDef> constants = ctx.hoistedConstants();
         Set<String> liveVars = ctx.liveVars();
 
-        // 手动帧：去除 COMPUTE_FRAMES，仅保留 COMPUTE_MAXS
+        // 所有脚本统一生成 Function<Object,Object>，干通返回 null，有值返回真实值。
+        // 调用侧通过 CompilationPipeline.newHandler() 茇薄包装为 Consumer。
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         cw.visit(Opcodes.V21, ACC_PUBLIC | ACC_FINAL | ACC_SUPER,
                 className, null, OBJECT_INTERNAL,
-                new String[] { CONSUMER_INTERNAL });
+                new String[] { FUNCTION_INTERNAL });
 
-        // static final 常量字段
         emitStaticFields(cw, constants);
         emitClinit(cw, className, constants);
-
         emitConstructor(cw);
-        emitBridgeAccept(cw, className, payloadInternal);
-        emitAcceptMethod(cw, className, unit, ctx, liveVars, payloadInternal);
+        emitBridgeApply(cw, className, payloadInternal);
+        emitApplyMethod(cw, className, unit, ctx, liveVars, payloadInternal);
 
         cw.visitEnd();
         return cw.toByteArray();
@@ -171,46 +169,57 @@ public final class BytecodeCompiler implements Opcodes {
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitMethodInsn(INVOKESPECIAL, OBJECT_INTERNAL, "<init>", "()V", false);
-        mv.visitInsn(RETURN);
+        emitVoidReturn(mv);
         mv.visitMaxs(1, 1);
         mv.visitEnd();
     }
 
-    private void emitBridgeAccept(ClassWriter cw, String className, String payloadInternal) {
+    // ======================== 桥接 + apply 方法 ========================
+
+    /**
+     * bridge：apply(Object)Object → apply(PayloadType)Object ，满足 Function 接口的类型擦除要求。
+     */
+    private void emitBridgeApply(ClassWriter cw, String className, String payloadInternal) {
         MethodVisitor mv = cw.visitMethod(
                 ACC_PUBLIC | ACC_BRIDGE | ACC_SYNTHETIC,
-                "accept", "(Ljava/lang/Object;)V", null, null);
+                "apply", "(Ljava/lang/Object;)Ljava/lang/Object;", null, null);
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitTypeInsn(CHECKCAST, payloadInternal);
-        mv.visitMethodInsn(INVOKEVIRTUAL, className, "accept",
-                "(L" + payloadInternal + ";)V", false);
-        mv.visitInsn(RETURN);
+        mv.visitMethodInsn(INVOKEVIRTUAL, className, "apply",
+                "(L" + payloadInternal + ";)Ljava/lang/Object;", false);
+        mv.visitInsn(ARETURN);
         mv.visitMaxs(2, 2);
         mv.visitEnd();
     }
 
-    // ======================== accept 方法（含 CSE） ========================
-
-    private void emitAcceptMethod(ClassWriter cw, String className,
+    /**
+     * 生成 {@code apply(PayloadType)Object} 方法。
+     * <ul>
+     * <li>RETURN 节点 → handler 发射 {@code ACONST_NULL + ARETURN}（返回 null）</li>
+     * <li>RETURN_VALUE 节点 → handler 发射 {@code XLOAD + [装箱] + ARETURN}（返回实值）</li>
+     * <li>尾部干通兼容：未到达任何显式返回时，返回 null。</li>
+     * </ul>
+     */
+    private void emitApplyMethod(ClassWriter cw, String className,
             ScriptUnit unit, CompilationContext ctx,
             Set<String> liveVars, String payloadInternal) {
-        String descriptor = "(L" + payloadInternal + ";)V";
+        String descriptor = "(L" + payloadInternal + ";)Ljava/lang/Object;";
 
-        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "accept", descriptor, null, null);
+        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "apply", descriptor, null, null);
         mv.visitCode();
 
-        // CSE：按 getter 链前缀分组 → 公共前缀只调一次
         emitVarExtractionWithCSE(mv, unit.vars(), ctx, payloadInternal, liveVars);
 
         for (FlowNode node : unit.flow()) {
-            // 将编译时生成类的 internal name 传递给节点供预编译常量获取使用
             FlowNode enhancedNode = node.withAttr("_className", className);
             enhancedNode.type().handler().emit(enhancedNode, mv, ctx);
         }
 
-        mv.visitInsn(RETURN);
+        // 尾部干通兼容
+        mv.visitInsn(ACONST_NULL);
+        mv.visitInsn(ARETURN);
         mv.visitMaxs(0, 0);
         mv.visitEnd();
     }
@@ -359,7 +368,5 @@ public final class BytecodeCompiler implements Opcodes {
     private static boolean isTemplatePart(String fullTemplate, String part) {
         return fullTemplate.contains("{" + part + "}");
     }
-
-    // ======================== 常量加载工具 ========================
 
 }
