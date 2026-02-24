@@ -18,7 +18,6 @@ import org.objectweb.asm.Type;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -205,7 +204,9 @@ public final class BytecodeCompiler implements Opcodes {
         emitVarExtractionWithCSE(mv, unit.vars(), ctx, payloadInternal, liveVars);
 
         for (FlowNode node : unit.flow()) {
-            node.type().handler().emit(node, mv, ctx);
+            // 将编译时生成类的 internal name 传递给节点供预编译常量获取使用
+            FlowNode enhancedNode = node.withAttr("_className", className);
+            enhancedNode.type().handler().emit(enhancedNode, mv, ctx);
         }
 
         mv.visitInsn(RETURN);
@@ -214,25 +215,38 @@ public final class BytecodeCompiler implements Opcodes {
     }
 
     /**
-     * CSE 变量提取：检测公共 getter 链前缀，只调用一次。
-     * <p>
-     * 例：{@code player.name} 和 {@code player.displayName} 共享 {@code getPlayer()}.
-     * <p>
-     * 复用 {@link ScriptParser.PropertyResolver#getGetter} 做链解析。
+     * CSE 变量提取：检测公共前缀（按点号后的第一段划分），只调用一次。
+     * 改为了完全基于 TypeToken 和 PropertyAccessor 的方案。
      */
     private void emitVarExtractionWithCSE(MethodVisitor mv, ImmutableList<VarDecl> vars,
             CompilationContext ctx, String payloadInternal,
             Set<String> liveVars) {
-        // 按第一段属性分组
+
+        // 分组策略：按原始 property 的第一段（例如 "player.inventory" 的 "player"）
+        // 这一段必须能抽出独立的 Accessor，因为有可能第一段就是 map['damage']，此时作为整体也可以复用。
+        // 但为了通用性，按完整的 propertyPath 重新拉取一次 Accessor 组
         Map<String, List<VarDecl>> groups = new LinkedHashMap<>();
         for (VarDecl var : vars) {
             if (!liveVars.contains(var.name()))
-                continue; // 死变量消除
-            String firstPart = var.property().split("\\.")[0];
+                continue;
+
+            // 按 '[' 或 '.' 第一个出现的作为复用前缀
+            String prop = var.property();
+            int dotIdx = prop.indexOf('.');
+            int bracketIdx = prop.indexOf('[');
+
+            int splitIdx = -1;
+            if (dotIdx != -1 && bracketIdx != -1)
+                splitIdx = Math.min(dotIdx, bracketIdx);
+            else if (dotIdx != -1)
+                splitIdx = dotIdx;
+            else if (bracketIdx != -1)
+                splitIdx = bracketIdx;
+
+            String firstPart = (splitIdx == -1) ? prop : prop.substring(0, splitIdx);
             groups.computeIfAbsent(firstPart, k -> new ArrayList<>()).add(var);
         }
 
-        // 已缓存的中间值：属性前缀 → 临时槽位
         Map<String, Integer> cachedPrefixes = new HashMap<>();
         int tempSlot = ctx.nextSlot();
 
@@ -241,35 +255,39 @@ public final class BytecodeCompiler implements Opcodes {
             List<VarDecl> group = entry.getValue();
 
             if (group.size() > 1) {
-                // 公共前缀 → 缓存到临时局部变量
-                mv.visitVarInsn(ALOAD, 1); // payload
-                Method getter = ScriptParser.PropertyResolver.getGetter(ctx.payloadClass(), prefix);
-                String ownerInternal = Type.getInternalName(ctx.payloadClass());
-                String methodDescriptor = Type.getMethodDescriptor(getter);
+                // 有复用价值，提取第一段
+                mv.visitVarInsn(ALOAD, 1);
+
+                // 解析第一段的 Accessor
+                List<cn.warriorview.script.parser.accessor.PropertyAccessor> prefixAccessors = cn.warriorview.script.parser.ScriptParser.PropertyResolver
+                        .resolveAccessors(
+                                com.google.common.reflect.TypeToken.of(ctx.payloadClass()), prefix);
+
+                // 只有一段（第一段必然只有一个）
+                cn.warriorview.script.parser.accessor.PropertyAccessor firstAcr = prefixAccessors.get(0);
                 boolean isInterface = ctx.payloadClass().isInterface();
-                mv.visitMethodInsn(
-                        isInterface ? INVOKEINTERFACE : INVOKEVIRTUAL,
-                        ownerInternal, getter.getName(), methodDescriptor, isInterface);
+                firstAcr.emitLoad(mv, isInterface);
+
                 mv.visitVarInsn(ASTORE, tempSlot);
                 cachedPrefixes.put(prefix, tempSlot);
+                int currentCache = tempSlot;
                 tempSlot++;
 
-                // 每个变量从缓存的中间值继续链式调用
+                // 其余段跟进
                 for (VarDecl var : group) {
-                    String[] parts = var.property().split("\\.");
-                    int cachedSlot = cachedPrefixes.get(parts[0]);
-                    mv.visitVarInsn(ALOAD, cachedSlot);
+                    mv.visitVarInsn(ALOAD, currentCache);
 
-                    Class<?> currentClass = getter.getReturnType();
-                    for (int i = 1; i < parts.length; i++) {
-                        Method nextGetter = ScriptParser.PropertyResolver.getGetter(currentClass, parts[i]);
-                        String nextOwner = Type.getInternalName(currentClass);
+                    List<cn.warriorview.script.parser.accessor.PropertyAccessor> fullAccessors = cn.warriorview.script.parser.ScriptParser.PropertyResolver
+                            .resolveAccessors(
+                                    com.google.common.reflect.TypeToken.of(ctx.payloadClass()), var.property());
+
+                    Class<?> currentClass = firstAcr.returnType().getRawType();
+                    // 从第 1 个之后（索引 1）开始发射
+                    for (int i = 1; i < fullAccessors.size(); i++) {
+                        cn.warriorview.script.parser.accessor.PropertyAccessor acr = fullAccessors.get(i);
                         boolean nextIsInterface = currentClass.isInterface();
-                        mv.visitMethodInsn(
-                                nextIsInterface ? INVOKEINTERFACE : INVOKEVIRTUAL,
-                                nextOwner, nextGetter.getName(),
-                                Type.getMethodDescriptor(nextGetter), nextIsInterface);
-                        currentClass = nextGetter.getReturnType();
+                        acr.emitLoad(mv, nextIsInterface);
+                        currentClass = acr.returnType().getRawType();
                     }
 
                     int storeOp = switch (var.type()) {
@@ -281,9 +299,7 @@ public final class BytecodeCompiler implements Opcodes {
                     mv.visitVarInsn(storeOp, ctx.getSlot(var.name()));
                 }
             } else {
-                // 单独变量 → 直接提取（无 CSE 收益）
-                VarDecl var = group.get(0);
-                emitSingleVarExtraction(mv, var, ctx, payloadInternal);
+                emitSingleVarExtraction(mv, group.get(0), ctx, payloadInternal);
             }
         }
     }
@@ -291,24 +307,17 @@ public final class BytecodeCompiler implements Opcodes {
     private void emitSingleVarExtraction(MethodVisitor mv, VarDecl var,
             CompilationContext ctx, String eventInternal) {
         int slot = ctx.getSlot(var.name());
-        String property = var.property();
-
         mv.visitVarInsn(ALOAD, 1);
 
-        String[] parts = property.split("\\.");
+        List<cn.warriorview.script.parser.accessor.PropertyAccessor> accessors = cn.warriorview.script.parser.ScriptParser.PropertyResolver
+                .resolveAccessors(
+                        com.google.common.reflect.TypeToken.of(ctx.payloadClass()), var.property());
+
         Class<?> currentClass = ctx.payloadClass();
-
-        for (String part : parts) {
-            Method getter = ScriptParser.PropertyResolver.getGetter(currentClass, part);
-            String ownerInternal = Type.getInternalName(currentClass);
-            String methodDescriptor = Type.getMethodDescriptor(getter);
-
+        for (cn.warriorview.script.parser.accessor.PropertyAccessor acr : accessors) {
             boolean isInterface = currentClass.isInterface();
-            mv.visitMethodInsn(
-                    isInterface ? INVOKEINTERFACE : INVOKEVIRTUAL,
-                    ownerInternal, getter.getName(), methodDescriptor, isInterface);
-
-            currentClass = getter.getReturnType();
+            acr.emitLoad(mv, isInterface);
+            currentClass = acr.returnType().getRawType();
         }
 
         int storeOp = switch (var.type()) {

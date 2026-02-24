@@ -41,6 +41,17 @@ public final class CompilationPipeline {
 
         // 1. 解析 YAML → IR
         ScriptIR.ScriptUnit unit = parser.parse(yamlInput);
+        return compile(unit);
+    }
+
+    /**
+     * 编译一个已构建好的抽象语法树（纯 Java 代码无 YAML 依赖）。
+     *
+     * @param unit 脚本单元中间层表示
+     * @return 编译结果，包含生成的强类型高性能处理器。
+     */
+    public CompiledScript compile(ScriptIR.ScriptUnit unit) {
+        Preconditions.checkNotNull(unit, "unit");
 
         // 2. 构建编译上下文
         CompilationContext ctx = buildContext(unit);

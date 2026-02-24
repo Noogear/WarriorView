@@ -181,8 +181,19 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     // ======================== matches（正则预编译） ========================
 
     private int emitMatches(MethodVisitor mv, int slot, FlowNode node) {
-        // TODO: 将正则预编译为 static final Pattern 常量字段
-        // 当前方案：先用 String.matches()，后续可优化
+        String hoistedField = node.attr("_hoistedField");
+        if (hoistedField != null) {
+            // 预编译 Pattern 优化路径
+            // pattern.matcher(var).matches()
+            mv.visitFieldInsn(Opcodes.GETSTATIC, node.attr("_className"), hoistedField, "Ljava/util/regex/Pattern;");
+            mv.visitVarInsn(Opcodes.ALOAD, slot);
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/util/regex/Pattern", "matcher",
+                    "(Ljava/lang/CharSequence;)Ljava/util/regex/Matcher;", false);
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/util/regex/Matcher", "matches", "()Z", false);
+            return Opcodes.IFNE;
+        }
+
+        // 退化路径：String.matches()
         String pattern = node.attr("value");
         mv.visitVarInsn(Opcodes.ALOAD, slot);
         mv.visitLdcInsn(pattern);
@@ -205,7 +216,7 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
         }
 
         // >3 项 → Set.of(...).contains(var)
-        return emitInSet(mv, slot, (ImmutableList<Object>) valueList, type);
+        return emitInSet(mv, slot, (ImmutableList<Object>) valueList, type, node);
     }
 
     /**
@@ -262,32 +273,29 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
      * Set.of() 方式 in：生成不可变集合 + contains。
      */
     private int emitInSet(MethodVisitor mv, int slot,
-            ImmutableList<Object> values, IRType type) {
-        // 创建 Set.of(values...)
-        // 对于少于 10 个参数，使用 Set.of() 具名重载
-        int count = values.size();
+            ImmutableList<Object> values, IRType type, FlowNode node) {
+        String hoistedField = node.attr("_hoistedField");
 
-        for (Object val : values) {
-            if (val instanceof String s) {
-                mv.visitLdcInsn(s);
-            } else if (val instanceof Number n) {
-                // 需要装箱为 Object
-                mv.visitLdcInsn(n.intValue());
-                mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Integer", "valueOf",
-                        "(I)Ljava/lang/Integer;", false);
+        if (hoistedField != null) {
+            // 取 clinit 初始化好的 Set 常量
+            mv.visitFieldInsn(Opcodes.GETSTATIC, node.attr("_className"), hoistedField, "Ljava/util/Set;");
+        } else {
+            // 退化路径：动态创建 Set.of()
+            int count = values.size();
+            for (Object val : values) {
+                if (val instanceof String s) {
+                    mv.visitLdcInsn(s);
+                } else if (val instanceof Number n) {
+                    mv.visitLdcInsn(n.intValue());
+                    mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Integer", "valueOf",
+                            "(I)Ljava/lang/Integer;", false);
+                }
             }
+            mv.visitIntInsn(Opcodes.BIPUSH, count);
+            mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/util/Set", "of",
+                    "([Ljava/lang/Object;)Ljava/util/Set;", true);
         }
-
-        // Set.of(Object...) — 使用 varargs 版本
-        mv.visitIntInsn(Opcodes.BIPUSH, count);
-        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
-
-        // 回填数组——简化为直接 Set.of(a,b,c,...) 调用
-        // 由于 Set.of 有最多 10 个参数的重载，使用 varargs
-        // 重新实现：先创建数组
-        // 重构为简洁方案
-        mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/util/Set", "of",
-                "([Ljava/lang/Object;)Ljava/util/Set;", true);
 
         // set.contains(var)
         if (type.isPrimitive()) {
@@ -306,13 +314,17 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     // ======================== between ========================
 
     private int emitBetween(MethodVisitor mv, int slot, FlowNode node, IRType type) {
-        // value 应为 [low, high] 列表
-        ImmutableList<?> range = node.attr("valueList");
-        if (range == null)
-            range = node.attr("value");
+        String hoistedField = node.attr("_hoistedField");
+        boolean useArray = hoistedField != null && type == IRType.DOUBLE;
 
-        double low = ((Number) range.get(0)).doubleValue();
-        double high = ((Number) range.get(1)).doubleValue();
+        double low = 0, high = 0;
+        if (!useArray) {
+            ImmutableList<?> range = node.attr("valueList");
+            if (range == null)
+                range = node.attr("value");
+            low = ((Number) range.get(0)).doubleValue();
+            high = ((Number) range.get(1)).doubleValue();
+        }
 
         Label failLabel = new Label();
         Label endLabel = new Label();
@@ -329,16 +341,35 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
             mv.visitJumpInsn(Opcodes.IF_ICMPGT, failLabel);
         } else {
             // double
-            // var >= low
-            mv.visitVarInsn(Opcodes.DLOAD, slot);
-            BytecodeCompiler.emitDoubleConst(mv, low);
-            mv.visitInsn(Opcodes.DCMPG);
-            mv.visitJumpInsn(Opcodes.IFLT, failLabel);
-            // var <= high
-            mv.visitVarInsn(Opcodes.DLOAD, slot);
-            BytecodeCompiler.emitDoubleConst(mv, high);
-            mv.visitInsn(Opcodes.DCMPL);
-            mv.visitJumpInsn(Opcodes.IFGT, failLabel);
+            if (useArray) {
+                // 从 RANGE_x 数组中获取边界值
+                // var >= arr[0]
+                mv.visitVarInsn(Opcodes.DLOAD, slot);
+                mv.visitFieldInsn(Opcodes.GETSTATIC, node.attr("_className"), hoistedField, "[D");
+                BytecodeCompiler.emitIntConst(mv, 0);
+                mv.visitInsn(Opcodes.DALOAD);
+                mv.visitInsn(Opcodes.DCMPG);
+                mv.visitJumpInsn(Opcodes.IFLT, failLabel);
+
+                // var <= arr[1]
+                mv.visitVarInsn(Opcodes.DLOAD, slot);
+                mv.visitFieldInsn(Opcodes.GETSTATIC, node.attr("_className"), hoistedField, "[D");
+                BytecodeCompiler.emitIntConst(mv, 1);
+                mv.visitInsn(Opcodes.DALOAD);
+                mv.visitInsn(Opcodes.DCMPL);
+                mv.visitJumpInsn(Opcodes.IFGT, failLabel);
+            } else {
+                // 退化路径：常量拼接
+                mv.visitVarInsn(Opcodes.DLOAD, slot);
+                BytecodeCompiler.emitDoubleConst(mv, low);
+                mv.visitInsn(Opcodes.DCMPG);
+                mv.visitJumpInsn(Opcodes.IFLT, failLabel);
+
+                mv.visitVarInsn(Opcodes.DLOAD, slot);
+                BytecodeCompiler.emitDoubleConst(mv, high);
+                mv.visitInsn(Opcodes.DCMPL);
+                mv.visitJumpInsn(Opcodes.IFGT, failLabel);
+            }
         }
 
         // 在范围内

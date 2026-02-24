@@ -1,7 +1,7 @@
 plugins {
     id("io.papermc.paperweight.userdev")
     id("xyz.jpenilla.run-paper")
-    id("com.github.johnrengelman.shadow")
+    id("io.github.goooler.shadow")
 }
 
 dependencies {

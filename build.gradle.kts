@@ -2,7 +2,7 @@ plugins {
     `java-library`
     id("io.papermc.paperweight.userdev") version "1.7.2" apply false
     id("xyz.jpenilla.run-paper") version "2.3.0" apply false
-    id("com.github.johnrengelman.shadow") version "8.1.1" apply false
+    id("io.github.goooler.shadow") version "8.1.8" apply false
 }
 
 subprojects {

@@ -61,38 +61,96 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
     public void emit(FlowNode node, MethodVisitor mv, CompilationContext ctx) {
         String variable = node.attr("variable");
         ImmutableMap<String, ImmutableList<FlowNode>> cases = node.attr("cases");
+        String strategy = node.attr("_switchStrategy");
+        if (strategy == null) {
+            strategy = "CASCADE";
+        }
         int slot = ctx.getSlot(variable);
-        IRType type = ctx.getType(variable);
 
-        if (type == IRType.ENUM) {
-            emitEnumSwitch(mv, slot, cases, ctx);
-        } else {
-            emitLookupSwitch(mv, slot, cases, ctx);
+        switch (strategy) {
+            case "TABLE_ENUM":
+                emitTableEnumSwitch(mv, slot, variable, cases, ctx);
+                break;
+            case "TABLE_INT":
+                emitTableIntSwitch(mv, slot, cases, ctx);
+                break;
+            case "LOOKUP_INT":
+            case "LOOKUP_STRING":
+                emitLookupSwitch(mv, slot, cases, ctx);
+                break;
+            case "CASCADE":
+            default:
+                emitCascadeIfElseSwitch(mv, slot, ctx.getType(variable), cases, ctx);
+                break;
         }
     }
 
-    private void emitEnumSwitch(MethodVisitor mv, int slot,
+    private void emitTableEnumSwitch(MethodVisitor mv, int slot, String variable,
             ImmutableMap<String, ImmutableList<FlowNode>> cases,
             CompilationContext ctx) {
         Label defaultLabel = new Label();
         Label endLabel = new Label();
 
+        // 1. 防空指针 (IFNULL 判断)
+        mv.visitVarInsn(Opcodes.ALOAD, slot);
+        mv.visitJumpInsn(Opcodes.IFNULL, defaultLabel);
+
+        // 2. 取真实变量 ordinal
         mv.visitVarInsn(Opcodes.ALOAD, slot);
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Enum", "ordinal", "()I", false);
 
-        int[] keys = new int[cases.size()];
-        Label[] labels = new Label[cases.size()];
+        // 3. 反射查询所有 Enum 真实实例与序号
+        cn.warriorview.script.core.ScriptIR.IRType type = ctx.getType(variable);
+        if (type != cn.warriorview.script.core.ScriptIR.IRType.ENUM) {
+            throw new IllegalStateException("Variable " + variable + " is treated as TABLE_ENUM but actually " + type);
+        }
+        Class<?> enumType = ctx.payloadClass(); // Enum 常量将稍后被运行时校验或目前假设已知
+        // 为了安全获取类型，暂时尝试使用最暴力的搜寻：
+        try {
+            java.lang.reflect.Method m = ctx.payloadClass()
+                    .getMethod("get" + variable.substring(0, 1).toUpperCase() + variable.substring(1));
+            enumType = m.getReturnType();
+        } catch (Exception e) {
+            // 软降级回退
+        }
+        Object[] enumConstants = enumType.getEnumConstants();
+        if (enumConstants == null) {
+            throw new IllegalStateException(
+                    "Variable " + variable + " is resolved as ENUM but payload class is not Enum.");
+        }
+
+        int maxOrdinal = enumConstants.length;
+        Label[] tempLabels = new Label[maxOrdinal];
+        for (int i = 0; i < maxOrdinal; i++) {
+            tempLabels[i] = defaultLabel; // 默认将所有可能的成员指向 fallback (default)
+        }
+
+        // 把 YAML case 定义好的内容塞进具体的 Label
+        Label[] caseLabels = new Label[cases.size()];
         String[] caseNames = cases.keySet().toArray(new String[0]);
 
         for (int i = 0; i < caseNames.length; i++) {
-            keys[i] = i;
-            labels[i] = new Label();
+            String name = caseNames[i];
+            Label targetLabel = new Label();
+            caseLabels[i] = targetLabel;
+
+            // 找出名字在真实枚举类里的对应 ordinal
+            for (Object obj : enumConstants) {
+                Enum<?> e = (Enum<?>) obj;
+                if (e.name().equals(name)) {
+                    tempLabels[e.ordinal()] = targetLabel;
+                    break;
+                }
+            }
         }
 
-        mv.visitLookupSwitchInsn(defaultLabel, keys, labels);
+        // 4. 生成 TABLESWITCH
+        // min=0, max=enumLength - 1
+        mv.visitTableSwitchInsn(0, maxOrdinal - 1, defaultLabel, tempLabels);
 
+        // 5. 生成 case 内的方法体
         for (int i = 0; i < caseNames.length; i++) {
-            mv.visitLabel(labels[i]);
+            mv.visitLabel(caseLabels[i]);
             ImmutableList<FlowNode> actions = cases.get(caseNames[i]);
             for (FlowNode action : actions) {
                 action.type().handler().emit(action, mv, ctx);
@@ -153,6 +211,116 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
 
             mv.visitLabel(mismatch);
             mv.visitJumpInsn(Opcodes.GOTO, defaultLabel);
+        }
+
+        mv.visitLabel(defaultLabel);
+        mv.visitLabel(endLabel);
+    }
+
+    private void emitTableIntSwitch(MethodVisitor mv, int slot,
+            ImmutableMap<String, ImmutableList<FlowNode>> cases,
+            CompilationContext ctx) {
+        Label defaultLabel = new Label();
+        Label endLabel = new Label();
+
+        int min = Integer.MAX_VALUE;
+        int max = Integer.MIN_VALUE;
+        for (String key : cases.keySet()) {
+            int v = Integer.parseInt(key);
+            if (v < min)
+                min = v;
+            if (v > max)
+                max = v;
+        }
+
+        int size = max - min + 1;
+        Label[] labels = new Label[size];
+        for (int i = 0; i < size; i++) {
+            labels[i] = defaultLabel;
+        }
+
+        Label[] caseLabels = new Label[cases.size()];
+        String[] caseNames = cases.keySet().toArray(new String[0]);
+        for (int i = 0; i < caseNames.length; i++) {
+            int v = Integer.parseInt(caseNames[i]);
+            Label targetLabel = new Label();
+            caseLabels[i] = targetLabel;
+            labels[v - min] = targetLabel;
+        }
+
+        mv.visitVarInsn(Opcodes.ILOAD, slot);
+        mv.visitTableSwitchInsn(min, max, defaultLabel, labels);
+
+        for (int i = 0; i < caseNames.length; i++) {
+            mv.visitLabel(caseLabels[i]);
+            for (FlowNode action : cases.get(caseNames[i])) {
+                action.type().handler().emit(action, mv, ctx);
+            }
+            mv.visitJumpInsn(Opcodes.GOTO, endLabel);
+        }
+
+        mv.visitLabel(defaultLabel);
+        mv.visitLabel(endLabel);
+    }
+
+    private void emitCascadeIfElseSwitch(MethodVisitor mv, int slot, IRType type,
+            ImmutableMap<String, ImmutableList<FlowNode>> cases,
+            CompilationContext ctx) {
+        Label endLabel = new Label();
+        Label defaultLabel = new Label(); // 如果没有写 default 则指向 end
+
+        String[] caseNames = cases.keySet().toArray(new String[0]);
+        Label[] caseBlockLabels = new Label[cases.size()];
+        for (int i = 0; i < cases.size(); i++) {
+            caseBlockLabels[i] = new Label();
+        }
+
+        for (int i = 0; i < caseNames.length; i++) {
+            String key = caseNames[i];
+            Label nextCheckLabel = (i == caseNames.length - 1) ? defaultLabel : new Label();
+
+            // 将 YAML 键强制重解析匹配实际目标的常量比对
+            if (type == IRType.INT || type == IRType.BOOLEAN) {
+                int expected = type == IRType.BOOLEAN ? (Boolean.parseBoolean(key) ? 1 : 0) : Integer.parseInt(key);
+                mv.visitVarInsn(Opcodes.ILOAD, slot);
+                cn.warriorview.script.codegen.BytecodeCompiler.emitIntConst(mv, expected);
+                mv.visitJumpInsn(Opcodes.IF_ICMPNE, nextCheckLabel);
+            } else if (type == IRType.LONG) {
+                long expected = Long.parseLong(key);
+                mv.visitVarInsn(Opcodes.LLOAD, slot);
+                mv.visitLdcInsn(expected);
+                mv.visitInsn(Opcodes.LCMP);
+                mv.visitJumpInsn(Opcodes.IFNE, nextCheckLabel);
+            } else if (type == IRType.DOUBLE) {
+                double expected = Double.parseDouble(key);
+                mv.visitVarInsn(Opcodes.DLOAD, slot);
+                cn.warriorview.script.codegen.BytecodeCompiler.emitDoubleConst(mv, expected);
+                mv.visitInsn(Opcodes.DCMPG); // 使用统一比对
+                mv.visitJumpInsn(Opcodes.IFNE, nextCheckLabel);
+            } else {
+                // FALLBACK TO OBJECT .equals() 检测
+                mv.visitVarInsn(Opcodes.ALOAD, slot);
+                mv.visitJumpInsn(Opcodes.IFNULL, nextCheckLabel);
+                mv.visitVarInsn(Opcodes.ALOAD, slot);
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Object", "toString",
+                        "()Ljava/lang/String;", false);
+                mv.visitLdcInsn(key);
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals",
+                        "(Ljava/lang/Object;)Z", false);
+                mv.visitJumpInsn(Opcodes.IFEQ, nextCheckLabel);
+            }
+
+            // 匹配成功，跳转执行区块
+            mv.visitLabel(caseBlockLabels[i]);
+            for (FlowNode action : cases.get(key)) {
+                action.type().handler().emit(action, mv, ctx);
+            }
+            mv.visitJumpInsn(Opcodes.GOTO, endLabel);
+
+            // 放置下一个条件的锚点
+            if (i < caseNames.length - 1) {
+                mv.visitLabel(nextCheckLabel);
+            }
         }
 
         mv.visitLabel(defaultLabel);

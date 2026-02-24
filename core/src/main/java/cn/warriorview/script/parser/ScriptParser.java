@@ -5,14 +5,14 @@ import cn.warriorview.script.core.ScriptIR.FlowNodeType;
 import cn.warriorview.script.core.ScriptIR.IRType;
 import cn.warriorview.script.core.ScriptIR.ScriptUnit;
 import cn.warriorview.script.core.ScriptIR.VarDecl;
+import cn.warriorview.script.parser.accessor.PropertyAccessor;
 import com.google.common.base.CaseFormat;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
+import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Doubles;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
+import com.google.common.reflect.TypeToken;
 
 import org.yaml.snakeyaml.Yaml;
 
@@ -21,7 +21,6 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -64,12 +63,8 @@ public final class ScriptParser {
 
         // 流程列表
         List<Map<String, Object>> flowList = (List<Map<String, Object>>) root.getOrDefault("flow", List.of());
-        ImmutableList.Builder<FlowNode> flow = ImmutableList.builder();
-        for (Map<String, Object> nodeMap : flowList) {
-            flow.add(parseFlowNode(nodeMap));
-        }
 
-        return new ScriptUnit(payloadClassStr, priority, vars.build(), flow.build());
+        return new ScriptUnit(payloadClassStr, priority, vars.build(), parseFlowNodes(flowList));
     }
 
     /**
@@ -82,6 +77,34 @@ public final class ScriptParser {
                 ? FlowNodeType.ACTION
                 : FlowNodeType.fromYaml(typeStr);
         return type.handler().parse(yaml);
+    }
+
+    /**
+     * 解析 YAML 字符串形式的流程节点列表。
+     * 用于非完整 ScriptUnit 场景下的局部逻辑反序列化。
+     */
+    @SuppressWarnings("unchecked")
+    public ImmutableList<FlowNode> parseFlow(String yamlContent) {
+        Object parsed = YAML.load(yamlContent);
+        if (!(parsed instanceof List)) {
+            throw new IllegalArgumentException("Expected a YAML list of flow nodes, but got "
+                    + (parsed == null ? "null" : parsed.getClass().getSimpleName()));
+        }
+        return parseFlowNodes((List<Map<String, Object>>) parsed);
+    }
+
+    /**
+     * 将 YAML 中反序列化出来的节点列表转换为强类型的 AST 节点列表。
+     */
+    private ImmutableList<FlowNode> parseFlowNodes(List<Map<String, Object>> flowList) {
+        if (flowList == null || flowList.isEmpty()) {
+            return ImmutableList.of();
+        }
+        ImmutableList.Builder<FlowNode> flow = ImmutableList.builder();
+        for (Map<String, Object> nodeMap : flowList) {
+            flow.add(parseFlowNode(nodeMap));
+        }
+        return flow.build();
     }
 
     // ======================== 值解析 ========================
@@ -187,92 +210,129 @@ public final class ScriptParser {
      */
     public static final class PropertyResolver {
 
-        /** getter 签名缓存：key="className#property" → getter Method */
-        private static final LoadingCache<String, Method> GETTER_CACHE = CacheBuilder.newBuilder()
-                .maximumSize(512)
-                .expireAfterAccess(10, TimeUnit.MINUTES)
-                .build(new CacheLoader<>() {
-                    @Override
-                    public Method load(@SuppressWarnings("NullableProblems") String key) throws Exception {
-                        int sep = key.indexOf('#');
-                        String className = key.substring(0, sep);
-                        String property = key.substring(sep + 1);
-                        Class<?> clazz = Class.forName(className);
-                        return resolveGetter(clazz, property);
-                    }
-                });
+        private static final Pattern INDEX_PATTERN = Pattern.compile("(.+)\\[(.+)\\]");
 
         private PropertyResolver() {
         }
 
         /**
-         * 解析属性的 IR 类型。支持链式属性（以 {@code .} 分隔）。
+         * 解析属性的 IR 类型。支持链式属性（以 {@code .} 分隔）和集合/Map索引（如 list[0] 或 map[key]）。
          */
         public static IRType resolveType(Class<?> payloadClass, String property) {
-            Class<?> returnType = resolveReturnClass(payloadClass, property);
-            return classToIRType(returnType);
+            TypeToken<?> currentType = TypeToken.of(payloadClass);
+            List<PropertyAccessor> accessors = resolveAccessors(currentType, property);
+            if (accessors.isEmpty()) {
+                return classToIRType(payloadClass);
+            }
+            return classToIRType(accessors.get(accessors.size() - 1).returnType().getRawType());
         }
 
         /**
-         * 解析属性的 Java 返回类型。支持链式属性。
+         * 解析属性为一系列的 PropertyAccessor 指令集，保留了全泛型分析链。
          */
-        public static Class<?> resolveReturnClass(Class<?> owner, String property) {
-            String[] parts = property.split("\\.");
-            Class<?> current = owner;
+        public static List<PropertyAccessor> resolveAccessors(TypeToken<?> ownerType, String property) {
+            List<PropertyAccessor> result = new ArrayList<>();
+            Iterable<String> parts = Splitter.on('.').split(property);
+            TypeToken<?> currentType = ownerType;
+
             for (String part : parts) {
-                Method getter = getGetter(current, part);
-                current = getter.getReturnType();
+                Matcher matcher = INDEX_PATTERN.matcher(part);
+                if (matcher.matches()) {
+                    // 形如: inventory[0] 或 metadata[key]
+                    String baseProp = matcher.group(1);
+                    String indexStr = matcher.group(2);
+
+                    // 1. 先解析基础属性
+                    Method baseGetter = resolveGetter(currentType.getRawType(), baseProp);
+                    TypeToken<?> baseType = currentType.resolveType(baseGetter.getGenericReturnType());
+                    result.add(new cn.warriorview.script.parser.accessor.MethodAccessor(baseGetter, baseType));
+                    currentType = baseType;
+
+                    // 2. 解析索引部分
+                    if (List.class.isAssignableFrom(currentType.getRawType())) {
+                        int index = Integer.parseInt(indexStr);
+                        TypeToken<?> elementType = extractListType(currentType);
+                        result.add(new cn.warriorview.script.parser.accessor.ListAccessor(index, elementType));
+                        currentType = elementType;
+                    } else if (Map.class.isAssignableFrom(currentType.getRawType())) {
+                        // 简单处理：去推断 Map 的 V
+                        TypeToken<?> valueType = extractMapValueType(currentType);
+
+                        // 由于 YAML 传入的 key 是字符串，我们在 AST 中按 String 类型对待
+                        // 若是纯数字且去引号的可以再处理，但作为 propertyPath 字符串，我们直接注入 String 键
+                        String key = indexStr;
+                        // 支持剥离单双引号（例如 metadata['damage_all']）
+                        if ((key.startsWith("'") && key.endsWith("'"))
+                                || (key.startsWith("\"") && key.endsWith("\""))) {
+                            key = key.substring(1, key.length() - 1);
+                        }
+
+                        result.add(new cn.warriorview.script.parser.accessor.MapAccessor(key, valueType));
+                        currentType = valueType;
+                    } else {
+                        throw new IllegalArgumentException(
+                                "Type " + currentType + " is not a supported collection for indexing: " + part);
+                    }
+                } else {
+                    // 普通属性
+                    Method getter = resolveGetter(currentType.getRawType(), part);
+                    currentType = currentType.resolveType(getter.getGenericReturnType());
+                    result.add(new cn.warriorview.script.parser.accessor.MethodAccessor(getter, currentType));
+                }
             }
-            return current;
+            return result;
+        }
+
+        private static TypeToken<?> extractListType(TypeToken<?> listType) {
+            try {
+                // List<E> -> 获取 E
+                java.lang.reflect.TypeVariable<?> param = List.class.getTypeParameters()[0];
+                return listType.resolveType(param);
+            } catch (Exception e) {
+                return TypeToken.of(Object.class);
+            }
+        }
+
+        private static TypeToken<?> extractMapValueType(TypeToken<?> mapType) {
+            try {
+                // Map<K, V> -> 获取 V
+                java.lang.reflect.TypeVariable<?> param = Map.class.getTypeParameters()[1];
+                return mapType.resolveType(param);
+            } catch (Exception e) {
+                return TypeToken.of(Object.class);
+            }
         }
 
         /**
          * 获取 getter 方法名。
          */
         public static String getGetterName(String property) {
-            // Guava CaseFormat: lower_camel → UpperCamel，再加 "get" 前缀
             String capitalized = CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, property);
             return "get" + capitalized;
         }
 
         /**
-         * 获取 getter Method（带缓存）。
+         * 解析 getter 方法。
          */
-        public static Method getGetter(Class<?> owner, String property) {
-            try {
-                return GETTER_CACHE.get(owner.getName() + "#" + property);
-            } catch (Exception e) {
-                throw new IllegalArgumentException(
-                        "Cannot resolve getter for '" + property + "' on " + owner.getName(), e);
-            }
-        }
-
-        /**
-         * 解析 getter 方法（无缓存，内部逻辑）。
-         */
-        private static Method resolveGetter(Class<?> clazz, String property) throws NoSuchMethodException {
-            // 尝试 getXxx
+        public static Method resolveGetter(Class<?> clazz, String property) {
             String getterName = getGetterName(property);
             try {
                 return clazz.getMethod(getterName);
             } catch (NoSuchMethodException ignored) {
             }
 
-            // 尝试 isXxx（boolean）
             String isName = "is" + CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, property);
             try {
                 return clazz.getMethod(isName);
             } catch (NoSuchMethodException ignored) {
             }
 
-            // 尝试直接使用属性名作为方法名（如 "cause" → "getCause"）
             try {
                 return clazz.getMethod("get" + Character.toUpperCase(property.charAt(0)) + property.substring(1));
             } catch (NoSuchMethodException ignored) {
             }
 
-            throw new NoSuchMethodException(
-                    "No getter found for '" + property + "' on " + clazz.getName());
+            throw new IllegalArgumentException("No getter found for '" + property + "' on " + clazz.getName());
         }
 
         /**

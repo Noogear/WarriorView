@@ -352,20 +352,44 @@ public final class ScriptOptimizer {
             if (node.type() == FlowNodeType.SWITCH) {
                 String variable = node.attr("variable");
                 IRType type = ctx.getType(variable);
-
-                // 强类型验证：Switch 仅支持 ENUM/STRING/INT
-                if (type != IRType.ENUM && type != IRType.STRING && type != IRType.INT) {
-                    throw new cn.warriorview.script.core.ScriptCompileException(
-                            String.format(
-                                    "SWITCH node only supports ENUM, STRING or INT types, but variable '%s' is of type %s.",
-                                    variable, type));
-                }
-
                 ImmutableMap<String, ?> cases = node.attr("cases");
 
-                String switchStrategy = (type == IRType.ENUM && cases.size() <= 32)
-                        ? "TABLE"
-                        : "LOOKUP";
+                String switchStrategy = "CASCADE"; // 默认安全降级
+
+                if (type == IRType.ENUM) {
+                    switchStrategy = "TABLE_ENUM";
+                } else if (type == IRType.INT) {
+                    // 检查键值的稀疏度来判定使用 TABLE 还是 LOOKUP
+                    int min = Integer.MAX_VALUE;
+                    int max = Integer.MIN_VALUE;
+                    boolean allInts = true;
+
+                    for (String key : cases.keySet()) {
+                        try {
+                            int v = Integer.parseInt(key);
+                            min = Math.min(min, v);
+                            max = Math.max(max, v);
+                        } catch (NumberFormatException e) {
+                            allInts = false;
+                            break;
+                        }
+                    }
+
+                    if (allInts && cases.size() > 0) {
+                        // 阈值：若区间跨度 <= 节点数的 2.5倍，则视为密集，值得使用内存换取极限速度
+                        long span = (long) max - min + 1;
+                        if (span <= cases.size() * 2.5 && span <= 1000) {
+                            switchStrategy = "TABLE_INT";
+                        } else {
+                            switchStrategy = "LOOKUP_INT";
+                        }
+                    } else {
+                        switchStrategy = "CASCADE"; // 无法全被解析为整数的 int switch 应当走防具或者抛错，安全起见退化
+                    }
+                } else if (type == IRType.STRING) {
+                    switchStrategy = "LOOKUP_STRING";
+                }
+
                 optimized.add(node.withAttr("_switchStrategy", switchStrategy));
             } else {
                 optimized.add(node);
@@ -449,27 +473,33 @@ public final class ScriptOptimizer {
      * 结果存入 {@link CompilationContext#setHoistedConstants}，
      * 由 BytecodeCompiler 生成 {@code <clinit>} 字段。
      */
-    private void constantHoisting(ScriptUnit unit, CompilationContext ctx) {
+    private ScriptUnit constantHoisting(ScriptUnit unit, CompilationContext ctx) {
         ArrayList<ConstantDef> defs = new ArrayList<>();
+        ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
         int counter = 0;
 
         for (FlowNode node : unit.flow()) {
-            if (node.type() != FlowNodeType.CHECK)
+            if (node.type() != FlowNodeType.CHECK) {
+                optimized.add(node);
                 continue;
+            }
             String rawOp = node.attr("op");
             String op = rawOp.startsWith("!") ? rawOp.substring(1) : rawOp;
+            String fieldName = null;
 
             if ("matches".equals(op)) {
                 String pattern = node.attr("value");
                 if (pattern != null) {
-                    defs.add(new ConstantDef("PATTERN_" + counter++, ConstantKind.PATTERN, pattern));
+                    fieldName = "PATTERN_" + counter++;
+                    defs.add(new ConstantDef(fieldName, ConstantKind.PATTERN, pattern));
                 }
             } else if ("in".equals(op)) {
                 ImmutableList<?> list = node.attr("valueList");
                 if (list == null)
                     list = node.attr("value");
                 if (list instanceof ImmutableList<?> vals && vals.size() > 3) {
-                    defs.add(new ConstantDef("SET_" + counter++, ConstantKind.STRING_SET, vals));
+                    fieldName = "SET_" + counter++;
+                    defs.add(new ConstantDef(fieldName, ConstantKind.STRING_SET, vals));
                 }
             } else if ("between".equals(op)) {
                 ImmutableList<?> range = node.attr("valueList");
@@ -478,11 +508,19 @@ public final class ScriptOptimizer {
                 if (range instanceof ImmutableList<?> vals && vals.size() == 2) {
                     double[] arr = { ((Number) vals.get(0)).doubleValue(),
                             ((Number) vals.get(1)).doubleValue() };
-                    defs.add(new ConstantDef("RANGE_" + counter++, ConstantKind.DOUBLE_ARRAY, arr));
+                    fieldName = "RANGE_" + counter++;
+                    defs.add(new ConstantDef(fieldName, ConstantKind.DOUBLE_ARRAY, arr));
                 }
+            }
+
+            if (fieldName != null) {
+                optimized.add(node.withAttr("_hoistedField", fieldName));
+            } else {
+                optimized.add(node);
             }
         }
         ctx.setHoistedConstants(ImmutableList.copyOf(defs));
+        return unit.withFlow(optimized.build());
     }
 
     // ======================== 10. 活跃变量分析 ========================
