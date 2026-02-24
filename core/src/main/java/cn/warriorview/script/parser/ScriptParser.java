@@ -1,5 +1,6 @@
 package cn.warriorview.script.parser;
 
+import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
 import cn.warriorview.script.core.ScriptIR.FlowNodeType;
 import cn.warriorview.script.core.ScriptIR.IRType;
@@ -222,9 +223,9 @@ public final class ScriptParser {
             TypeToken<?> currentType = TypeToken.of(payloadClass);
             List<PropertyAccessor> accessors = resolveAccessors(currentType, property);
             if (accessors.isEmpty()) {
-                return classToIRType(payloadClass);
+                return ScriptIR.IRType.fromClass(payloadClass);
             }
-            return classToIRType(accessors.get(accessors.size() - 1).returnType().getRawType());
+            return ScriptIR.IRType.fromClass(accessors.get(accessors.size() - 1).returnType().getRawType());
         }
 
         /**
@@ -335,25 +336,5 @@ public final class ScriptParser {
             throw new IllegalArgumentException("No getter found for '" + property + "' on " + clazz.getName());
         }
 
-        /**
-         * Java 类型 → IR 类型映射。
-         */
-        private static IRType classToIRType(Class<?> clazz) {
-            if (clazz == int.class || clazz == Integer.class)
-                return IRType.INT;
-            if (clazz == long.class || clazz == Long.class)
-                return IRType.LONG;
-            if (clazz == double.class || clazz == Double.class)
-                return IRType.DOUBLE;
-            if (clazz == float.class || clazz == Float.class)
-                return IRType.DOUBLE;
-            if (clazz == boolean.class || clazz == Boolean.class)
-                return IRType.BOOLEAN;
-            if (clazz == String.class)
-                return IRType.STRING;
-            if (clazz.isEnum())
-                return IRType.ENUM;
-            return IRType.OBJECT;
-        }
     }
 }

@@ -1,5 +1,7 @@
 package cn.warriorview.script.handler;
 
+import cn.warriorview.script.codegen.ASMUtils;
+
 import cn.warriorview.script.codegen.BytecodeCompiler;
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.ScriptIR;
@@ -71,13 +73,13 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
 
     @Override
     public void emit(FlowNode node, MethodVisitor mv, CompilationContext ctx) {
-        String rawOp = node.attr("op");
+        String rawOp = node.getRequiredAttr("op");
 
         // ! 前缀拆分
         boolean negate = rawOp.startsWith("!");
         String op = negate ? rawOp.substring(1) : rawOp;
 
-        String variable = node.attr("variable");
+        String variable = node.getRequiredAttr("variable");
         int slot = ctx.getSlot(variable);
         IRType type = ctx.getType(variable);
 
@@ -115,7 +117,7 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     // ======================== instanceof ========================
 
     private int emitInstanceof(MethodVisitor mv, int slot, FlowNode node) {
-        String className = ((String) node.attr("value")).replace('.', '/');
+        String className = node.<String>getRequiredAttr("value").replace('.', '/');
         mv.visitVarInsn(Opcodes.ALOAD, slot);
         mv.visitTypeInsn(Opcodes.INSTANCEOF, className);
         return Opcodes.IFNE; // instanceof 为 true 时继续
@@ -125,7 +127,7 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
 
     private int emitContains(MethodVisitor mv, int slot, FlowNode node, IRType type) {
         mv.visitVarInsn(Opcodes.ALOAD, slot);
-        Object value = node.attr("value");
+        Object value = node.getRequiredAttr("value");
 
         if (type == IRType.STRING) {
             // String.contains(CharSequence)
@@ -152,22 +154,22 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     // ======================== 字符串操作 ========================
 
     private int emitStringOp(MethodVisitor mv, String methodName, int slot, FlowNode node) {
-        String value = node.attr("value");
+        String value = node.getRequiredAttr("value");
         mv.visitVarInsn(Opcodes.ALOAD, slot);
 
         // 单字符优化：startsWith("x") → charAt(0) == 'x'
         if (value.length() == 1 && ("startsWith".equals(methodName) || "endsWith".equals(methodName))) {
             if ("startsWith".equals(methodName)) {
-                BytecodeCompiler.emitIntConst(mv, 0);
+                ASMUtils.emitIntConst(mv, 0);
             } else {
                 // endsWith → length()-1
                 mv.visitInsn(Opcodes.DUP);
                 mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "length", "()I", false);
-                BytecodeCompiler.emitIntConst(mv, 1);
+                ASMUtils.emitIntConst(mv, 1);
                 mv.visitInsn(Opcodes.ISUB);
             }
             mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "charAt", "(I)C", false);
-            BytecodeCompiler.emitIntConst(mv, value.charAt(0));
+            ASMUtils.emitIntConst(mv, value.charAt(0));
             return Opcodes.IF_ICMPEQ; // charAt == target 时继续
         }
 
@@ -181,11 +183,12 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     // ======================== matches（正则预编译） ========================
 
     private int emitMatches(MethodVisitor mv, int slot, FlowNode node) {
-        String hoistedField = node.attr("_hoistedField");
+        String hoistedField = node.getAttrOrDefault("_hoistedField", null);
         if (hoistedField != null) {
             // 预编译 Pattern 优化路径
             // pattern.matcher(var).matches()
-            mv.visitFieldInsn(Opcodes.GETSTATIC, node.attr("_className"), hoistedField, "Ljava/util/regex/Pattern;");
+            mv.visitFieldInsn(Opcodes.GETSTATIC, node.getRequiredAttr("_className"), hoistedField,
+                    "Ljava/util/regex/Pattern;");
             mv.visitVarInsn(Opcodes.ALOAD, slot);
             mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/util/regex/Pattern", "matcher",
                     "(Ljava/lang/CharSequence;)Ljava/util/regex/Matcher;", false);
@@ -194,7 +197,7 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
         }
 
         // 退化路径：String.matches()
-        String pattern = node.attr("value");
+        String pattern = node.getRequiredAttr("value");
         mv.visitVarInsn(Opcodes.ALOAD, slot);
         mv.visitLdcInsn(pattern);
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "matches",
@@ -206,9 +209,9 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
 
     @SuppressWarnings("unchecked")
     private int emitIn(MethodVisitor mv, int slot, FlowNode node, IRType type) {
-        ImmutableList<?> valueList = node.attr("valueList");
+        ImmutableList<?> valueList = node.getAttrOrDefault("valueList", null);
         if (valueList == null)
-            valueList = node.attr("value");
+            valueList = node.getRequiredAttr("value");
 
         if (valueList.size() <= 3) {
             // ≤3 项 → 展开为多路比较（避免集合开销）
@@ -231,7 +234,7 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
             Object val = values.get(i);
             if (type == IRType.INT) {
                 mv.visitVarInsn(Opcodes.ILOAD, slot);
-                BytecodeCompiler.emitIntConst(mv, ((Number) val).intValue());
+                ASMUtils.emitIntConst(mv, ((Number) val).intValue());
                 mv.visitJumpInsn(Opcodes.IF_ICMPEQ, trueLabel);
             } else if (type == IRType.ENUM) {
                 mv.visitVarInsn(Opcodes.ALOAD, slot);
@@ -245,25 +248,23 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
                 mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Enum", "name",
                         "()Ljava/lang/String;", false);
                 mv.visitLdcInsn(val.toString());
-                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals",
-                        "(Ljava/lang/Object;)Z", false);
+                cn.warriorview.script.codegen.ASMUtils.emitEquals(mv);
                 mv.visitJumpInsn(Opcodes.IFNE, trueLabel);
             } else {
                 mv.visitVarInsn(Opcodes.ALOAD, slot);
                 if (val instanceof String s)
                     mv.visitLdcInsn(s);
-                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Object", "equals",
-                        "(Ljava/lang/Object;)Z", false);
+                ASMUtils.emitEquals(mv);
                 mv.visitJumpInsn(Opcodes.IFNE, trueLabel);
             }
         }
 
         // 全部不匹配
-        BytecodeCompiler.emitIntConst(mv, 0);
+        ASMUtils.emitIntConst(mv, 0);
         mv.visitJumpInsn(Opcodes.GOTO, endLabel);
 
         mv.visitLabel(trueLabel);
-        BytecodeCompiler.emitIntConst(mv, 1);
+        ASMUtils.emitIntConst(mv, 1);
 
         mv.visitLabel(endLabel);
         return Opcodes.IFNE; // in 结果为 true 时继续
@@ -274,11 +275,11 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
      */
     private int emitInSet(MethodVisitor mv, int slot,
             ImmutableList<Object> values, IRType type, FlowNode node) {
-        String hoistedField = node.attr("_hoistedField");
+        String hoistedField = node.getAttrOrDefault("_hoistedField", null);
 
         if (hoistedField != null) {
             // 取 clinit 初始化好的 Set 常量
-            mv.visitFieldInsn(Opcodes.GETSTATIC, node.attr("_className"), hoistedField, "Ljava/util/Set;");
+            mv.visitFieldInsn(Opcodes.GETSTATIC, node.getRequiredAttr("_className"), hoistedField, "Ljava/util/Set;");
         } else {
             // 退化路径：动态创建 Set.of()
             int count = values.size();
@@ -314,14 +315,14 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     // ======================== between ========================
 
     private int emitBetween(MethodVisitor mv, int slot, FlowNode node, IRType type) {
-        String hoistedField = node.attr("_hoistedField");
+        String hoistedField = node.getAttrOrDefault("_hoistedField", null);
         boolean useArray = hoistedField != null && type == IRType.DOUBLE;
 
         double low = 0, high = 0;
         if (!useArray) {
-            ImmutableList<?> range = node.attr("valueList");
+            ImmutableList<?> range = node.getAttrOrDefault("valueList", null);
             if (range == null)
-                range = node.attr("value");
+                range = node.getRequiredAttr("value");
             low = ((Number) range.get(0)).doubleValue();
             high = ((Number) range.get(1)).doubleValue();
         }
@@ -333,11 +334,11 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
             int iLow = (int) low, iHigh = (int) high;
             // var >= low
             mv.visitVarInsn(Opcodes.ILOAD, slot);
-            BytecodeCompiler.emitIntConst(mv, iLow);
+            ASMUtils.emitIntConst(mv, iLow);
             mv.visitJumpInsn(Opcodes.IF_ICMPLT, failLabel);
             // var <= high
             mv.visitVarInsn(Opcodes.ILOAD, slot);
-            BytecodeCompiler.emitIntConst(mv, iHigh);
+            ASMUtils.emitIntConst(mv, iHigh);
             mv.visitJumpInsn(Opcodes.IF_ICMPGT, failLabel);
         } else {
             // double
@@ -345,39 +346,39 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
                 // 从 RANGE_x 数组中获取边界值
                 // var >= arr[0]
                 mv.visitVarInsn(Opcodes.DLOAD, slot);
-                mv.visitFieldInsn(Opcodes.GETSTATIC, node.attr("_className"), hoistedField, "[D");
-                BytecodeCompiler.emitIntConst(mv, 0);
+                mv.visitFieldInsn(Opcodes.GETSTATIC, node.getRequiredAttr("_className"), hoistedField, "[D");
+                ASMUtils.emitIntConst(mv, 0);
                 mv.visitInsn(Opcodes.DALOAD);
                 mv.visitInsn(Opcodes.DCMPG);
                 mv.visitJumpInsn(Opcodes.IFLT, failLabel);
 
                 // var <= arr[1]
                 mv.visitVarInsn(Opcodes.DLOAD, slot);
-                mv.visitFieldInsn(Opcodes.GETSTATIC, node.attr("_className"), hoistedField, "[D");
-                BytecodeCompiler.emitIntConst(mv, 1);
+                mv.visitFieldInsn(Opcodes.GETSTATIC, node.getRequiredAttr("_className"), hoistedField, "[D");
+                ASMUtils.emitIntConst(mv, 1);
                 mv.visitInsn(Opcodes.DALOAD);
                 mv.visitInsn(Opcodes.DCMPL);
                 mv.visitJumpInsn(Opcodes.IFGT, failLabel);
             } else {
                 // 退化路径：常量拼接
                 mv.visitVarInsn(Opcodes.DLOAD, slot);
-                BytecodeCompiler.emitDoubleConst(mv, low);
+                ASMUtils.emitDoubleConst(mv, low);
                 mv.visitInsn(Opcodes.DCMPG);
                 mv.visitJumpInsn(Opcodes.IFLT, failLabel);
 
                 mv.visitVarInsn(Opcodes.DLOAD, slot);
-                BytecodeCompiler.emitDoubleConst(mv, high);
+                ASMUtils.emitDoubleConst(mv, high);
                 mv.visitInsn(Opcodes.DCMPL);
                 mv.visitJumpInsn(Opcodes.IFGT, failLabel);
             }
         }
 
         // 在范围内
-        BytecodeCompiler.emitIntConst(mv, 1);
+        ASMUtils.emitIntConst(mv, 1);
         mv.visitJumpInsn(Opcodes.GOTO, endLabel);
 
         mv.visitLabel(failLabel);
-        BytecodeCompiler.emitIntConst(mv, 0);
+        ASMUtils.emitIntConst(mv, 0);
 
         mv.visitLabel(endLabel);
         return Opcodes.IFNE; // between 满足时继续
@@ -404,7 +405,7 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     /** boolean：无 value → 直接检测；有 value → 调整 */
     private int emitBooleanComparison(MethodVisitor mv, int slot, FlowNode node, String op) {
         mv.visitVarInsn(Opcodes.ILOAD, slot);
-        Object value = node.attr("value");
+        Object value = node.getAttrOrDefault("value", null);
         if (value == null || Boolean.TRUE.equals(value)) {
             // is_true: IFNE 继续
             return Opcodes.IFNE;
@@ -417,7 +418,7 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     /** double 零装箱比较 */
     private int emitDoubleComparison(MethodVisitor mv, int slot, FlowNode node, String op) {
         mv.visitVarInsn(Opcodes.DLOAD, slot);
-        BytecodeCompiler.emitDoubleConst(mv, node.numericValue());
+        ASMUtils.emitDoubleConst(mv, node.numericValue());
         mv.visitInsn(Opcodes.DCMPG);
         return switch (op) {
             case ">" -> Opcodes.IFGT;
@@ -432,7 +433,7 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     /** int 零装箱比较 */
     private int emitIntComparison(MethodVisitor mv, int slot, FlowNode node, String op) {
         mv.visitVarInsn(Opcodes.ILOAD, slot);
-        BytecodeCompiler.emitIntConst(mv, (int) node.numericValue());
+        ASMUtils.emitIntConst(mv, (int) node.numericValue());
         return switch (op) {
             case ">" -> Opcodes.IF_ICMPGT;
             case ">=" -> Opcodes.IF_ICMPGE;
@@ -446,7 +447,7 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     /** long 比较 */
     private int emitLongComparison(MethodVisitor mv, int slot, FlowNode node, String op) {
         mv.visitVarInsn(Opcodes.LLOAD, slot);
-        BytecodeCompiler.emitLongConst(mv, (long) node.numericValue());
+        ASMUtils.emitLongConst(mv, (long) node.numericValue());
         mv.visitInsn(Opcodes.LCMP);
         return switch (op) {
             case ">" -> Opcodes.IFGT;
@@ -462,27 +463,25 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     private int emitEnumEquals(MethodVisitor mv, int slot, FlowNode node) {
         mv.visitVarInsn(Opcodes.ALOAD, slot);
         // 加载枚举常量：Enum.valueOf(class, name)
-        String enumValue = node.attr("value").toString();
+        String enumValue = node.getRequiredAttr("value").toString();
         mv.visitLdcInsn(enumValue);
         // 通过 name().equals() 比较（更通用）
         mv.visitVarInsn(Opcodes.ALOAD, slot);
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Enum", "name",
                 "()Ljava/lang/String;", false);
         mv.visitInsn(Opcodes.SWAP);
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals",
-                "(Ljava/lang/Object;)Z", false);
+        ASMUtils.emitEquals(mv);
         return Opcodes.IFNE;
     }
 
     /** 对象 equals 比较 */
     private int emitObjectComparison(MethodVisitor mv, int slot, FlowNode node, String op) {
         mv.visitVarInsn(Opcodes.ALOAD, slot);
-        Object value = node.attr("value");
+        Object value = node.getAttrOrDefault("value", null);
         if (value instanceof String s) {
             mv.visitLdcInsn(s);
         }
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Object", "equals",
-                "(Ljava/lang/Object;)Z", false);
+        ASMUtils.emitEquals(mv);
         return "==".equals(op) ? Opcodes.IFNE : Opcodes.IFEQ;
     }
 

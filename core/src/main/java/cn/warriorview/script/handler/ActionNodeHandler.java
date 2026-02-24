@@ -1,5 +1,7 @@
 package cn.warriorview.script.handler;
 
+import cn.warriorview.script.codegen.ASMUtils;
+
 import cn.warriorview.script.action.ActionRegistry;
 import cn.warriorview.script.codegen.BytecodeCompiler;
 import cn.warriorview.script.core.CompilationContext;
@@ -7,6 +9,7 @@ import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
 import cn.warriorview.script.core.ScriptIR.FlowNodeType;
 import cn.warriorview.script.core.ScriptIR.NodeCapability;
+import cn.warriorview.script.core.ScriptIR.IRType;
 import cn.warriorview.script.parser.ScriptParser;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -41,9 +44,11 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public FlowNode parse(Map<String, Object> yaml) {
         String action = (String) yaml.get("action");
+        String store = (String) yaml.get("store");
+
+        @SuppressWarnings("unchecked")
         List<String> args = (List<String>) yaml.getOrDefault("args", List.of());
 
         // 验证动作存在
@@ -93,22 +98,71 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler {
             }
         }
 
+        // 验证 store (不能存 void)
+        if (store != null) {
+            if (def.returnType() == void.class || def.returnType() == Void.class) {
+                throw new cn.warriorview.script.core.ScriptCompileException(
+                        String.format("Action '%s' does not return a value, cannot store to '%s'", action, store));
+            }
+        }
+
+        IRType returnIRType = IRType.fromClass(def.returnType());
+
         ImmutableMap.Builder<String, Object> attrs = ImmutableMap.builder();
         attrs.put("action", action);
         attrs.put("args", ImmutableList.copyOf(args));
         attrs.put("def", def);
+        if (store != null) {
+            attrs.put("store", store);
+            attrs.put("returnType", returnIRType);
+        }
 
         return new FlowNode(FlowNodeType.ACTION, attrs.build());
     }
 
     @Override
     public void emit(FlowNode node, MethodVisitor mv, CompilationContext ctx) {
-        ImmutableList<String> args = node.attr("args");
-        ActionRegistry.ActionDef def = node.attr("def");
+        ImmutableList<String> args = node.getRequiredAttr("args");
+        ActionRegistry.ActionDef def = node.getRequiredAttr("def");
+        String store = node.getAttrOrDefault("store", null);
 
         // 统一分发：加载参数 → 调用方法
         emitActionCall(mv, def, args, ctx);
+
+        // 处理返回值栈平衡与保存
+        Class<?> retClass = def.returnType();
+        boolean hasReturn = (retClass != void.class && retClass != Void.class);
+
+        if (hasReturn) {
+            if (store != null) {
+                int slot = ctx.getSlot(store);
+                int storeOpcode = org.objectweb.asm.Type.getType(retClass).getOpcode(Opcodes.ISTORE);
+                mv.visitVarInsn(storeOpcode, slot);
+            } else {
+                // 未被 store 但方法返回了值，必须 POP 清理栈避免 VerifyError
+                int popOpcode = org.objectweb.asm.Type.getType(retClass).getSize() == 2 ? Opcodes.POP2 : Opcodes.POP;
+                mv.visitInsn(popOpcode);
+            }
+        }
     }
+
+    private static final java.util.Map<Class<?>, java.util.function.BiConsumer<MethodVisitor, String>> EMITTERS = java.util.Map
+            .of(
+                    boolean.class, (mv, arg) -> ASMUtils.emitIntConst(mv, Boolean.parseBoolean(arg) ? 1 : 0),
+                    int.class, (mv, arg) -> ASMUtils.emitIntConst(mv, Integer.parseInt(arg)),
+                    long.class, (mv, arg) -> ASMUtils.emitLongConst(mv, Long.parseLong(arg)),
+                    double.class, (mv, arg) -> ASMUtils.emitDoubleConst(mv, Double.parseDouble(arg)),
+                    float.class, (mv, arg) -> {
+                        float fVal = Float.parseFloat(arg);
+                        if (fVal == 0.0f)
+                            mv.visitInsn(Opcodes.FCONST_0);
+                        else if (fVal == 1.0f)
+                            mv.visitInsn(Opcodes.FCONST_1);
+                        else if (fVal == 2.0f)
+                            mv.visitInsn(Opcodes.FCONST_2);
+                        else
+                            mv.visitLdcInsn(fVal);
+                    });
 
     /**
      * 统一动作调用发射。
@@ -121,20 +175,32 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler {
         // 加载 event 参数（slot 1）作为第一个方法参数
         mv.visitVarInsn(Opcodes.ALOAD, 1);
 
+        Class<?>[] pTypes = def.paramTypes();
+
         // 加载后续参数
-        for (String arg : args) {
+        for (int i = 0; i < args.size(); i++) {
+            String arg = args.get(i);
+            int methodParamIndex = i + 1;
+            Class<?> reqType = pTypes[methodParamIndex];
+
             if (ScriptParser.ValueParser.isTemplate(arg)) {
                 // 模板字符串 → invokedynamic StringConcatFactory
                 BytecodeCompiler.emitStringConcat(mv, arg, ctx);
             } else {
-                Object parsed = ScriptParser.ValueParser.parseNumber(arg);
-                if (parsed instanceof Integer i) {
-                    BytecodeCompiler.emitIntConst(mv, i);
-                } else if (parsed instanceof Long l) {
-                    BytecodeCompiler.emitLongConst(mv, l);
-                } else if (parsed instanceof Double d) {
-                    BytecodeCompiler.emitDoubleConst(mv, d);
+                Class<?> unwrappedType = com.google.common.primitives.Primitives.unwrap(reqType);
+                var emitter = EMITTERS.get(unwrappedType);
+
+                if (emitter != null) {
+                    emitter.accept(mv, arg);
+                    if (unwrappedType != reqType) { // originally wrapper class
+                        ASMUtils.emitBox(mv, IRType.fromClass(reqType));
+                    }
+                } else if (unwrappedType.isEnum()) {
+                    // 枚举自动寻址
+                    mv.visitFieldInsn(Opcodes.GETSTATIC, org.objectweb.asm.Type.getInternalName(unwrappedType),
+                            arg.toUpperCase(), org.objectweb.asm.Type.getDescriptor(unwrappedType));
                 } else {
+                    // String 等默认兜底
                     mv.visitLdcInsn(arg);
                 }
             }

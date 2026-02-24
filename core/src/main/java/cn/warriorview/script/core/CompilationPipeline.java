@@ -80,6 +80,17 @@ public final class CompilationPipeline {
                 builder.addVar(var.name(), var.type());
             }
 
+            // 新增: 自动为带有 store 属性的 Action 开辟存储槽位，免去显式声明的麻烦
+            for (ScriptIR.FlowNode node : unit.flow()) {
+                if (node.type() == ScriptIR.FlowNodeType.ACTION) {
+                    String store = node.getAttrOrDefault("store", null);
+                    if (store != null) {
+                        ScriptIR.IRType type = node.getRequiredAttr("returnType");
+                        builder.addVar(store, type);
+                    }
+                }
+            }
+
             return builder.build();
         } catch (ClassNotFoundException e) {
             throw new IllegalArgumentException("Payload class not found: " + unit.payloadClass(), e);

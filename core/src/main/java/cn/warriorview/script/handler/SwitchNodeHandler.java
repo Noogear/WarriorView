@@ -1,5 +1,7 @@
 package cn.warriorview.script.handler;
 
+import cn.warriorview.script.codegen.ASMUtils;
+
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
@@ -59,12 +61,9 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
 
     @Override
     public void emit(FlowNode node, MethodVisitor mv, CompilationContext ctx) {
-        String variable = node.attr("variable");
-        ImmutableMap<String, ImmutableList<FlowNode>> cases = node.attr("cases");
-        String strategy = node.attr("_switchStrategy");
-        if (strategy == null) {
-            strategy = "CASCADE";
-        }
+        String variable = node.getRequiredAttr("variable");
+        ImmutableMap<String, ImmutableList<FlowNode>> cases = node.getRequiredAttr("cases");
+        String strategy = node.getAttrOrDefault("_switchStrategy", "CASCADE");
         int slot = ctx.getSlot(variable);
 
         switch (strategy) {
@@ -198,8 +197,7 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
             mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Object", "toString",
                     "()Ljava/lang/String;", false);
             mv.visitLdcInsn(caseNames[idx]);
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals",
-                    "(Ljava/lang/Object;)Z", false);
+            cn.warriorview.script.codegen.ASMUtils.emitEquals(mv);
             Label mismatch = new Label();
             mv.visitJumpInsn(Opcodes.IFEQ, mismatch);
 
@@ -283,7 +281,7 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
             if (type == IRType.INT || type == IRType.BOOLEAN) {
                 int expected = type == IRType.BOOLEAN ? (Boolean.parseBoolean(key) ? 1 : 0) : Integer.parseInt(key);
                 mv.visitVarInsn(Opcodes.ILOAD, slot);
-                cn.warriorview.script.codegen.BytecodeCompiler.emitIntConst(mv, expected);
+                cn.warriorview.script.codegen.ASMUtils.emitIntConst(mv, expected);
                 mv.visitJumpInsn(Opcodes.IF_ICMPNE, nextCheckLabel);
             } else if (type == IRType.LONG) {
                 long expected = Long.parseLong(key);
@@ -294,7 +292,7 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
             } else if (type == IRType.DOUBLE) {
                 double expected = Double.parseDouble(key);
                 mv.visitVarInsn(Opcodes.DLOAD, slot);
-                cn.warriorview.script.codegen.BytecodeCompiler.emitDoubleConst(mv, expected);
+                cn.warriorview.script.codegen.ASMUtils.emitDoubleConst(mv, expected);
                 mv.visitInsn(Opcodes.DCMPG); // 使用统一比对
                 mv.visitJumpInsn(Opcodes.IFNE, nextCheckLabel);
             } else {
@@ -305,8 +303,7 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
                 mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Object", "toString",
                         "()Ljava/lang/String;", false);
                 mv.visitLdcInsn(key);
-                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals",
-                        "(Ljava/lang/Object;)Z", false);
+                cn.warriorview.script.codegen.ASMUtils.emitEquals(mv);
                 mv.visitJumpInsn(Opcodes.IFEQ, nextCheckLabel);
             }
 

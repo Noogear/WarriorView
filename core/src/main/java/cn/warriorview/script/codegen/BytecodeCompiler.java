@@ -14,6 +14,7 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import static cn.warriorview.script.codegen.ASMUtils.*;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles;
@@ -389,40 +390,4 @@ public final class BytecodeCompiler implements Opcodes {
 
     // ======================== 常量加载工具 ========================
 
-    public static void emitIntConst(MethodVisitor mv, int value) {
-        if (value >= -1 && value <= 5) {
-            mv.visitInsn(ICONST_0 + value);
-        } else if (value >= Byte.MIN_VALUE && value <= Byte.MAX_VALUE) {
-            mv.visitIntInsn(BIPUSH, value);
-        } else if (value >= Short.MIN_VALUE && value <= Short.MAX_VALUE) {
-            mv.visitIntInsn(SIPUSH, value);
-        } else {
-            mv.visitLdcInsn(value);
-        }
-    }
-
-    public static void emitLongConst(MethodVisitor mv, long value) {
-        if (value == 0L) {
-            mv.visitInsn(LCONST_0);
-        } else if (value == 1L) {
-            mv.visitInsn(LCONST_1);
-        } else {
-            mv.visitLdcInsn(value);
-        }
-    }
-
-    public static void emitDoubleConst(MethodVisitor mv, double value) {
-        if (value == 0.0d) {
-            mv.visitInsn(DCONST_0);
-        } else if (value == 1.0d) {
-            mv.visitInsn(DCONST_1);
-        } else {
-            mv.visitLdcInsn(value);
-        }
-    }
-
-    public static void emitNullGuard(MethodVisitor mv, int slot, Label nullLabel) {
-        mv.visitVarInsn(ALOAD, slot);
-        mv.visitJumpInsn(IFNULL, nullLabel);
-    }
 }

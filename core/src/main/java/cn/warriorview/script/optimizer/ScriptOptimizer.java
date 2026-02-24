@@ -113,7 +113,7 @@ public final class ScriptOptimizer {
     private ScriptUnit constantFolding(ScriptUnit unit, CompilationContext ctx) {
         ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
         for (FlowNode node : unit.flow()) {
-            if (node.type() == FlowNodeType.CHECK && ctx.isConstant(node.attr("variable"))) {
+            if (node.type() == FlowNodeType.CHECK && ctx.isConstant(node.getAttrOrDefault("variable", null))) {
                 Boolean result = evaluateCheck(node, ctx);
                 if (result == null) {
                     optimized.add(node);
@@ -132,11 +132,11 @@ public final class ScriptOptimizer {
     }
 
     private Boolean evaluateCheck(FlowNode node, CompilationContext ctx) {
-        String rawOp = node.attr("op");
+        String rawOp = node.getAttrOrDefault("op", null);
         boolean negate = rawOp.startsWith("!");
         String op = negate ? rawOp.substring(1) : rawOp;
 
-        Object varValue = ctx.getConstant(node.attr("variable"));
+        Object varValue = ctx.getConstant(node.getAttrOrDefault("variable", null));
 
         Boolean result = evaluateBaseOp(op, varValue, node);
         if (result != null && negate)
@@ -150,7 +150,7 @@ public final class ScriptOptimizer {
         if (varValue == null)
             return null;
 
-        Object cmpValue = node.attr("value");
+        Object cmpValue = node.getAttrOrDefault("value", null);
         if (cmpValue == null && "==".equals(op) && varValue instanceof Boolean b) {
             return b;
         }
@@ -198,9 +198,9 @@ public final class ScriptOptimizer {
         ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
         for (FlowNode node : unit.flow()) {
             if (node.type() == FlowNodeType.CHECK) {
-                String variable = node.attr("variable");
+                String variable = node.getAttrOrDefault("variable", null);
                 IRType type = ctx.getType(variable);
-                String rawOp = node.attr("op");
+                String rawOp = node.getAttrOrDefault("op", null);
                 boolean negate = rawOp.startsWith("!");
                 String op = negate ? rawOp.substring(1) : rawOp;
 
@@ -243,8 +243,8 @@ public final class ScriptOptimizer {
 
         for (FlowNode node : unit.flow()) {
             if (node.type() == FlowNodeType.CHECK) {
-                String variable = node.attr("variable");
-                String rawOp = node.attr("op");
+                String variable = node.getAttrOrDefault("variable", null);
+                String rawOp = node.getAttrOrDefault("op", null);
 
                 if ("!null".equals(rawOp)) {
                     if (provenNonNull.contains(variable)) {
@@ -274,8 +274,8 @@ public final class ScriptOptimizer {
 
         for (FlowNode node : unit.flow()) {
             if (node.type() == FlowNodeType.CHECK) {
-                String var = node.attr("variable");
-                String rawOp = node.attr("op");
+                String var = node.getAttrOrDefault("variable", null);
+                String rawOp = node.getAttrOrDefault("op", null);
 
                 boolean negate = rawOp.startsWith("!");
                 String op = negate ? rawOp.substring(1) : rawOp;
@@ -311,7 +311,7 @@ public final class ScriptOptimizer {
         // 数值比较折叠
         if (">".equals(op) || ">=".equals(op) || "<".equals(op)
                 || "<=".equals(op) || "==".equals(op)) {
-            Object value = node.attr("value");
+            Object value = node.getAttrOrDefault("value", null);
             if (value instanceof Number n) {
                 return range.canFold(op, n.doubleValue());
             }
@@ -325,7 +325,7 @@ public final class ScriptOptimizer {
     }
 
     private ValueRange updateRange(ValueRange range, String op, FlowNode node) {
-        Object value = node.attr("value");
+        Object value = node.getAttrOrDefault("value", null);
         double d = value instanceof Number n ? n.doubleValue() : 0;
 
         return switch (op) {
@@ -336,7 +336,7 @@ public final class ScriptOptimizer {
             case "==" -> value != null ? range.withExact(value) : range;
             case "null" -> range; // null check 不改变数值域
             default -> {
-                if ("!null".equals(node.<String>attr("op"))) {
+                if ("!null".equals(node.getAttrOrDefault("op", null))) {
                     yield range.withNonNull();
                 }
                 yield range;
@@ -350,9 +350,9 @@ public final class ScriptOptimizer {
         ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
         for (FlowNode node : unit.flow()) {
             if (node.type() == FlowNodeType.SWITCH) {
-                String variable = node.attr("variable");
+                String variable = node.getAttrOrDefault("variable", null);
                 IRType type = ctx.getType(variable);
-                ImmutableMap<String, ?> cases = node.attr("cases");
+                ImmutableMap<String, ?> cases = node.getAttrOrDefault("cases", null);
 
                 String switchStrategy = "CASCADE"; // 默认安全降级
 
@@ -404,8 +404,8 @@ public final class ScriptOptimizer {
         ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
         for (FlowNode node : unit.flow()) {
             if (node.type() == FlowNodeType.SWITCH) {
-                String variable = node.attr("variable");
-                ImmutableMap<String, ImmutableList<FlowNode>> cases = node.attr("cases");
+                String variable = node.getAttrOrDefault("variable", null);
+                ImmutableMap<String, ImmutableList<FlowNode>> cases = node.getAttrOrDefault("cases", null);
                 double[] weights = ctx.getBranchWeights(variable);
 
                 if (weights != null && weights.length == cases.size()) {
@@ -437,7 +437,7 @@ public final class ScriptOptimizer {
     private ScriptUnit variableCaching(ScriptUnit unit, CompilationContext ctx) {
         Multiset<String> usageCount = HashMultiset.create();
         for (FlowNode node : unit.flow()) {
-            String variable = node.attr("variable");
+            String variable = node.getAttrOrDefault("variable", null);
             if (variable != null) {
                 usageCount.add(variable);
             }
@@ -455,7 +455,7 @@ public final class ScriptOptimizer {
 
         ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
         for (FlowNode node : unit.flow()) {
-            String variable = node.attr("variable");
+            String variable = node.getAttrOrDefault("variable", null);
             if (variable != null && cachedVars.contains(variable)) {
                 optimized.add(node.withFlag(FlowNode.FLAG_CACHED));
             } else {
@@ -483,28 +483,28 @@ public final class ScriptOptimizer {
                 optimized.add(node);
                 continue;
             }
-            String rawOp = node.attr("op");
+            String rawOp = node.getAttrOrDefault("op", null);
             String op = rawOp.startsWith("!") ? rawOp.substring(1) : rawOp;
             String fieldName = null;
 
             if ("matches".equals(op)) {
-                String pattern = node.attr("value");
+                String pattern = node.getAttrOrDefault("value", null);
                 if (pattern != null) {
                     fieldName = "PATTERN_" + counter++;
                     defs.add(new ConstantDef(fieldName, ConstantKind.PATTERN, pattern));
                 }
             } else if ("in".equals(op)) {
-                ImmutableList<?> list = node.attr("valueList");
+                ImmutableList<?> list = node.getAttrOrDefault("valueList", null);
                 if (list == null)
-                    list = node.attr("value");
+                    list = node.getAttrOrDefault("value", null);
                 if (list instanceof ImmutableList<?> vals && vals.size() > 3) {
                     fieldName = "SET_" + counter++;
                     defs.add(new ConstantDef(fieldName, ConstantKind.STRING_SET, vals));
                 }
             } else if ("between".equals(op)) {
-                ImmutableList<?> range = node.attr("valueList");
+                ImmutableList<?> range = node.getAttrOrDefault("valueList", null);
                 if (range == null)
-                    range = node.attr("value");
+                    range = node.getAttrOrDefault("value", null);
                 if (range instanceof ImmutableList<?> vals && vals.size() == 2) {
                     double[] arr = { ((Number) vals.get(0)).doubleValue(),
                             ((Number) vals.get(1)).doubleValue() };
@@ -536,7 +536,7 @@ public final class ScriptOptimizer {
     private void liveVarAnalysis(ScriptUnit unit, CompilationContext ctx) {
         Multiset<String> refs = HashMultiset.create();
         for (FlowNode node : unit.flow()) {
-            String var = node.attr("variable");
+            String var = node.getAttrOrDefault("variable", null);
             if (var != null)
                 refs.add(var);
         }

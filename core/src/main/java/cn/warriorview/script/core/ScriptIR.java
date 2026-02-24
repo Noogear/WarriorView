@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.objectweb.asm.MethodVisitor;
 
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
@@ -68,15 +69,43 @@ public final class ScriptIR {
             this(type, attrs, 0.0, 0);
         }
 
+        // --- Code Slimming 辅助方法 ---
+
+        /**
+         * 获取属性，如果为空则返回提供的默认值。自带泛型推断。
+         */
         @SuppressWarnings("unchecked")
-        public <T> T attr(String key) {
-            return (T) attrs.get(key);
+        public <T> T getAttrOrDefault(String key, T def) {
+            Object val = attrs.get(key);
+            return val != null ? (T) val : def;
         }
 
-        public <T> T attr(String key, T defaultValue) {
-            @SuppressWarnings("unchecked")
-            T val = (T) attrs.get(key);
-            return val != null ? val : defaultValue;
+        /**
+         * 获取并转换为指定的枚举类型。
+         * 如果不存在或无法转换则抛出明确的编译异常。
+         */
+        public <E extends Enum<E>> E getEnumAttr(String key, Class<E> enumClass) {
+            String val = getAttrOrDefault(key, null);
+            if (val == null)
+                return null;
+            try {
+                return Enum.valueOf(enumClass, val.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new ScriptCompileException("Invalid value '" + val + "' for attribute '" + key
+                        + "'. Expected one of: " + Arrays.toString(enumClass.getEnumConstants()));
+            }
+        }
+
+        /**
+         * 获取必填属性，如果为空则抛出编译异常。
+         */
+        @SuppressWarnings("unchecked")
+        public <T> T getRequiredAttr(String key) {
+            Object val = attrs.get(key);
+            if (val == null) {
+                throw new ScriptCompileException("Missing required attribute: '" + key + "' in node " + type);
+            }
+            return (T) val;
         }
 
         public boolean hasFlag(int flag) {
@@ -106,6 +135,31 @@ public final class ScriptIR {
      */
     public enum IRType {
         INT, LONG, DOUBLE, STRING, ENUM, OBJECT, BOOLEAN, COLLECTION;
+
+        private static final java.util.Map<Class<?>, IRType> PRIMITIVE_MAP = java.util.Map.of(
+                int.class, INT,
+                long.class, LONG,
+                double.class, DOUBLE,
+                float.class, DOUBLE,
+                boolean.class, BOOLEAN);
+
+        /**
+         * 从实际的 Java 类中极速推导红外类型 (O(1) Map 路由 + Primitives 解包)。
+         */
+        public static IRType fromClass(Class<?> rawClass) {
+            Class<?> clazz = com.google.common.primitives.Primitives.unwrap(rawClass);
+            IRType primitiveType = PRIMITIVE_MAP.get(clazz);
+            if (primitiveType != null) {
+                return primitiveType;
+            }
+            if (clazz == String.class)
+                return STRING;
+            if (clazz.isEnum())
+                return ENUM;
+            if (java.util.Collection.class.isAssignableFrom(clazz) || clazz.isArray())
+                return COLLECTION;
+            return OBJECT;
+        }
 
         public boolean isNumeric() {
             return this == INT || this == LONG || this == DOUBLE;

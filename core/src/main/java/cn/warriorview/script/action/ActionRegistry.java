@@ -52,13 +52,14 @@ public final class ActionRegistry {
             int invokeType,
             int paramCount,
             Class<?>[] paramTypes,
+            Class<?> returnType,
             boolean isBuiltin) {
         /**
          * 简易构造（非 builtin）。
          */
         public ActionDef(String owner, String method, String descriptor, int invokeType, int paramCount,
-                Class<?>[] paramTypes) {
-            this(owner, method, descriptor, invokeType, paramCount, paramTypes, false);
+                Class<?>[] paramTypes, Class<?> returnType) {
+            this(owner, method, descriptor, invokeType, paramCount, paramTypes, returnType, false);
         }
     }
 
@@ -88,10 +89,11 @@ public final class ActionRegistry {
                 String descriptor = Type.getMethodDescriptor(method);
                 int paramCount = method.getParameterCount();
                 Class<?>[] paramTypes = method.getParameterTypes();
+                Class<?> returnType = method.getReturnType();
 
                 register(actionName, new ActionDef(
                         owner, method.getName(), descriptor,
-                        Opcodes.INVOKESTATIC, paramCount, paramTypes, true));
+                        Opcodes.INVOKESTATIC, paramCount, paramTypes, returnType, true));
             }
         }
     }

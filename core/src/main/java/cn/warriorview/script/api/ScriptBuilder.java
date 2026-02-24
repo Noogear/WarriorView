@@ -72,10 +72,11 @@ public final class ScriptBuilder {
      */
     public ScriptBuilder check(String variable, String op, Object value) {
         double numericValue = (value instanceof Number n) ? n.doubleValue() : 0.0;
-        flow.add(new FlowNode(FlowNodeType.CHECK, ImmutableMap.<String, Object>of(
-                "variable", variable,
-                "op", op,
-                "value", value), numericValue, 0));
+        flow.add(new FlowNode(FlowNodeType.CHECK, ImmutableMap.<String, Object>builder()
+                .put("variable", variable)
+                .put("op", op)
+                .put("value", value)
+                .build(), numericValue, 0));
         return this;
     }
 
@@ -87,9 +88,33 @@ public final class ScriptBuilder {
      * @param args       顺序填入的参数列表（支持 {@code "{变量名}"} 的模板插值法）
      */
     public ScriptBuilder action(String actionName, Object... args) {
-        flow.add(new FlowNode(FlowNodeType.ACTION, ImmutableMap.<String, Object>of(
-                "action", actionName,
-                "args", ImmutableList.copyOf(args))));
+        @SuppressWarnings("null")
+        ImmutableList<Object> argsList = ImmutableList.copyOf(args);
+        flow.add(new FlowNode(FlowNodeType.ACTION, ImmutableMap.<String, Object>builder()
+                .put("action", actionName)
+                .put("args", argsList)
+                .build()));
+        return this;
+    }
+
+    /**
+     * 追加一个要触发的动作节点（Action）并捕获它的返回值。
+     * 引擎编译期会自动识别该 action 的返回值类型，并为你开辟这个储值槽。
+     *
+     * @param store      捕获返回值的局部变量名称
+     * @param actionName 在 ActionRegistry 中已经注册好的 @ScriptAction 名字
+     * @param args       顺序填入的参数列表
+     */
+    public ScriptBuilder actionStore(String store, String actionName, Object... args) {
+        @SuppressWarnings("null")
+        ImmutableList<Object> argsList = ImmutableList.copyOf(args);
+        @SuppressWarnings("null")
+        String finalStore = store;
+        flow.add(new FlowNode(FlowNodeType.ACTION, ImmutableMap.<String, Object>builder()
+                .put("store", finalStore)
+                .put("action", actionName)
+                .put("args", argsList)
+                .build()));
         return this;
     }
 
@@ -97,7 +122,7 @@ public final class ScriptBuilder {
      * 追加一个拦截终止节点，这会彻底阻止脚本的向下运作，且有可能会直接取消对应 Bukkit Event（如果配置了相关的宿主支持）。
      */
     public ScriptBuilder interrupt() {
-        flow.add(new FlowNode(FlowNodeType.RETURN, ImmutableMap.<String, Object>of()));
+        flow.add(new FlowNode(FlowNodeType.RETURN, ImmutableMap.of()));
         return this;
     }
 
@@ -110,9 +135,10 @@ public final class ScriptBuilder {
     public ScriptBuilder switchBranch(String variable, Consumer<SwitchBuilder> config) {
         SwitchBuilder builder = new SwitchBuilder(payloadClazz);
         config.accept(builder);
-        flow.add(new FlowNode(FlowNodeType.SWITCH, ImmutableMap.<String, Object>of(
-                "variable", variable,
-                "cases", builder.buildCases())));
+        flow.add(new FlowNode(FlowNodeType.SWITCH, ImmutableMap.<String, Object>builder()
+                .put("variable", variable)
+                .put("cases", builder.buildCases())
+                .build()));
         return this;
     }
 
@@ -164,6 +190,7 @@ public final class ScriptBuilder {
      * 
      * @return 一个可以随意反复被调用且运行速度等同等同于原生硬编码 Java 代码的回调函数
      */
+    @SuppressWarnings("unchecked")
     public Consumer<Object> compile() {
         ScriptUnit scriptUnit = new ScriptUnit(payloadClass, 0, vars.build(), flow.build());
         CompilationPipeline pipeline = new CompilationPipeline();
