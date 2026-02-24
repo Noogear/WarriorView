@@ -190,7 +190,6 @@ public final class ScriptBuilder {
      * 
      * @return 一个可以随意反复被调用且运行速度等同等同于原生硬编码 Java 代码的回调函数
      */
-    @SuppressWarnings("unchecked")
     public Consumer<Object> compile() {
         ScriptUnit scriptUnit = new ScriptUnit(payloadClass, 0, vars.build(), flow.build());
         CompilationPipeline pipeline = new CompilationPipeline();

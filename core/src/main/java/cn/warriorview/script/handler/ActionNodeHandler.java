@@ -77,11 +77,9 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler {
             }
 
             Class<?> reqType = pTypes[methodParamIndex];
-            if (reqType == int.class || reqType == Integer.class ||
-                    reqType == long.class || reqType == Long.class ||
-                    reqType == float.class || reqType == Float.class ||
-                    reqType == double.class || reqType == Double.class) {
+            IRType reqIRType = IRType.fromClass(reqType);
 
+            if (reqIRType.isNumeric()) {
                 Object parsed = cn.warriorview.script.parser.ScriptParser.ValueParser.parseNumber(argStr);
                 boolean isNumber = (parsed instanceof Number);
                 if (!isNumber && !argStr.matches("-?\\d+(\\.\\d+)?")) {
@@ -89,7 +87,7 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler {
                             String.format("Action '%s' expects a numeric value at argument %d (type %s), but got '%s'.",
                                     action, methodParamIndex, reqType.getSimpleName(), argStr));
                 }
-            } else if (reqType == boolean.class || reqType == Boolean.class) {
+            } else if (reqIRType == IRType.BOOLEAN) {
                 if (!argStr.equalsIgnoreCase("true") && !argStr.equalsIgnoreCase("false")) {
                     throw new cn.warriorview.script.core.ScriptCompileException(
                             String.format("Action '%s' expects a boolean (true/false) at argument %d, but got '%s'.",
@@ -152,17 +150,7 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler {
                     int.class, (mv, arg) -> ASMUtils.emitIntConst(mv, Integer.parseInt(arg)),
                     long.class, (mv, arg) -> ASMUtils.emitLongConst(mv, Long.parseLong(arg)),
                     double.class, (mv, arg) -> ASMUtils.emitDoubleConst(mv, Double.parseDouble(arg)),
-                    float.class, (mv, arg) -> {
-                        float fVal = Float.parseFloat(arg);
-                        if (fVal == 0.0f)
-                            mv.visitInsn(Opcodes.FCONST_0);
-                        else if (fVal == 1.0f)
-                            mv.visitInsn(Opcodes.FCONST_1);
-                        else if (fVal == 2.0f)
-                            mv.visitInsn(Opcodes.FCONST_2);
-                        else
-                            mv.visitLdcInsn(fVal);
-                    });
+                    float.class, (mv, arg) -> ASMUtils.emitFloatConst(mv, Float.parseFloat(arg)));
 
     /**
      * 统一动作调用发射。

@@ -5,7 +5,6 @@ import cn.warriorview.script.core.CompilationContext.ConstantDef;
 import cn.warriorview.script.core.CompilationContext.ConstantKind;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
 import cn.warriorview.script.core.ScriptIR.FlowNodeType;
-import cn.warriorview.script.core.ScriptIR.IRType;
 import cn.warriorview.script.core.ScriptIR.NodeCapability;
 import cn.warriorview.script.core.ScriptIR.ScriptUnit;
 import com.google.common.collect.HashMultiset;
@@ -34,10 +33,8 @@ public final class ScriptOptimizer {
     public ScriptUnit optimize(ScriptUnit unit, CompilationContext ctx) {
         unit = constantFolding(unit, ctx);
         unit = deadCodeElimination(unit, ctx);
-        unit = typeSpecialization(unit, ctx);
         unit = nullCheckElimination(unit, ctx);
         unit = valueRangePropagation(unit, ctx);
-        unit = switchOptimization(unit, ctx);
         unit = branchReordering(unit, ctx);
         unit = variableCaching(unit, ctx);
         // 分析 Pass（结果存入 ctx，供 BytecodeCompiler 使用）
@@ -192,49 +189,6 @@ public final class ScriptOptimizer {
         return unit.withFlow(optimized.build());
     }
 
-    // ======================== 3. 类型特化 ========================
-
-    private ScriptUnit typeSpecialization(ScriptUnit unit, CompilationContext ctx) {
-        ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
-        for (FlowNode node : unit.flow()) {
-            if (node.type() == FlowNodeType.CHECK) {
-                String variable = node.getAttrOrDefault("variable", null);
-                IRType type = ctx.getType(variable);
-                String rawOp = node.getAttrOrDefault("op", null);
-                boolean negate = rawOp.startsWith("!");
-                String op = negate ? rawOp.substring(1) : rawOp;
-
-                // 强类型验证机制
-                if (">".equals(op) || ">=".equals(op) || "<".equals(op) || "<=".equals(op) || "between".equals(op)) {
-                    if (type != IRType.INT && type != IRType.LONG && type != IRType.DOUBLE) {
-                        throw new cn.warriorview.script.core.ScriptCompileException(
-                                String.format(
-                                        "Operator '%s' requires a numeric type (INT/LONG/DOUBLE), but variable '%s' is of type %s.",
-                                        op, variable, type));
-                    }
-                } else if ("starts_with".equals(op) || "ends_with".equals(op) || "matches".equals(op)) {
-                    if (type != IRType.STRING) {
-                        throw new cn.warriorview.script.core.ScriptCompileException(
-                                String.format("Operator '%s' requires a STRING type, but variable '%s' is of type %s.",
-                                        op, variable, type));
-                    }
-                } else if ("contains".equals(op)) {
-                    if (type != IRType.STRING && type != IRType.COLLECTION) {
-                        throw new cn.warriorview.script.core.ScriptCompileException(
-                                String.format(
-                                        "Operator '%s' requires a STRING or COLLECTION type, but variable '%s' is of type %s.",
-                                        op, variable, type));
-                    }
-                }
-
-                optimized.add(node.withAttr("_specializedType", type));
-            } else {
-                optimized.add(node);
-            }
-        }
-        return unit.withFlow(optimized.build());
-    }
-
     // ======================== 4. 空检查消除 ========================
 
     private ScriptUnit nullCheckElimination(ScriptUnit unit, CompilationContext ctx) {
@@ -342,60 +296,6 @@ public final class ScriptOptimizer {
                 yield range;
             }
         };
-    }
-
-    // ======================== 6. Switch 优化 ========================
-
-    private ScriptUnit switchOptimization(ScriptUnit unit, CompilationContext ctx) {
-        ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
-        for (FlowNode node : unit.flow()) {
-            if (node.type() == FlowNodeType.SWITCH) {
-                String variable = node.getAttrOrDefault("variable", null);
-                IRType type = ctx.getType(variable);
-                ImmutableMap<String, ?> cases = node.getAttrOrDefault("cases", null);
-
-                String switchStrategy = "CASCADE"; // 默认安全降级
-
-                if (type == IRType.ENUM) {
-                    switchStrategy = "TABLE_ENUM";
-                } else if (type == IRType.INT) {
-                    // 检查键值的稀疏度来判定使用 TABLE 还是 LOOKUP
-                    int min = Integer.MAX_VALUE;
-                    int max = Integer.MIN_VALUE;
-                    boolean allInts = true;
-
-                    for (String key : cases.keySet()) {
-                        try {
-                            int v = Integer.parseInt(key);
-                            min = Math.min(min, v);
-                            max = Math.max(max, v);
-                        } catch (NumberFormatException e) {
-                            allInts = false;
-                            break;
-                        }
-                    }
-
-                    if (allInts && cases.size() > 0) {
-                        // 阈值：若区间跨度 <= 节点数的 2.5倍，则视为密集，值得使用内存换取极限速度
-                        long span = (long) max - min + 1;
-                        if (span <= cases.size() * 2.5 && span <= 1000) {
-                            switchStrategy = "TABLE_INT";
-                        } else {
-                            switchStrategy = "LOOKUP_INT";
-                        }
-                    } else {
-                        switchStrategy = "CASCADE"; // 无法全被解析为整数的 int switch 应当走防具或者抛错，安全起见退化
-                    }
-                } else if (type == IRType.STRING) {
-                    switchStrategy = "LOOKUP_STRING";
-                }
-
-                optimized.add(node.withAttr("_switchStrategy", switchStrategy));
-            } else {
-                optimized.add(node);
-            }
-        }
-        return unit.withFlow(optimized.build());
     }
 
     // ======================== 7. 分支权重重排 ========================

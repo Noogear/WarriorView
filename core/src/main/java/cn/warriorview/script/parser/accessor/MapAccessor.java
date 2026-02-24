@@ -13,7 +13,7 @@ import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
 public record MapAccessor(String key, TypeToken<?> returnType) implements PropertyAccessor {
 
     @Override
-    public void emitLoad(MethodVisitor mv, boolean isOwnerInterface) {
+    public void emitLoad(MethodVisitor mv) {
         // Map.get(Object)
         mv.visitLdcInsn(key);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "get", "(Ljava/lang/Object;)Ljava/lang/Object;", true);

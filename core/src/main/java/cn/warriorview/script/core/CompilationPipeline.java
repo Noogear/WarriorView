@@ -63,10 +63,9 @@ public final class CompilationPipeline {
         byte[] bytecode = compiler.compile(optimized, ctx);
 
         // 5. 加载类
-        String className = "cn.warriorview.script.generated.Script$"
-                + Integer.toHexString(System.identityHashCode(bytecode));
+        // 直接传递 null 代表委托给底层 JVM 从字节码里自发解析内部全限定类名，安全且防报错。
         ScriptClassLoader loader = new ScriptClassLoader(getClass().getClassLoader());
-        Class<?> clazz = loader.define(className, bytecode);
+        Class<?> clazz = loader.define(null, bytecode);
 
         return new CompiledScript(optimized, clazz, loader);
     }

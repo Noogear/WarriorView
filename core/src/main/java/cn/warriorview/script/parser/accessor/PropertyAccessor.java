@@ -20,8 +20,7 @@ public interface PropertyAccessor {
      * 调用此方法前，栈顶必须已经压入其宿主对象（Owner）。
      * 调用结束后，栈顶将变为提取到的返回值对象。
      *
-     * @param mv               方法访问器
-     * @param isOwnerInterface 宿主是否为接口（用于决定 INVOKEVIRTUAL / INVOKEINTERFACE）
+     * @param mv 方法访问器
      */
-    void emitLoad(MethodVisitor mv, boolean isOwnerInterface);
+    void emitLoad(MethodVisitor mv);
 }

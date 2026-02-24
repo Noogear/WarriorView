@@ -125,4 +125,82 @@ public final class ASMUtils {
             mv.visitLdcInsn(value);
         }
     }
+
+    // ======================== 变量存取操作码 ========================
+
+    /**
+     * 根据 {@link cn.warriorview.script.core.ScriptIR.IRType} 返回对应的 XSTORE 操作码。
+     * 集中维护 IRType 到字节码指令的权威映射，避免散落在各处的重复 switch。
+     */
+    public static int storeOpcode(cn.warriorview.script.core.ScriptIR.IRType type) {
+        return switch (type) {
+            case INT, BOOLEAN -> Opcodes.ISTORE;
+            case LONG -> Opcodes.LSTORE;
+            case DOUBLE -> Opcodes.DSTORE;
+            default -> Opcodes.ASTORE;
+        };
+    }
+
+    // ======================== 对象工具方法 ========================
+
+    /**
+     * 发射：obj.hashCode()
+     */
+    public static void emitHashCode(MethodVisitor mv) {
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Object", "hashCode", "()I", false);
+    }
+
+    /**
+     * 发射：((Enum) obj).name() → 栈顶变为枚举名字符串
+     */
+    public static void emitEnumName(MethodVisitor mv) {
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Enum", "name", "()Ljava/lang/String;", false);
+    }
+
+    // ======================== 常量加载工具（补全 float） ========================
+
+    /**
+     * 发射 float 字面量的最优加载指令（FCONST_0/1/2 或 LDC）。
+     */
+    public static void emitFloatConst(MethodVisitor mv, float value) {
+        if (value == 0.0f) {
+            mv.visitInsn(Opcodes.FCONST_0);
+        } else if (value == 1.0f) {
+            mv.visitInsn(Opcodes.FCONST_1);
+        } else if (value == 2.0f) {
+            mv.visitInsn(Opcodes.FCONST_2);
+        } else {
+            mv.visitLdcInsn(value);
+        }
+    }
+
+    // ======================== 跳转取反映射 ========================
+
+    /**
+     * 将 JVM 条件跳转 opcode 翻转为反义 opcode（如 IFEQ → IFNE, IFLT → IFGE）。
+     * 零额外指令开销，纯编译期映射表。
+     *
+     * @throws IllegalArgumentException 当 opcode 不是标准条件跳转时
+     */
+    public static int invertJump(int opcode) {
+        return switch (opcode) {
+            case Opcodes.IFEQ -> Opcodes.IFNE;
+            case Opcodes.IFNE -> Opcodes.IFEQ;
+            case Opcodes.IFLT -> Opcodes.IFGE;
+            case Opcodes.IFGE -> Opcodes.IFLT;
+            case Opcodes.IFGT -> Opcodes.IFLE;
+            case Opcodes.IFLE -> Opcodes.IFGT;
+            case Opcodes.IF_ICMPEQ -> Opcodes.IF_ICMPNE;
+            case Opcodes.IF_ICMPNE -> Opcodes.IF_ICMPEQ;
+            case Opcodes.IF_ICMPLT -> Opcodes.IF_ICMPGE;
+            case Opcodes.IF_ICMPGE -> Opcodes.IF_ICMPLT;
+            case Opcodes.IF_ICMPGT -> Opcodes.IF_ICMPLE;
+            case Opcodes.IF_ICMPLE -> Opcodes.IF_ICMPGT;
+            case Opcodes.IF_ACMPEQ -> Opcodes.IF_ACMPNE;
+            case Opcodes.IF_ACMPNE -> Opcodes.IF_ACMPEQ;
+            case Opcodes.IFNULL -> Opcodes.IFNONNULL;
+            case Opcodes.IFNONNULL -> Opcodes.IFNULL;
+            default -> throw new IllegalArgumentException("Cannot invert opcode: " + opcode);
+        };
+    }
 }

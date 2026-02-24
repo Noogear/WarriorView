@@ -2,7 +2,6 @@ package cn.warriorview.script.handler;
 
 import cn.warriorview.script.codegen.ASMUtils;
 
-import cn.warriorview.script.codegen.BytecodeCompiler;
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
@@ -83,6 +82,29 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
         int slot = ctx.getSlot(variable);
         IRType type = ctx.getType(variable);
 
+        // AOT 语义验证区：执行特定算子的强制变量类型比配
+        if (">".equals(op) || ">=".equals(op) || "<".equals(op) || "<=".equals(op) || "between".equals(op)) {
+            if (type != IRType.INT && type != IRType.LONG && type != IRType.DOUBLE) {
+                throw new cn.warriorview.script.core.ScriptCompileException(
+                        String.format(
+                                "Operator '%s' requires a numeric type (INT/LONG/DOUBLE), but variable '%s' is of type %s.",
+                                op, variable, type));
+            }
+        } else if ("starts_with".equals(op) || "ends_with".equals(op) || "matches".equals(op)) {
+            if (type != IRType.STRING) {
+                throw new cn.warriorview.script.core.ScriptCompileException(
+                        String.format("Operator '%s' requires a STRING type, but variable '%s' is of type %s.",
+                                op, variable, type));
+            }
+        } else if ("contains".equals(op)) {
+            if (type != IRType.STRING && type != IRType.COLLECTION) {
+                throw new cn.warriorview.script.core.ScriptCompileException(
+                        String.format(
+                                "Operator '%s' requires a STRING or COLLECTION type, but variable '%s' is of type %s.",
+                                op, variable, type));
+            }
+        }
+
         Label continueLabel = new Label();
 
         // 发射条件检查 → 得到"条件满足时跳转"的 opcode
@@ -100,7 +122,7 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
 
         // negate: 翻转跳转方向（零额外指令）
         if (negate)
-            jumpOp = invertJump(jumpOp);
+            jumpOp = ASMUtils.invertJump(jumpOp);
 
         mv.visitJumpInsn(jumpOp, continueLabel);
         mv.visitInsn(Opcodes.RETURN);
@@ -239,16 +261,10 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
             } else if (type == IRType.ENUM) {
                 mv.visitVarInsn(Opcodes.ALOAD, slot);
                 mv.visitLdcInsn(val.toString());
-                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Enum", "name",
-                        "()Ljava/lang/String;", false);
-                // 需要先swap: enum.name() 在栈顶，但我们需要 name.equals(val)
-                // 改为：加载 val → 加载 enum.name → equals
-                // 重新组织:
                 mv.visitVarInsn(Opcodes.ALOAD, slot);
-                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Enum", "name",
-                        "()Ljava/lang/String;", false);
+                ASMUtils.emitEnumName(mv);
                 mv.visitLdcInsn(val.toString());
-                cn.warriorview.script.codegen.ASMUtils.emitEquals(mv);
+                ASMUtils.emitEquals(mv);
                 mv.visitJumpInsn(Opcodes.IFNE, trueLabel);
             } else {
                 mv.visitVarInsn(Opcodes.ALOAD, slot);
@@ -462,13 +478,10 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     /** 枚举引用比较（IF_ACMPEQ，单例安全） */
     private int emitEnumEquals(MethodVisitor mv, int slot, FlowNode node) {
         mv.visitVarInsn(Opcodes.ALOAD, slot);
-        // 加载枚举常量：Enum.valueOf(class, name)
         String enumValue = node.getRequiredAttr("value").toString();
         mv.visitLdcInsn(enumValue);
-        // 通过 name().equals() 比较（更通用）
         mv.visitVarInsn(Opcodes.ALOAD, slot);
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Enum", "name",
-                "()Ljava/lang/String;", false);
+        ASMUtils.emitEnumName(mv);
         mv.visitInsn(Opcodes.SWAP);
         ASMUtils.emitEquals(mv);
         return Opcodes.IFNE;
@@ -483,33 +496,6 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
         }
         ASMUtils.emitEquals(mv);
         return "==".equals(op) ? Opcodes.IFNE : Opcodes.IFEQ;
-    }
-
-    // ======================== 跳转取反映射 ========================
-
-    /**
-     * 翻转 JVM 跳转 opcode（纯映射表，零额外指令）。
-     */
-    private static int invertJump(int opcode) {
-        return switch (opcode) {
-            case Opcodes.IFEQ -> Opcodes.IFNE;
-            case Opcodes.IFNE -> Opcodes.IFEQ;
-            case Opcodes.IFLT -> Opcodes.IFGE;
-            case Opcodes.IFGE -> Opcodes.IFLT;
-            case Opcodes.IFGT -> Opcodes.IFLE;
-            case Opcodes.IFLE -> Opcodes.IFGT;
-            case Opcodes.IF_ICMPEQ -> Opcodes.IF_ICMPNE;
-            case Opcodes.IF_ICMPNE -> Opcodes.IF_ICMPEQ;
-            case Opcodes.IF_ICMPLT -> Opcodes.IF_ICMPGE;
-            case Opcodes.IF_ICMPGE -> Opcodes.IF_ICMPLT;
-            case Opcodes.IF_ICMPGT -> Opcodes.IF_ICMPLE;
-            case Opcodes.IF_ICMPLE -> Opcodes.IF_ICMPGT;
-            case Opcodes.IF_ACMPEQ -> Opcodes.IF_ACMPNE;
-            case Opcodes.IF_ACMPNE -> Opcodes.IF_ACMPEQ;
-            case Opcodes.IFNULL -> Opcodes.IFNONNULL;
-            case Opcodes.IFNONNULL -> Opcodes.IFNULL;
-            default -> throw new IllegalArgumentException("Cannot invert opcode: " + opcode);
-        };
     }
 
     @Override

@@ -1,7 +1,5 @@
 package cn.warriorview.script.handler;
 
-import cn.warriorview.script.codegen.ASMUtils;
-
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
@@ -63,8 +61,47 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
     public void emit(FlowNode node, MethodVisitor mv, CompilationContext ctx) {
         String variable = node.getRequiredAttr("variable");
         ImmutableMap<String, ImmutableList<FlowNode>> cases = node.getRequiredAttr("cases");
-        String strategy = node.getAttrOrDefault("_switchStrategy", "CASCADE");
+        IRType type = ctx.getType(variable);
         int slot = ctx.getSlot(variable);
+
+        // 如果仍保留外部传入的实验性策略则运用，否则在运行时进行即时降级策略演算
+        String strategy = node.getAttrOrDefault("_switchStrategy", "AUTO");
+
+        if ("AUTO".equals(strategy) || "CASCADE".equals(strategy)) {
+            if (type == IRType.ENUM) {
+                strategy = "TABLE_ENUM";
+            } else if (type == IRType.INT) {
+                int min = Integer.MAX_VALUE;
+                int max = Integer.MIN_VALUE;
+                boolean allInts = true;
+
+                for (String key : cases.keySet()) {
+                    try {
+                        int v = Integer.parseInt(key);
+                        min = Math.min(min, v);
+                        max = Math.max(max, v);
+                    } catch (NumberFormatException e) {
+                        allInts = false;
+                        break;
+                    }
+                }
+
+                if (allInts && cases.size() > 0) {
+                    long span = (long) max - min + 1;
+                    if (span <= cases.size() * 2.5 && span <= 1000) {
+                        strategy = "TABLE_INT";
+                    } else {
+                        strategy = "LOOKUP_INT";
+                    }
+                } else {
+                    strategy = "CASCADE";
+                }
+            } else if (type == IRType.STRING) {
+                strategy = "LOOKUP_STRING";
+            } else {
+                strategy = "CASCADE";
+            }
+        }
 
         switch (strategy) {
             case "TABLE_ENUM":
@@ -79,7 +116,7 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
                 break;
             case "CASCADE":
             default:
-                emitCascadeIfElseSwitch(mv, slot, ctx.getType(variable), cases, ctx);
+                emitCascadeIfElseSwitch(mv, slot, type, cases, ctx);
                 break;
         }
     }
@@ -168,7 +205,7 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
         Label endLabel = new Label();
 
         mv.visitVarInsn(Opcodes.ALOAD, slot);
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Object", "hashCode", "()I", false);
+        cn.warriorview.script.codegen.ASMUtils.emitHashCode(mv);
 
         String[] caseNames = cases.keySet().toArray(new String[0]);
         int n = caseNames.length;

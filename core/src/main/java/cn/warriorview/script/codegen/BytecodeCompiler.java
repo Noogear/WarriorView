@@ -10,7 +10,6 @@ import cn.warriorview.script.parser.ScriptParser;
 import com.google.common.collect.ImmutableList;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Handle;
-import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -57,8 +56,9 @@ public final class BytecodeCompiler implements Opcodes {
             false);
 
     public byte[] compile(ScriptUnit unit, CompilationContext ctx) {
-        String className = "cn/warriorview/script/generated/Script$" +
-                Integer.toHexString(unit.hashCode());
+        // 利用类获取器获取当前引擎包路径，避免给未来用户二次迁移引擎造成“硬重构”困扰。
+        String basePackage = BytecodeCompiler.class.getPackage().getName().replace('.', '/');
+        String className = basePackage + "/generated/Script$" + Integer.toHexString(unit.hashCode());
         String payloadInternal = unit.payloadClass().replace('.', '/');
 
         // 从优化器产出读取（零 node 依赖）
@@ -231,20 +231,9 @@ public final class BytecodeCompiler implements Opcodes {
             if (!liveVars.contains(var.name()))
                 continue;
 
-            // 按 '[' 或 '.' 第一个出现的作为复用前缀
-            String prop = var.property();
-            int dotIdx = prop.indexOf('.');
-            int bracketIdx = prop.indexOf('[');
-
-            int splitIdx = -1;
-            if (dotIdx != -1 && bracketIdx != -1)
-                splitIdx = Math.min(dotIdx, bracketIdx);
-            else if (dotIdx != -1)
-                splitIdx = dotIdx;
-            else if (bracketIdx != -1)
-                splitIdx = bracketIdx;
-
-            String firstPart = (splitIdx == -1) ? prop : prop.substring(0, splitIdx);
+            // 按 Parser 规定的属性语法截取根基名称（提取第一段复用前缀）
+            String firstPart = cn.warriorview.script.parser.ScriptParser.PropertyResolver
+                    .getRootProperty(var.property());
             groups.computeIfAbsent(firstPart, k -> new ArrayList<>()).add(var);
         }
 
@@ -266,8 +255,7 @@ public final class BytecodeCompiler implements Opcodes {
 
                 // 只有一段（第一段必然只有一个）
                 cn.warriorview.script.parser.accessor.PropertyAccessor firstAcr = prefixAccessors.get(0);
-                boolean isInterface = ctx.payloadClass().isInterface();
-                firstAcr.emitLoad(mv, isInterface);
+                firstAcr.emitLoad(mv);
 
                 mv.visitVarInsn(ASTORE, tempSlot);
                 cachedPrefixes.put(prefix, tempSlot);
@@ -282,21 +270,13 @@ public final class BytecodeCompiler implements Opcodes {
                             .resolveAccessors(
                                     com.google.common.reflect.TypeToken.of(ctx.payloadClass()), var.property());
 
-                    Class<?> currentClass = firstAcr.returnType().getRawType();
                     // 从第 1 个之后（索引 1）开始发射
                     for (int i = 1; i < fullAccessors.size(); i++) {
                         cn.warriorview.script.parser.accessor.PropertyAccessor acr = fullAccessors.get(i);
-                        boolean nextIsInterface = currentClass.isInterface();
-                        acr.emitLoad(mv, nextIsInterface);
-                        currentClass = acr.returnType().getRawType();
+                        acr.emitLoad(mv);
                     }
 
-                    int storeOp = switch (var.type()) {
-                        case INT, BOOLEAN -> ISTORE;
-                        case LONG -> LSTORE;
-                        case DOUBLE -> DSTORE;
-                        default -> ASTORE;
-                    };
+                    int storeOp = ASMUtils.storeOpcode(var.type());
                     mv.visitVarInsn(storeOp, ctx.getSlot(var.name()));
                 }
             } else {
@@ -314,19 +294,11 @@ public final class BytecodeCompiler implements Opcodes {
                 .resolveAccessors(
                         com.google.common.reflect.TypeToken.of(ctx.payloadClass()), var.property());
 
-        Class<?> currentClass = ctx.payloadClass();
         for (cn.warriorview.script.parser.accessor.PropertyAccessor acr : accessors) {
-            boolean isInterface = currentClass.isInterface();
-            acr.emitLoad(mv, isInterface);
-            currentClass = acr.returnType().getRawType();
+            acr.emitLoad(mv);
         }
 
-        int storeOp = switch (var.type()) {
-            case INT, BOOLEAN -> ISTORE;
-            case LONG -> LSTORE;
-            case DOUBLE -> DSTORE;
-            default -> ASTORE;
-        };
+        int storeOp = ASMUtils.storeOpcode(var.type());
         mv.visitVarInsn(storeOp, slot);
     }
 

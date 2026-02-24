@@ -13,7 +13,7 @@ import static org.objectweb.asm.Opcodes.INVOKEINTERFACE;
 public record ListAccessor(int index, TypeToken<?> returnType) implements PropertyAccessor {
 
     @Override
-    public void emitLoad(MethodVisitor mv, boolean isOwnerInterface) {
+    public void emitLoad(MethodVisitor mv) {
         // 装填数字索引，需要将 int 常量压入栈
         switch (index) {
             case 0 -> mv.visitInsn(org.objectweb.asm.Opcodes.ICONST_0);

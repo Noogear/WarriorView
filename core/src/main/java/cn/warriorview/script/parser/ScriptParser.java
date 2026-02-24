@@ -217,6 +217,27 @@ public final class ScriptParser {
         }
 
         /**
+         * 提取属性链的根基名称。
+         * 例如从 "player.inventory[0]" 提取出 "player"。
+         * 专门用于给编译器进行同祖先对象的局部变量缓冲优化。
+         */
+        public static String getRootProperty(String propertyPath) {
+            int dotIdx = propertyPath.indexOf('.');
+            int bracketIdx = propertyPath.indexOf('[');
+
+            int splitIdx = -1;
+            if (dotIdx != -1 && bracketIdx != -1) {
+                splitIdx = Math.min(dotIdx, bracketIdx);
+            } else if (dotIdx != -1) {
+                splitIdx = dotIdx;
+            } else if (bracketIdx != -1) {
+                splitIdx = bracketIdx;
+            }
+
+            return (splitIdx == -1) ? propertyPath : propertyPath.substring(0, splitIdx);
+        }
+
+        /**
          * 解析属性的 IR 类型。支持链式属性（以 {@code .} 分隔）和集合/Map索引（如 list[0] 或 map[key]）。
          */
         public static IRType resolveType(Class<?> payloadClass, String property) {
