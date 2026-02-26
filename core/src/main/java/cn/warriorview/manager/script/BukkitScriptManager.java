@@ -14,9 +14,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
+import org.bukkit.configuration.file.YamlConfiguration;
+
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -64,8 +64,19 @@ public class BukkitScriptManager implements ScriptHost {
 
         int success = 0;
         for (File file : files) {
-            try (InputStream in = new FileInputStream(file)) {
-                injector.inject(in);
+            try {
+                YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+                java.util.Map<String, Object> rootMap = config.getValues(false);
+
+                // 嵌套层级的特判解包，因为 getValues(false) 对深层可能保留为 ConfigurationSection
+                if (config.isList("flow")) {
+                    rootMap.put("flow", config.getMapList("flow"));
+                }
+                if (config.isConfigurationSection("variables")) {
+                    rootMap.put("variables", config.getConfigurationSection("variables").getValues(false));
+                }
+
+                injector.inject(rootMap);
                 success++;
             } catch (ScriptCompileException e) {
                 plugin.getLogger().log(Level.SEVERE,

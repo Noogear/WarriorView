@@ -15,9 +15,6 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.reflect.TypeToken;
 
-import org.yaml.snakeyaml.Yaml;
-
-import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,15 +28,14 @@ import java.util.regex.Pattern;
 @SuppressWarnings("null")
 public final class ScriptParser {
 
-    private static final Yaml YAML = new Yaml();
-
     /**
-     * 解析 YAML 输入流为 IR {@link ScriptUnit}。
+     * 将预先解析好的 Map 数据结构转换为强类型的 IR {@link ScriptUnit}。
+     * 消除对具体序列化格式（如 YAML/JSON）的依赖，数据可由宿主环境（如 Bukkit Configuration）提供。
+     *
+     * @param root 包含 event、priority、variables、flow 键的核心 Map
      */
     @SuppressWarnings("unchecked")
-    public ScriptUnit parse(InputStream input) {
-        Map<String, Object> root = YAML.load(input);
-
+    public ScriptUnit parse(Map<String, Object> root) {
         // 顶层字段
         String payloadClassStr = (String) root.get("event");
         int priority = ScriptParser.ValueParser.parseInteger(
@@ -92,17 +88,14 @@ public final class ScriptParser {
     }
 
     /**
-     * 解析 YAML 字符串形式的流程节点列表。
-     * 用于非完整 ScriptUnit 场景下的局部逻辑反序列化。
+     * 解析反序列化出的 List 形式的流程节点。
+     * 用于非完整 ScriptUnit 场景下的局部逻辑 AST 构建。
      */
-    @SuppressWarnings("unchecked")
-    public ImmutableList<FlowNode> parseFlow(String yamlContent) {
-        Object parsed = YAML.load(yamlContent);
-        if (!(parsed instanceof List)) {
-            throw new IllegalArgumentException("Expected a YAML list of flow nodes, but got "
-                    + (parsed == null ? "null" : parsed.getClass().getSimpleName()));
+    public ImmutableList<FlowNode> parseFlow(List<?> flowList) {
+        if (flowList == null) {
+            return ImmutableList.of();
         }
-        return parseFlowNodes((List<Map<String, Object>>) parsed);
+        return parseFlowNodes(flowList);
     }
 
     /**

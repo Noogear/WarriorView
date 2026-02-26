@@ -204,19 +204,6 @@ public final class ScriptBuilder {
     }
 
     /**
-     * 从一段 YAML 文本中直接解析流程控制节点阵列并追加至引擎后台。
-     * 可以与其他手写的 builder API (如 check, action) 混编使用！
-     * 
-     * @param yamlContent YAML 文本（例："- check: ... \n - action: ..."）
-     */
-    public ScriptBuilder flowFromYaml(String yamlContent) {
-        ScriptParser parser = new ScriptParser();
-        ImmutableList<FlowNode> parsedNodes = parser.parseFlow(yamlContent);
-        flow.addAll(parsedNodes);
-        return this;
-    }
-
-    /**
      * 完成配置，直接将这套规则送去底层的 AOT 引擎！
      * <p>
      *

@@ -22,27 +22,12 @@ import java.util.function.Function;
  */
 public final class CompilationPipeline {
 
-    private final ScriptParser parser;
     private final ScriptOptimizer optimizer;
     private final BytecodeCompiler compiler;
 
     public CompilationPipeline() {
-        this.parser = new ScriptParser();
         this.optimizer = new ScriptOptimizer();
         this.compiler = new BytecodeCompiler();
-    }
-
-    /**
-     * 编译一个 YAML 脚本输入流。
-     *
-     * @return 编译结果，包含生成的事件处理器类。
-     */
-    public CompiledScript compile(InputStream yamlInput) {
-        Preconditions.checkNotNull(yamlInput, "yamlInput");
-
-        // 1. 解析 YAML → IR
-        ScriptIR.ScriptUnit unit = parser.parse(yamlInput);
-        return compile(unit);
     }
 
     /**

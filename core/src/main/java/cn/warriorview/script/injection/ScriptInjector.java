@@ -8,9 +8,9 @@ import cn.warriorview.script.handler.ReturnNodeHandler;
 import cn.warriorview.script.handler.SwitchNodeHandler;
 import com.google.common.base.Preconditions;
 
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -38,10 +38,12 @@ public final class ScriptInjector {
     }
 
     /**
-     * 编译并注入一个 YAML 脚本。
+     * 编译并注入一个预先解析好的 Map 配置脚本。
      */
-    public RegisteredScript inject(InputStream yamlInput) {
-        CompilationPipeline.CompiledScript compiled = pipeline.compile(yamlInput);
+    public RegisteredScript inject(Map<String, Object> rootData) {
+        cn.warriorview.script.core.ScriptIR.ScriptUnit unit = new cn.warriorview.script.parser.ScriptParser()
+                .parse(rootData);
+        CompilationPipeline.CompiledScript compiled = pipeline.compile(unit);
 
         // 获取荷载类
         Class<?> payloadClass;
