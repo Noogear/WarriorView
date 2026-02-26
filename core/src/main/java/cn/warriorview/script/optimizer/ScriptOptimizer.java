@@ -33,6 +33,7 @@ public final class ScriptOptimizer {
     public ScriptUnit optimize(ScriptUnit unit, CompilationContext ctx) {
         unit = constantFolding(unit, ctx);
         unit = deadCodeElimination(unit, ctx);
+        unit = variableInlining(unit, ctx); // ★ 新增：内联剔除独立声明的 Action 且单次使用的 store
         unit = nullCheckElimination(unit, ctx);
         unit = valueRangePropagation(unit, ctx);
         unit = branchReordering(unit, ctx);
@@ -441,5 +442,96 @@ public final class ScriptOptimizer {
                 refs.add(var);
         }
         ctx.setLiveVars(refs.elementSet());
+    }
+
+    // ======================== 11. 局部变量内联融合 ========================
+
+    /**
+     * 指令下沉与窥孔内联优化 (Variable Sinking & Inlining)
+     * <p>
+     * 1. ActionInlining: 发现独立执行的 ACTION 及其 store，若被下文紧随其后的消费者单次访问，
+     * 则摘除包装为闭包供下游消费栈顶处理。
+     * 2. PropertySinking: 对于 {@code variables} 环境快照区块的属性声明，若全局唯有 1 处使用，
+     * 则踢出预提取 (CSE) 名单，转化为仅在判定点就地发射的虚拟获取闭包。
+     */
+    private ScriptUnit variableInlining(ScriptUnit unit, CompilationContext ctx) {
+        ImmutableList<FlowNode> oldFlow = unit.flow();
+        if (oldFlow.size() < 2) {
+            return unit;
+        }
+
+        // 1. 全域使用次数分析 (含预声明的 vars 与中间态)
+        Multiset<String> refs = HashMultiset.create();
+        for (FlowNode node : oldFlow) {
+            String var = node.getAttrOrDefault("variable", null);
+            if (var != null)
+                refs.add(var);
+        }
+
+        // 2. 环境快照下沉提取池 (Property Sinking Pool)
+        Map<String, cn.warriorview.script.core.ScriptIR.VarDecl> sinkingVars = new HashMap<>();
+        ImmutableList.Builder<cn.warriorview.script.core.ScriptIR.VarDecl> optimizedVars = ImmutableList.builder();
+
+        for (cn.warriorview.script.core.ScriptIR.VarDecl v : unit.vars()) {
+            if (refs.count(v.name()) == 1) {
+                // 单次引用，从 CSE 数组中踢出，转入待下放池
+                sinkingVars.put(v.name(), v);
+            } else {
+                optimizedVars.add(v);
+            }
+        }
+
+        // 3. 窥孔扫描：寻找 [单测存入 -> 相邻立即消耗] 的 AST 连对，并处理安全下沉
+        List<FlowNode> optimized = new ArrayList<>(oldFlow.size());
+        for (int i = 0; i < oldFlow.size(); i++) {
+            FlowNode current = oldFlow.get(i);
+
+            // ==== 【阶段 A】 侦测并吞食 Action Inlining ====
+            if (current.type() == FlowNodeType.ACTION) {
+                String storeTarget = current.getAttrOrDefault("store", null);
+                if (storeTarget != null && refs.count(storeTarget) == 1) {
+                    if (i + 1 < oldFlow.size()) {
+                        FlowNode next = oldFlow.get(i + 1);
+                        if (next.type() == FlowNodeType.CHECK) {
+                            String nextVar = next.getAttrOrDefault("variable", null);
+                            if (storeTarget.equals(nextVar)) {
+                                FlowNode peelAction = current.withoutAttr("store");
+                                FlowNode modifiedCheck = next.withoutAttr("variable")
+                                        .withAttr("conditionAction", peelAction);
+                                optimized.add(modifiedCheck);
+                                i++; // 跳过消费节点
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==== 【阶段 B】 处理当前节点的按需下沉消费 (Property Sinking) ====
+            if (current.type() == FlowNodeType.CHECK || current.type() == FlowNodeType.SWITCH) {
+                String reqVar = current.getAttrOrDefault("variable", null);
+                if (reqVar != null && sinkingVars.containsKey(reqVar)) {
+                    cn.warriorview.script.core.ScriptIR.VarDecl decl = sinkingVars.get(reqVar);
+
+                    // 构建一个匿名 ActionNode 作为模拟获取器，它不会经过标准的 emit 执行分发
+                    // 它只会被消费节点 (如 Check) 特判并通过附带的 Accessor 执行内联出栈
+                    FlowNode virtualHook = new FlowNode(FlowNodeType.ACTION,
+                            ImmutableMap.of(
+                                    "_sinking_property", decl.property(),
+                                    "returnType", decl.type()));
+
+                    FlowNode modifiedTarget = current.withoutAttr("variable")
+                            .withAttr("conditionAction", virtualHook);
+
+                    optimized.add(modifiedTarget);
+                    continue;
+                }
+            }
+
+            // 常规落空兜底
+            optimized.add(current);
+        }
+
+        return unit.withFlow(ImmutableList.copyOf(optimized)).withVars(optimizedVars.build());
     }
 }

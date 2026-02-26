@@ -35,7 +35,7 @@ public final class ScriptParser {
      * @param root 包含 event、priority、variables、flow 键的核心 Map
      */
     @SuppressWarnings("unchecked")
-    public ScriptUnit parse(Map<String, Object> root) {
+    public static ScriptUnit parse(Map<String, Object> root) {
         // 顶层字段
         String payloadClassStr = (String) root.get("event");
         int priority = ScriptParser.ValueParser.parseInteger(
@@ -73,15 +73,58 @@ public final class ScriptParser {
      * <li>有 {@code return} 字段 → RETURN_VALUE（即 {@code - return: 42}）</li>
      * </ul>
      */
-    private FlowNode parseFlowNode(Map<String, Object> yaml) {
+    public static FlowNode parseFlowNode(Map<String, Object> yaml) {
         String typeStr = (String) yaml.get("type");
-        FlowNodeType type;
-        if (typeStr == null && yaml.containsKey("action")) {
-            type = FlowNodeType.ACTION;
-        } else if (typeStr == null && yaml.containsKey("return")) {
-            // "– return: 42" 等短语法，路由到 ReturnNodeHandler
-            type = FlowNodeType.RETURN_VALUE;
-        } else {
+        FlowNodeType type = null;
+
+        if (typeStr == null) {
+            if (yaml.containsKey("action")) {
+                type = FlowNodeType.ACTION;
+            } else if (yaml.containsKey("return")) {
+                type = FlowNodeType.RETURN;
+            } else if (yaml.containsKey("check")) {
+                type = FlowNodeType.CHECK;
+                Map<String, Object> rebuilt = new java.util.HashMap<>(yaml);
+                Object variable = rebuilt.remove("check");
+                if (variable != null)
+                    rebuilt.put("variable", variable);
+                yaml = rebuilt;
+            } else if (yaml.containsKey("switch")) {
+                type = FlowNodeType.SWITCH;
+                Map<String, Object> rebuilt = new java.util.HashMap<>(yaml);
+                Object variable = rebuilt.remove("switch");
+                if (variable != null)
+                    rebuilt.put("variable", variable);
+                yaml = rebuilt;
+            } else {
+                // 启用动态推断：寻找第一个非保留字段作为 Action 名字
+                String inferredAction = null;
+                Object inferredArgs = null;
+                for (Map.Entry<String, Object> entry : yaml.entrySet()) {
+                    String k = entry.getKey();
+                    if (!k.equals("store") && !k.equals("args") && !k.equals("type") && !k.equals("return")) {
+                        inferredAction = k;
+                        inferredArgs = entry.getValue();
+                        break;
+                    }
+                }
+
+                if (inferredAction != null) {
+                    Map<String, Object> rebuilt = new java.util.HashMap<>(yaml);
+                    rebuilt.remove(inferredAction);
+                    rebuilt.put("action", inferredAction);
+                    if (inferredArgs instanceof List) {
+                        rebuilt.put("args", inferredArgs);
+                    } else if (inferredArgs != null) {
+                        rebuilt.put("args", List.of(inferredArgs));
+                    }
+                    yaml = rebuilt;
+                    type = FlowNodeType.ACTION;
+                }
+            }
+        }
+
+        if (type == null) {
             type = FlowNodeType.fromYaml(typeStr);
         }
         return type.handler().parse(yaml);
@@ -91,7 +134,7 @@ public final class ScriptParser {
      * 解析反序列化出的 List 形式的流程节点。
      * 用于非完整 ScriptUnit 场景下的局部逻辑 AST 构建。
      */
-    public ImmutableList<FlowNode> parseFlow(List<?> flowList) {
+    public static ImmutableList<FlowNode> parseFlow(List<?> flowList) {
         if (flowList == null) {
             return ImmutableList.of();
         }
@@ -104,15 +147,20 @@ public final class ScriptParser {
      * 支持 {@code - return} 纯字符串简写（SnakeYAML 将其解析为 String）。
      */
     @SuppressWarnings("unchecked")
-    private ImmutableList<FlowNode> parseFlowNodes(List<?> flowList) {
+    private static ImmutableList<FlowNode> parseFlowNodes(List<?> flowList) {
         if (flowList == null || flowList.isEmpty()) {
             return ImmutableList.of();
         }
         ImmutableList.Builder<FlowNode> flow = ImmutableList.builder();
         for (Object item : flowList) {
-            if (item instanceof String s && s.equalsIgnoreCase("return")) {
-                // 对应 YAML 中的 "- return"（空返回）
-                flow.add(FlowNodeType.RETURN.handler().parse(Map.of()));
+            if (item instanceof String s) {
+                if (s.equalsIgnoreCase("return")) {
+                    // 对应 YAML 中的 "- return"（空返回）
+                    flow.add(FlowNodeType.RETURN.handler().parse(Map.of()));
+                } else {
+                    // 新增：自动包装纯字符串动作 (例如 "- healAllPlayers")
+                    flow.add(parseFlowNode(Map.of("action", s)));
+                }
             } else if (item instanceof Map<?, ?> rawMap) {
                 flow.add(parseFlowNode((Map<String, Object>) rawMap));
             } else {

@@ -38,14 +38,31 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public FlowNode parse(Map<String, Object> yaml) {
-        String variable = (String) yaml.get("variable");
+        Object variableObj = yaml.get("variable");
+        String variable = null;
+        FlowNode conditionAction = null;
+
+        if (variableObj instanceof Map) {
+            conditionAction = ScriptParser.parseFlowNode((Map<String, Object>) variableObj);
+        } else if (variableObj != null) {
+            variable = variableObj.toString();
+        }
+
         String op = (String) yaml.get("op");
         Object value = yaml.get("value");
 
         ImmutableMap.Builder<String, Object> attrs = ImmutableMap.builder();
-        attrs.put("variable", variable);
-        attrs.put("op", op);
+        if (variable != null) {
+            attrs.put("variable", variable);
+        }
+        if (conditionAction != null) {
+            attrs.put("conditionAction", conditionAction);
+        }
+        if (op != null) {
+            attrs.put("op", op);
+        }
 
         double numericValue = 0.0;
 
@@ -67,48 +84,107 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
             attrs.put("valueList", ImmutableList.copyOf(list));
         }
 
+        // 解析 on_fail 列表
+        List<?> onFailRaw = (List<?>) yaml.get("on_fail");
+        if (onFailRaw != null) {
+            attrs.put("onFailNodes", ScriptParser.parseFlow(onFailRaw));
+        }
+
         return new FlowNode(FlowNodeType.CHECK, attrs.build(), numericValue, 0);
     }
 
     @Override
     public void emit(FlowNode node, MethodVisitor mv, CompilationContext ctx) {
-        String rawOp = node.getRequiredAttr("op");
+        FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
+        String op = null;
+        boolean negate = false;
 
-        // ! 前缀拆分
-        boolean negate = rawOp.startsWith("!");
-        String op = negate ? rawOp.substring(1) : rawOp;
+        if (conditionAction == null) {
+            String rawOp = node.getRequiredAttr("op");
+            negate = rawOp.startsWith("!");
+            op = negate ? rawOp.substring(1) : rawOp;
+        }
 
-        String variable = node.getRequiredAttr("variable");
-        int slot = ctx.getSlot(variable);
-        IRType type = ctx.getType(variable);
+        int jumpOp = -1;
 
-        // AOT 语义验证区：执行特定算子的强制变量类型比配
-        if (">".equals(op) || ">=".equals(op) || "<".equals(op) || "<=".equals(op) || "between".equals(op)) {
-            if (type != IRType.INT && type != IRType.LONG && type != IRType.DOUBLE) {
-                throw new cn.warriorview.script.core.ScriptCompileException(
-                        String.format(
-                                "Operator '%s' requires a numeric type (INT/LONG/DOUBLE), but variable '%s' is of type %s.",
-                                op, variable, type));
+        if (conditionAction != null) {
+            String sinkingProp = conditionAction.getAttrOrDefault("_sinking_property", null);
+            if (sinkingProp != null) {
+                // Property Sinking 闭包：执行临时装载提取
+                int tempSlot = ctx.nextSlot();
+                mv.visitVarInsn(Opcodes.ALOAD, 1); // Event 对象
+                java.util.List<cn.warriorview.script.parser.accessor.PropertyAccessor> accessors = cn.warriorview.script.parser.ScriptParser.PropertyResolver
+                        .resolveAccessors(
+                                com.google.common.reflect.TypeToken.of(ctx.payloadClass()), sinkingProp);
+                for (cn.warriorview.script.parser.accessor.PropertyAccessor acr : accessors) {
+                    acr.emitLoad(mv);
+                }
+
+                IRType exactType = conditionAction.getRequiredAttr("returnType");
+                int storeOp = cn.warriorview.script.codegen.ASMUtils.storeOpcode(exactType);
+                mv.visitVarInsn(storeOp, tempSlot);
+
+                // 将临时槽位输入到通用比较引擎中
+                jumpOp = emitSinkingCheck(mv, op, tempSlot, exactType, node);
+            } else {
+                // Action 作为条件的情况，发射内联 Action，消费对应的栈顶返回值
+                conditionAction.type().handler().emit(conditionAction, mv, ctx);
+                jumpOp = Opcodes.IFNE;
             }
-        } else if ("starts_with".equals(op) || "ends_with".equals(op) || "matches".equals(op)) {
-            if (type != IRType.STRING) {
-                throw new cn.warriorview.script.core.ScriptCompileException(
-                        String.format("Operator '%s' requires a STRING type, but variable '%s' is of type %s.",
-                                op, variable, type));
+        } else {
+            String variable = node.getRequiredAttr("variable");
+            int slot = ctx.getSlot(variable);
+            IRType type = ctx.getType(variable);
+
+            // AOT 语义验证区：执行特定算子的强制变量类型比配
+            if (">".equals(op) || ">=".equals(op) || "<".equals(op) || "<=".equals(op) || "between".equals(op)) {
+                if (type != IRType.INT && type != IRType.LONG && type != IRType.DOUBLE) {
+                    throw new cn.warriorview.script.core.ScriptCompileException(
+                            String.format(
+                                    "Operator '%s' requires a numeric type (INT/LONG/DOUBLE), but variable '%s' is of type %s.",
+                                    op, variable, type));
+                }
+            } else if ("starts_with".equals(op) || "ends_with".equals(op) || "matches".equals(op)) {
+                if (type != IRType.STRING) {
+                    throw new cn.warriorview.script.core.ScriptCompileException(
+                            String.format("Operator '%s' requires a STRING type, but variable '%s' is of type %s.",
+                                    op, variable, type));
+                }
+            } else if ("contains".equals(op)) {
+                if (type != IRType.STRING && type != IRType.COLLECTION) {
+                    throw new cn.warriorview.script.core.ScriptCompileException(
+                            String.format(
+                                    "Operator '%s' requires a STRING or COLLECTION type, but variable '%s' is of type %s.",
+                                    op, variable, type));
+                }
             }
-        } else if ("contains".equals(op)) {
-            if (type != IRType.STRING && type != IRType.COLLECTION) {
-                throw new cn.warriorview.script.core.ScriptCompileException(
-                        String.format(
-                                "Operator '%s' requires a STRING or COLLECTION type, but variable '%s' is of type %s.",
-                                op, variable, type));
+
+            jumpOp = emitSinkingCheck(mv, op, slot, type, node);
+        }
+
+        // negate: 翻转跳转方向（零额外指令）
+        if (negate)
+            jumpOp = cn.warriorview.script.codegen.ASMUtils.invertJump(jumpOp);
+
+        Label continueLabel = new Label();
+        mv.visitJumpInsn(jumpOp, continueLabel);
+
+        // 分支失败处理：执行所有的 on_fail 动作
+        ImmutableList<FlowNode> onFailNodes = node.getAttrOrDefault("onFailNodes", null);
+        if (onFailNodes != null) {
+            for (FlowNode failNode : onFailNodes) {
+                failNode.type().handler().emit(failNode, mv, ctx);
             }
         }
 
-        Label continueLabel = new Label();
+        mv.visitInsn(Opcodes.RETURN);
+        mv.visitLabel(continueLabel);
+    }
 
-        // 发射条件检查 → 得到"条件满足时跳转"的 opcode
-        int jumpOp = switch (op) {
+    // ======================== null ========================
+
+    private int emitSinkingCheck(MethodVisitor mv, String op, int slot, IRType type, FlowNode node) {
+        return switch (op) {
             case "null" -> emitNullCheck(mv, slot);
             case "instanceof" -> emitInstanceof(mv, slot, node);
             case "contains" -> emitContains(mv, slot, node, type);
@@ -119,17 +195,7 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
             case "between" -> emitBetween(mv, slot, node, type);
             default -> emitComparison(mv, slot, type, op, node);
         };
-
-        // negate: 翻转跳转方向（零额外指令）
-        if (negate)
-            jumpOp = ASMUtils.invertJump(jumpOp);
-
-        mv.visitJumpInsn(jumpOp, continueLabel);
-        mv.visitInsn(Opcodes.RETURN);
-        mv.visitLabel(continueLabel);
     }
-
-    // ======================== null ========================
 
     private int emitNullCheck(MethodVisitor mv, int slot) {
         mv.visitVarInsn(Opcodes.ALOAD, slot);

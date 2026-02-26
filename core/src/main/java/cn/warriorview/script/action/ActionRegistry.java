@@ -13,6 +13,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 动作注册表，管理脚本可调用的动作定义。
@@ -65,6 +66,12 @@ public final class ActionRegistry {
 
     private final Map<String, ActionDef> actions = new HashMap<>();
 
+    /**
+     * 系统保留字，禁止将这些字符串作为动作名称，以防与 ScriptParser 动态推断规则发生碰撞。
+     */
+    private static final Set<String> RESERVED_KEYS = Set.of(
+            "type", "action", "return", "check", "switch", "args", "store", "priority", "event");
+
     public ActionRegistry() {
     }
 
@@ -103,6 +110,8 @@ public final class ActionRegistry {
      */
     public void register(String name, ActionDef def) {
         Preconditions.checkNotNull(name, "action name");
+        Preconditions.checkArgument(!RESERVED_KEYS.contains(name.toLowerCase()),
+                "Cannot register action using reserved keyword: %s", name);
         Preconditions.checkNotNull(def, "action definition");
         actions.put(name, def);
     }

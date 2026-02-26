@@ -48,7 +48,6 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
 
     static {
         FlowNodeType.registerHandler(FlowNodeType.RETURN, ReturnNodeHandler::new);
-        FlowNodeType.registerHandler(FlowNodeType.RETURN_VALUE, ReturnNodeHandler::new);
     }
 
     public static void init() {
@@ -56,20 +55,30 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
 
     @Override
     public FlowNode parse(Map<String, Object> yaml) {
-        // "- return: xxx" 时，YAML 解析器将整个节点映射为 {return: xxx}
-        // "- return" 时（纯字符串），ScriptParser 会处理成 {type: "return"}（无 value）
-        Object value = yaml.get("return");
-        if (value == null) {
-            // 也兼容旧的 type:return_value + variable 格式
-            Object variable = yaml.get("variable");
-            if (variable != null) {
-                return new FlowNode(FlowNodeType.RETURN_VALUE,
-                        ImmutableMap.of("variable", variable.toString()));
-            }
-            return new FlowNode(FlowNodeType.RETURN, ImmutableMap.of());
+        // 短语法：- return: xxx
+        Object shortValue = yaml.get("return");
+        if (shortValue != null) {
+            return new FlowNode(FlowNodeType.RETURN, ImmutableMap.of("value", shortValue));
         }
-        // 有 value → RETURN_VALUE 节点，原始 Object 类型保留用于精确 emit
-        return new FlowNode(FlowNodeType.RETURN_VALUE, ImmutableMap.of("value", value));
+
+        Object standardValue = yaml.get("value");
+        Object variable = yaml.get("variable");
+
+        if (standardValue != null && variable != null) {
+            // 如果同时提供了 value 和 variable，包装为集合 ["{variable}", value]
+            return new FlowNode(FlowNodeType.RETURN,
+                    ImmutableMap.of("value", List.of("{" + variable + "}", standardValue)));
+        }
+
+        if (standardValue != null) {
+            return new FlowNode(FlowNodeType.RETURN, ImmutableMap.of("value", standardValue));
+        }
+
+        if (variable != null) {
+            return new FlowNode(FlowNodeType.RETURN, ImmutableMap.of("variable", variable.toString()));
+        }
+
+        return new FlowNode(FlowNodeType.RETURN, ImmutableMap.of());
     }
 
     @Override

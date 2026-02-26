@@ -34,6 +34,10 @@ public final class ScriptIR {
         public ScriptUnit withFlow(ImmutableList<FlowNode> newFlow) {
             return new ScriptUnit(payloadClass, priority, vars, newFlow);
         }
+
+        public ScriptUnit withVars(ImmutableList<VarDecl> newVars) {
+            return new ScriptUnit(payloadClass, priority, newVars, flow);
+        }
     }
 
     /**
@@ -128,6 +132,19 @@ public final class ScriptIR {
                     .put(key, value)
                     .buildKeepingLast(), numericValue, flags);
         }
+
+        public FlowNode withoutAttr(String key) {
+            if (!attrs.containsKey(key)) {
+                return this;
+            }
+            ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
+            for (Map.Entry<String, Object> entry : attrs.entrySet()) {
+                if (!entry.getKey().equals(key)) {
+                    builder.put(entry);
+                }
+            }
+            return new FlowNode(type, builder.build(), numericValue, flags);
+        }
     }
 
     // ======================== 类型枚举 ========================
@@ -188,8 +205,6 @@ public final class ScriptIR {
         CHECK,
         SWITCH,
         RETURN,
-        /** 有值返回节点，编译产物为 Function<Object,Object> */
-        RETURN_VALUE,
         ACTION;
 
         private static final EnumMap<FlowNodeType, Supplier<FlowNodeHandler>> FACTORIES = new EnumMap<>(
@@ -214,7 +229,6 @@ public final class ScriptIR {
                 case "check" -> CHECK;
                 case "switch" -> SWITCH;
                 case "return" -> RETURN;
-                case "return_value" -> RETURN_VALUE;
                 case "action" -> ACTION;
                 default -> throw new IllegalArgumentException("Unknown flow node type: " + type);
             };

@@ -2,10 +2,8 @@ package cn.warriorview.script.core;
 
 import cn.warriorview.script.codegen.BytecodeCompiler;
 import cn.warriorview.script.optimizer.ScriptOptimizer;
-import cn.warriorview.script.parser.ScriptParser;
 import com.google.common.base.Preconditions;
 
-import java.io.InputStream;
 import java.util.function.Consumer;
 import java.util.function.Function;
 

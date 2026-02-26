@@ -41,7 +41,7 @@ public final class ScriptInjector {
      * 编译并注入一个预先解析好的 Map 配置脚本。
      */
     public RegisteredScript inject(Map<String, Object> rootData) {
-        cn.warriorview.script.core.ScriptIR.ScriptUnit unit = new cn.warriorview.script.parser.ScriptParser()
+        cn.warriorview.script.core.ScriptIR.ScriptUnit unit = cn.warriorview.script.parser.ScriptParser
                 .parse(rootData);
         CompilationPipeline.CompiledScript compiled = pipeline.compile(unit);
 

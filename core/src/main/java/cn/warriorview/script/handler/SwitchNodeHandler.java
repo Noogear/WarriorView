@@ -59,17 +59,49 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
 
     @Override
     public void emit(FlowNode node, MethodVisitor mv, CompilationContext ctx) {
-        String variable = node.getRequiredAttr("variable");
         ImmutableMap<String, ImmutableList<FlowNode>> cases = node.getRequiredAttr("cases");
-        IRType type = ctx.getType(variable);
-        int slot = ctx.getSlot(variable);
+
+        String variable = null;
+        int slot;
+        IRType type;
+        FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
+
+        if (conditionAction != null) {
+            String sinkingProp = conditionAction.getAttrOrDefault("_sinking_property", null);
+            if (sinkingProp != null) {
+                // Property Sinking 闭包：即时解析并提取
+                slot = ctx.nextSlot();
+                mv.visitVarInsn(org.objectweb.asm.Opcodes.ALOAD, 1);
+                java.util.List<cn.warriorview.script.parser.accessor.PropertyAccessor> accessors = cn.warriorview.script.parser.ScriptParser.PropertyResolver
+                        .resolveAccessors(
+                                com.google.common.reflect.TypeToken.of(ctx.payloadClass()), sinkingProp);
+                for (cn.warriorview.script.parser.accessor.PropertyAccessor acr : accessors) {
+                    acr.emitLoad(mv);
+                }
+                type = conditionAction.getRequiredAttr("returnType");
+                int storeOp = cn.warriorview.script.codegen.ASMUtils.storeOpcode(type);
+                mv.visitVarInsn(storeOp, slot);
+            } else {
+                // 普通 Action 压入栈（注意：对于 Switch，由于多分支操作需要反复读取变量，所以依然要存临时 Slot）
+                slot = ctx.nextSlot();
+                conditionAction.type().handler().emit(conditionAction, mv, ctx);
+                type = conditionAction.getRequiredAttr("returnType");
+                int storeOp = cn.warriorview.script.codegen.ASMUtils.storeOpcode(type);
+                mv.visitVarInsn(storeOp, slot);
+            }
+        } else {
+            variable = node.getRequiredAttr("variable");
+            slot = ctx.getSlot(variable);
+            type = ctx.getType(variable);
+        }
 
         // 如果仍保留外部传入的实验性策略则运用，否则在运行时进行即时降级策略演算
         String strategy = node.getAttrOrDefault("_switchStrategy", "AUTO");
 
         if ("AUTO".equals(strategy) || "CASCADE".equals(strategy)) {
             if (type == IRType.ENUM) {
-                strategy = "TABLE_ENUM";
+                // Enum 统一使用基于 hashCode 的哈希查表，无需在编译期反射成员全集
+                strategy = "LOOKUP_STRING";
             } else if (type == IRType.INT) {
                 int min = Integer.MAX_VALUE;
                 int max = Integer.MIN_VALUE;
@@ -104,9 +136,6 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
         }
 
         switch (strategy) {
-            case "TABLE_ENUM":
-                emitTableEnumSwitch(mv, slot, variable, cases, ctx);
-                break;
             case "TABLE_INT":
                 emitTableIntSwitch(mv, slot, cases, ctx);
                 break;
@@ -119,83 +148,6 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
                 emitCascadeIfElseSwitch(mv, slot, type, cases, ctx);
                 break;
         }
-    }
-
-    private void emitTableEnumSwitch(MethodVisitor mv, int slot, String variable,
-            ImmutableMap<String, ImmutableList<FlowNode>> cases,
-            CompilationContext ctx) {
-        Label defaultLabel = new Label();
-        Label endLabel = new Label();
-
-        // 1. 防空指针 (IFNULL 判断)
-        mv.visitVarInsn(Opcodes.ALOAD, slot);
-        mv.visitJumpInsn(Opcodes.IFNULL, defaultLabel);
-
-        // 2. 取真实变量 ordinal
-        mv.visitVarInsn(Opcodes.ALOAD, slot);
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Enum", "ordinal", "()I", false);
-
-        // 3. 反射查询所有 Enum 真实实例与序号
-        cn.warriorview.script.core.ScriptIR.IRType type = ctx.getType(variable);
-        if (type != cn.warriorview.script.core.ScriptIR.IRType.ENUM) {
-            throw new IllegalStateException("Variable " + variable + " is treated as TABLE_ENUM but actually " + type);
-        }
-        Class<?> enumType = ctx.payloadClass(); // Enum 常量将稍后被运行时校验或目前假设已知
-        // 为了安全获取类型，暂时尝试使用最暴力的搜寻：
-        try {
-            java.lang.reflect.Method m = ctx.payloadClass()
-                    .getMethod("get" + variable.substring(0, 1).toUpperCase() + variable.substring(1));
-            enumType = m.getReturnType();
-        } catch (Exception e) {
-            // 软降级回退
-        }
-        Object[] enumConstants = enumType.getEnumConstants();
-        if (enumConstants == null) {
-            throw new IllegalStateException(
-                    "Variable " + variable + " is resolved as ENUM but payload class is not Enum.");
-        }
-
-        int maxOrdinal = enumConstants.length;
-        Label[] tempLabels = new Label[maxOrdinal];
-        for (int i = 0; i < maxOrdinal; i++) {
-            tempLabels[i] = defaultLabel; // 默认将所有可能的成员指向 fallback (default)
-        }
-
-        // 把 YAML case 定义好的内容塞进具体的 Label
-        Label[] caseLabels = new Label[cases.size()];
-        String[] caseNames = cases.keySet().toArray(new String[0]);
-
-        for (int i = 0; i < caseNames.length; i++) {
-            String name = caseNames[i];
-            Label targetLabel = new Label();
-            caseLabels[i] = targetLabel;
-
-            // 找出名字在真实枚举类里的对应 ordinal
-            for (Object obj : enumConstants) {
-                Enum<?> e = (Enum<?>) obj;
-                if (e.name().equals(name)) {
-                    tempLabels[e.ordinal()] = targetLabel;
-                    break;
-                }
-            }
-        }
-
-        // 4. 生成 TABLESWITCH
-        // min=0, max=enumLength - 1
-        mv.visitTableSwitchInsn(0, maxOrdinal - 1, defaultLabel, tempLabels);
-
-        // 5. 生成 case 内的方法体
-        for (int i = 0; i < caseNames.length; i++) {
-            mv.visitLabel(caseLabels[i]);
-            ImmutableList<FlowNode> actions = cases.get(caseNames[i]);
-            for (FlowNode action : actions) {
-                action.type().handler().emit(action, mv, ctx);
-            }
-            mv.visitJumpInsn(Opcodes.GOTO, endLabel);
-        }
-
-        mv.visitLabel(defaultLabel);
-        mv.visitLabel(endLabel);
     }
 
     private void emitLookupSwitch(MethodVisitor mv, int slot,
