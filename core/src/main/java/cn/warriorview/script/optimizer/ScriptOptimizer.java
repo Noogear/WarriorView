@@ -2,7 +2,7 @@ package cn.warriorview.script.optimizer;
 
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.CompilationContext.ConstantDef;
-import cn.warriorview.script.core.CompilationContext.ConstantKind;
+import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
 import cn.warriorview.script.core.ScriptIR.FlowNodeType;
 import cn.warriorview.script.core.ScriptIR.NodeCapability;
@@ -13,7 +13,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multiset;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -32,12 +31,13 @@ public final class ScriptOptimizer {
 
     public ScriptUnit optimize(ScriptUnit unit, CompilationContext ctx) {
         unit = constantFolding(unit, ctx);
-        unit = deadCodeElimination(unit, ctx);
-        unit = variableInlining(unit, ctx); // ★ 新增：内联剔除独立声明的 Action 且单次使用的 store
-        unit = nullCheckElimination(unit, ctx);
         unit = valueRangePropagation(unit, ctx);
+        unit = deadCodeElimination(unit, ctx);
+
         unit = branchReordering(unit, ctx);
+        unit = variableInlining(unit, ctx); // ★ 内联剔除独立声明的 Action 且单次使用的 store
         unit = variableCaching(unit, ctx);
+
         // 分析 Pass（结果存入 ctx，供 BytecodeCompiler 使用）
         constantHoisting(unit, ctx);
         liveVarAnalysis(unit, ctx);
@@ -51,25 +51,25 @@ public final class ScriptOptimizer {
      * <p>
      * 只读保证下，一个 check 通过后其约束在整个 accept() 内有效。
      */
-    record ValueRange(double min, double max, Object exactValue, boolean nonNull) {
+    public record ValueRange(double min, double max, Object exactValue, boolean nonNull) {
 
-        static final ValueRange UNCONSTRAINED = new ValueRange(
+        public static final ValueRange UNCONSTRAINED = new ValueRange(
                 Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null, false);
 
-        ValueRange withMin(double newMin) {
+        public ValueRange withMin(double newMin) {
             return new ValueRange(Math.max(min, newMin), max, exactValue, nonNull);
         }
 
-        ValueRange withMax(double newMax) {
+        public ValueRange withMax(double newMax) {
             return new ValueRange(min, Math.min(max, newMax), exactValue, nonNull);
         }
 
-        ValueRange withExact(Object val) {
+        public ValueRange withExact(Object val) {
             double d = val instanceof Number n ? n.doubleValue() : 0;
             return new ValueRange(d, d, val, true);
         }
 
-        ValueRange withNonNull() {
+        public ValueRange withNonNull() {
             return new ValueRange(min, max, exactValue, true);
         }
 
@@ -78,7 +78,7 @@ public final class ScriptOptimizer {
          *
          * @return Boolean.TRUE=恒真, Boolean.FALSE=恒假, null=不确定
          */
-        Boolean canFold(String op, double cmpValue) {
+        public Boolean canFold(String op, double cmpValue) {
             return switch (op) {
                 case ">" -> min > cmpValue ? Boolean.TRUE : max <= cmpValue ? Boolean.FALSE : null;
                 case ">=" -> min >= cmpValue ? Boolean.TRUE : max < cmpValue ? Boolean.FALSE : null;
@@ -98,7 +98,7 @@ public final class ScriptOptimizer {
         }
 
         /** 用 String exactValue 判断互斥（枚举/字符串 ==） */
-        Boolean canFoldExact(String op, Object cmpValue) {
+        public Boolean canFoldExact(String op, Object cmpValue) {
             if ("==".equals(op) && exactValue != null) {
                 return exactValue.equals(cmpValue) ? Boolean.TRUE : Boolean.FALSE;
             }
@@ -111,8 +111,8 @@ public final class ScriptOptimizer {
     private ScriptUnit constantFolding(ScriptUnit unit, CompilationContext ctx) {
         ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
         for (FlowNode node : unit.flow()) {
-            if (node.type() == FlowNodeType.CHECK && ctx.isConstant(node.getAttrOrDefault("variable", null))) {
-                Boolean result = evaluateCheck(node, ctx);
+            if (node.type().handler() instanceof ScriptIR.ConstantFolder folder) {
+                Boolean result = folder.evaluateFold(node, ctx);
                 if (result == null) {
                     optimized.add(node);
                 } else if (result) {
@@ -129,52 +129,6 @@ public final class ScriptOptimizer {
         return unit.withFlow(optimized.build());
     }
 
-    private Boolean evaluateCheck(FlowNode node, CompilationContext ctx) {
-        String rawOp = node.getAttrOrDefault("op", null);
-        boolean negate = rawOp.startsWith("!");
-        String op = negate ? rawOp.substring(1) : rawOp;
-
-        Object varValue = ctx.getConstant(node.getAttrOrDefault("variable", null));
-
-        Boolean result = evaluateBaseOp(op, varValue, node);
-        if (result != null && negate)
-            result = !result;
-        return result;
-    }
-
-    private Boolean evaluateBaseOp(String op, Object varValue, FlowNode node) {
-        if ("null".equals(op))
-            return varValue == null;
-        if (varValue == null)
-            return null;
-
-        Object cmpValue = node.getAttrOrDefault("value", null);
-        if (cmpValue == null && "==".equals(op) && varValue instanceof Boolean b) {
-            return b;
-        }
-        if (cmpValue == null)
-            return null;
-
-        if (varValue instanceof Number v && cmpValue instanceof Number c) {
-            double vd = v.doubleValue(), cd = c.doubleValue();
-            return switch (op) {
-                case ">" -> vd > cd;
-                case ">=" -> vd >= cd;
-                case "<" -> vd < cd;
-                case "<=" -> vd <= cd;
-                case "==" -> vd == cd;
-                default -> null;
-            };
-        }
-
-        if ("==".equals(op))
-            return varValue.equals(cmpValue);
-        if ("contains".equals(op) && varValue instanceof String s && cmpValue instanceof String sub) {
-            return s.contains(sub);
-        }
-        return null;
-    }
-
     // ======================== 2. 死代码消除 ========================
 
     private ScriptUnit deadCodeElimination(ScriptUnit unit, CompilationContext ctx) {
@@ -186,29 +140,6 @@ public final class ScriptOptimizer {
             if (node.type().handler().capabilities().contains(NodeCapability.TERMINATES_FLOW)) {
                 break;
             }
-        }
-        return unit.withFlow(optimized.build());
-    }
-
-    // ======================== 4. 空检查消除 ========================
-
-    private ScriptUnit nullCheckElimination(ScriptUnit unit, CompilationContext ctx) {
-        Set<String> provenNonNull = new HashSet<>();
-        ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
-
-        for (FlowNode node : unit.flow()) {
-            if (node.type() == FlowNodeType.CHECK) {
-                String variable = node.getAttrOrDefault("variable", null);
-                String rawOp = node.getAttrOrDefault("op", null);
-
-                if ("!null".equals(rawOp)) {
-                    if (provenNonNull.contains(variable)) {
-                        continue;
-                    }
-                    provenNonNull.add(variable);
-                }
-            }
-            optimized.add(node);
         }
         return unit.withFlow(optimized.build());
     }
@@ -228,75 +159,31 @@ public final class ScriptOptimizer {
         ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
 
         for (FlowNode node : unit.flow()) {
-            if (node.type() == FlowNodeType.CHECK) {
-                String var = node.getAttrOrDefault("variable", null);
-                String rawOp = node.getAttrOrDefault("op", null);
+            if (node.type().handler() instanceof ScriptIR.RangePropagator propagator) {
+                String var = propagator.getConstrainedVariable(node);
+                if (var != null) {
+                    ValueRange range = ranges.getOrDefault(var, ValueRange.UNCONSTRAINED);
 
-                boolean negate = rawOp.startsWith("!");
-                String op = negate ? rawOp.substring(1) : rawOp;
-
-                ValueRange range = ranges.getOrDefault(var, ValueRange.UNCONSTRAINED);
-
-                // 尝试用现有约束折叠
-                Boolean foldResult = tryFoldWithRange(range, op, node);
-                if (foldResult != null) {
-                    if (negate)
-                        foldResult = !foldResult;
-                    if (foldResult) {
-                        // 恒真 → 跳过此 check
-                        optimized.add(node.withFlag(FlowNode.FLAG_FOLDED));
-                        continue;
-                    } else {
-                        // 恒假 → 截断
-                        optimized.add(new FlowNode(FlowNodeType.RETURN, ImmutableMap.of())
-                                .withFlag(FlowNode.FLAG_DEAD_AFTER | FlowNode.FLAG_OPTIMIZER_INJECTED));
-                        break;
+                    // 尝试用现有约束折叠
+                    Boolean foldResult = propagator.tryFoldWithRange(node, range);
+                    if (foldResult != null) {
+                        if (foldResult) {
+                            optimized.add(node.withFlag(FlowNode.FLAG_FOLDED));
+                            continue;
+                        } else {
+                            optimized.add(new FlowNode(FlowNodeType.RETURN, ImmutableMap.of())
+                                    .withFlag(FlowNode.FLAG_DEAD_AFTER | FlowNode.FLAG_OPTIMIZER_INJECTED));
+                            break;
+                        }
                     }
-                }
 
-                // 未折叠 → 更新约束（此 check 通过后的新约束）
-                ranges.put(var, updateRange(range, op, node));
+                    // 未折叠 → 更新约束
+                    ranges.put(var, propagator.updateRange(node, range));
+                }
             }
             optimized.add(node);
         }
         return unit.withFlow(optimized.build());
-    }
-
-    private Boolean tryFoldWithRange(ValueRange range, String op, FlowNode node) {
-        // 数值比较折叠
-        if (">".equals(op) || ">=".equals(op) || "<".equals(op)
-                || "<=".equals(op) || "==".equals(op)) {
-            Object value = node.getAttrOrDefault("value", null);
-            if (value instanceof Number n) {
-                return range.canFold(op, n.doubleValue());
-            }
-            return range.canFoldExact(op, value);
-        }
-        // null 折叠
-        if ("null".equals(op) && range.nonNull()) {
-            return Boolean.FALSE; // 已证非空 → null 检查恒假
-        }
-        return null;
-    }
-
-    private ValueRange updateRange(ValueRange range, String op, FlowNode node) {
-        Object value = node.getAttrOrDefault("value", null);
-        double d = value instanceof Number n ? n.doubleValue() : 0;
-
-        return switch (op) {
-            case ">" -> range.withMin(d + Double.MIN_VALUE);
-            case ">=" -> range.withMin(d);
-            case "<" -> range.withMax(d - Double.MIN_VALUE);
-            case "<=" -> range.withMax(d);
-            case "==" -> value != null ? range.withExact(value) : range;
-            case "null" -> range; // null check 不改变数值域
-            default -> {
-                if ("!null".equals(node.getAttrOrDefault("op", null))) {
-                    yield range.withNonNull();
-                }
-                yield range;
-            }
-        };
     }
 
     // ======================== 7. 分支权重重排 ========================
@@ -304,28 +191,8 @@ public final class ScriptOptimizer {
     private ScriptUnit branchReordering(ScriptUnit unit, CompilationContext ctx) {
         ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
         for (FlowNode node : unit.flow()) {
-            if (node.type() == FlowNodeType.SWITCH) {
-                String variable = node.getAttrOrDefault("variable", null);
-                ImmutableMap<String, ImmutableList<FlowNode>> cases = node.getAttrOrDefault("cases", null);
-                double[] weights = ctx.getBranchWeights(variable);
-
-                if (weights != null && weights.length == cases.size()) {
-                    List<String> keys = new ArrayList<>(cases.keySet());
-                    Map<String, Integer> indexMap = new HashMap<>(keys.size());
-                    for (int i = 0; i < keys.size(); i++) {
-                        indexMap.put(keys.get(i), i);
-                    }
-
-                    keys.sort(Comparator.comparingDouble(k -> -weights[indexMap.get(k)]));
-
-                    ImmutableMap.Builder<String, ImmutableList<FlowNode>> sorted = ImmutableMap.builder();
-                    for (String key : keys) {
-                        sorted.put(key, cases.get(key));
-                    }
-                    optimized.add(node.withAttr("cases", sorted.build()));
-                } else {
-                    optimized.add(node);
-                }
+            if (node.type().handler() instanceof ScriptIR.BranchReorderer reorderer) {
+                optimized.add(reorderer.reorderBranches(node, ctx));
             } else {
                 optimized.add(node);
             }
@@ -338,9 +205,11 @@ public final class ScriptOptimizer {
     private ScriptUnit variableCaching(ScriptUnit unit, CompilationContext ctx) {
         Multiset<String> usageCount = HashMultiset.create();
         for (FlowNode node : unit.flow()) {
-            String variable = node.getAttrOrDefault("variable", null);
-            if (variable != null) {
-                usageCount.add(variable);
+            if (node.type().handler() instanceof ScriptIR.VariableConsumer consumer) {
+                String variable = consumer.getConsumedVariable(node);
+                if (variable != null) {
+                    usageCount.add(variable);
+                }
             }
         }
 
@@ -356,12 +225,14 @@ public final class ScriptOptimizer {
 
         ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
         for (FlowNode node : unit.flow()) {
-            String variable = node.getAttrOrDefault("variable", null);
-            if (variable != null && cachedVars.contains(variable)) {
-                optimized.add(node.withFlag(FlowNode.FLAG_CACHED));
-            } else {
-                optimized.add(node);
+            if (node.type().handler() instanceof ScriptIR.VariableConsumer consumer) {
+                String variable = consumer.getConsumedVariable(node);
+                if (variable != null && cachedVars.contains(variable)) {
+                    optimized.add(node.withFlag(FlowNode.FLAG_CACHED));
+                    continue;
+                }
             }
+            optimized.add(node);
         }
         return unit.withFlow(optimized.build());
     }
@@ -377,51 +248,28 @@ public final class ScriptOptimizer {
     private ScriptUnit constantHoisting(ScriptUnit unit, CompilationContext ctx) {
         ArrayList<ConstantDef> defs = new ArrayList<>();
         ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
-        int counter = 0;
+        int[] counter = { 0 };
 
         for (FlowNode node : unit.flow()) {
-            if (node.type() != FlowNodeType.CHECK) {
-                optimized.add(node);
-                continue;
-            }
-            String rawOp = node.getAttrOrDefault("op", null);
-            String op = rawOp.startsWith("!") ? rawOp.substring(1) : rawOp;
-            String fieldName = null;
-
-            if ("matches".equals(op)) {
-                String pattern = node.getAttrOrDefault("value", null);
-                if (pattern != null) {
-                    fieldName = "PATTERN_" + counter++;
-                    defs.add(new ConstantDef(fieldName, ConstantKind.PATTERN, pattern));
-                }
-            } else if ("in".equals(op)) {
-                ImmutableList<?> list = node.getAttrOrDefault("valueList", null);
-                if (list == null)
-                    list = node.getAttrOrDefault("value", null);
-                if (list instanceof ImmutableList<?> vals && vals.size() > 3) {
-                    fieldName = "SET_" + counter++;
-                    defs.add(new ConstantDef(fieldName, ConstantKind.STRING_SET, vals));
-                }
-            } else if ("between".equals(op)) {
-                ImmutableList<?> range = node.getAttrOrDefault("valueList", null);
-                if (range == null)
-                    range = node.getAttrOrDefault("value", null);
-                if (range instanceof ImmutableList<?> vals && vals.size() == 2) {
-                    double[] arr = { ((Number) vals.get(0)).doubleValue(),
-                            ((Number) vals.get(1)).doubleValue() };
-                    fieldName = "RANGE_" + counter++;
-                    defs.add(new ConstantDef(fieldName, ConstantKind.DOUBLE_ARRAY, arr));
-                }
-            }
-
-            if (fieldName != null) {
-                optimized.add(node.withAttr("_hoistedField", fieldName));
-            } else {
-                optimized.add(node);
-            }
+            optimized.add(hoistNode(node, defs, counter));
         }
         ctx.setHoistedConstants(ImmutableList.copyOf(defs));
         return unit.withFlow(optimized.build());
+    }
+
+    private FlowNode hoistNode(FlowNode node, List<ConstantDef> defs, int[] counter) {
+        if (node.type().handler() instanceof ScriptIR.ConstantHoister hoister) {
+            node = hoister.hoistConstants(node, defs, counter);
+        }
+
+        if (node.type().handler() instanceof ScriptIR.NodeMutator mutator) {
+            node = mutator.mapChildren(node, child -> hoistNode(child, defs, counter));
+        } else if (node.type().handler() instanceof ScriptIR.NodeTraverser traverser) {
+            for (FlowNode child : traverser.traverseChildren(node)) {
+                hoistNode(child, defs, counter);
+            }
+        }
+        return node;
     }
 
     // ======================== 10. 活跃变量分析 ========================
@@ -437,11 +285,24 @@ public final class ScriptOptimizer {
     private void liveVarAnalysis(ScriptUnit unit, CompilationContext ctx) {
         Multiset<String> refs = HashMultiset.create();
         for (FlowNode node : unit.flow()) {
-            String var = node.getAttrOrDefault("variable", null);
-            if (var != null)
-                refs.add(var);
+            collectLiveVars(node, refs);
         }
         ctx.setLiveVars(refs.elementSet());
+    }
+
+    private void collectLiveVars(FlowNode node, Multiset<String> refs) {
+        if (node.type().handler() instanceof ScriptIR.VariableConsumer consumer) {
+            String var = consumer.getConsumedVariable(node);
+            if (var != null) {
+                refs.add(var);
+            }
+        }
+
+        if (node.type().handler() instanceof ScriptIR.NodeTraverser traverser) {
+            for (FlowNode child : traverser.traverseChildren(node)) {
+                collectLiveVars(child, refs);
+            }
+        }
     }
 
     // ======================== 11. 局部变量内联融合 ========================
@@ -463,9 +324,12 @@ public final class ScriptOptimizer {
         // 1. 全域使用次数分析 (含预声明的 vars 与中间态)
         Multiset<String> refs = HashMultiset.create();
         for (FlowNode node : oldFlow) {
-            String var = node.getAttrOrDefault("variable", null);
-            if (var != null)
-                refs.add(var);
+            if (node.type().handler() instanceof ScriptIR.VariableConsumer consumer) {
+                String var = consumer.getConsumedVariable(node);
+                if (var != null) {
+                    refs.add(var);
+                }
+            }
         }
 
         // 2. 环境快照下沉提取池 (Property Sinking Pool)
@@ -487,17 +351,16 @@ public final class ScriptOptimizer {
             FlowNode current = oldFlow.get(i);
 
             // ==== 【阶段 A】 侦测并吞食 Action Inlining ====
-            if (current.type() == FlowNodeType.ACTION) {
-                String storeTarget = current.getAttrOrDefault("store", null);
+            if (current.type().handler() instanceof ScriptIR.VariableProducer producer) {
+                String storeTarget = producer.getProducedVariable(current);
                 if (storeTarget != null && refs.count(storeTarget) == 1) {
                     if (i + 1 < oldFlow.size()) {
                         FlowNode next = oldFlow.get(i + 1);
-                        if (next.type() == FlowNodeType.CHECK) {
-                            String nextVar = next.getAttrOrDefault("variable", null);
+                        if (next.type().handler() instanceof ScriptIR.VariableConsumer consumer) {
+                            String nextVar = consumer.getConsumedVariable(next);
                             if (storeTarget.equals(nextVar)) {
                                 FlowNode peelAction = current.withoutAttr("store");
-                                FlowNode modifiedCheck = next.withoutAttr("variable")
-                                        .withAttr("conditionAction", peelAction);
+                                FlowNode modifiedCheck = consumer.inlineAction(next, peelAction);
                                 optimized.add(modifiedCheck);
                                 i++; // 跳过消费节点
                                 continue;
@@ -508,20 +371,17 @@ public final class ScriptOptimizer {
             }
 
             // ==== 【阶段 B】 处理当前节点的按需下沉消费 (Property Sinking) ====
-            if (current.type() == FlowNodeType.CHECK || current.type() == FlowNodeType.SWITCH) {
-                String reqVar = current.getAttrOrDefault("variable", null);
+            if (current.type().handler() instanceof ScriptIR.VariableConsumer consumer) {
+                String reqVar = consumer.getConsumedVariable(current);
                 if (reqVar != null && sinkingVars.containsKey(reqVar)) {
                     cn.warriorview.script.core.ScriptIR.VarDecl decl = sinkingVars.get(reqVar);
 
                     // 构建一个匿名 ActionNode 作为模拟获取器，它不会经过标准的 emit 执行分发
                     // 它只会被消费节点 (如 Check) 特判并通过附带的 Accessor 执行内联出栈
-                    FlowNode virtualHook = new FlowNode(FlowNodeType.ACTION,
-                            ImmutableMap.of(
-                                    "_sinking_property", decl.property(),
-                                    "returnType", decl.type()));
+                    ScriptIR.VariableProducer dummyProducer = (ScriptIR.VariableProducer) FlowNodeType.ACTION.handler();
+                    FlowNode virtualHook = dummyProducer.createVirtualProducer(decl);
 
-                    FlowNode modifiedTarget = current.withoutAttr("variable")
-                            .withAttr("conditionAction", virtualHook);
+                    FlowNode modifiedTarget = consumer.inlineAction(current, virtualHook);
 
                     optimized.add(modifiedTarget);
                     continue;

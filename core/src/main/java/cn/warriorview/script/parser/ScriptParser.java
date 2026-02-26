@@ -96,6 +96,10 @@ public final class ScriptParser {
                 if (variable != null)
                     rebuilt.put("variable", variable);
                 yaml = rebuilt;
+            } else if (yaml.containsKey("any")) {
+                type = FlowNodeType.ANY;
+            } else if (yaml.containsKey("all")) {
+                type = FlowNodeType.ALL;
             } else {
                 // 启用动态推断：寻找第一个非保留字段作为 Action 名字
                 String inferredAction = null;

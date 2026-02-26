@@ -164,12 +164,27 @@ public final class ScriptBuilder {
      */
     private FlowNode buildCheckNode(String variable, String op, Object value, Consumer<ScriptBuilder> onFail) {
         ImmutableMap.Builder<String, Object> attrs = ImmutableMap.builder();
+
+        FlowNode baseNode = buildCheckNodeInternal(variable, op, value);
+        attrs.putAll(baseNode.attrs());
+
+        if (onFail != null) {
+            ScriptBuilder failBuilder = new ScriptBuilder(payloadClazz);
+            failBuilder.actionRegistry = this.actionRegistry;
+            onFail.accept(failBuilder);
+            attrs.put("onFailNodes", failBuilder.flow.build());
+        }
+
+        return new FlowNode(FlowNodeType.CHECK, attrs.build(), baseNode.numericValue(), 0);
+    }
+
+    private static FlowNode buildCheckNodeInternal(String variable, String op, Object value) {
+        ImmutableMap.Builder<String, Object> attrs = ImmutableMap.builder();
         attrs.put("variable", variable);
         attrs.put("op", op);
 
         double numericValue = 0.0;
         if (value != null) {
-            // 与 CheckNodeHandler.parse 保持一致：字符串形式的数字需先标准化
             Object normalizedValue = value;
             if (value instanceof String s) {
                 Object parsed = ScriptParser.ValueParser.parseNumber(s);
@@ -183,6 +198,44 @@ public final class ScriptBuilder {
                 numericValue = n.doubleValue();
             }
         }
+        return new FlowNode(FlowNodeType.CHECK, attrs.build(), numericValue, 0);
+    }
+
+    // ======================== COMPOSITE CHECK 节点 ========================
+
+    /**
+     * 追加一个 ANY (OR) 复合判断节点。子条件任一成立即通过。
+     */
+    public ScriptBuilder checkAny(Consumer<ConditionBuilder> anyBuilder) {
+        flow.add(buildCompositeNode(FlowNodeType.ANY, anyBuilder, null));
+        return this;
+    }
+
+    public ScriptBuilder checkAny(Consumer<ConditionBuilder> anyBuilder, Consumer<ScriptBuilder> onFail) {
+        flow.add(buildCompositeNode(FlowNodeType.ANY, anyBuilder, onFail));
+        return this;
+    }
+
+    /**
+     * 追加一个 ALL (AND) 复合判断节点。子条件必须全部成立才通过。
+     */
+    public ScriptBuilder checkAll(Consumer<ConditionBuilder> allBuilder) {
+        flow.add(buildCompositeNode(FlowNodeType.ALL, allBuilder, null));
+        return this;
+    }
+
+    public ScriptBuilder checkAll(Consumer<ConditionBuilder> allBuilder, Consumer<ScriptBuilder> onFail) {
+        flow.add(buildCompositeNode(FlowNodeType.ALL, allBuilder, onFail));
+        return this;
+    }
+
+    private FlowNode buildCompositeNode(FlowNodeType type, Consumer<ConditionBuilder> builderOpt,
+            Consumer<ScriptBuilder> onFail) {
+        ConditionBuilder cb = new ConditionBuilder();
+        builderOpt.accept(cb);
+
+        ImmutableMap.Builder<String, Object> attrs = ImmutableMap.builder();
+        attrs.put("children", cb.children.build());
 
         if (onFail != null) {
             ScriptBuilder failBuilder = new ScriptBuilder(payloadClazz);
@@ -191,7 +244,41 @@ public final class ScriptBuilder {
             attrs.put("onFailNodes", failBuilder.flow.build());
         }
 
-        return new FlowNode(FlowNodeType.CHECK, attrs.build(), numericValue, 0);
+        return new FlowNode(type, attrs.build());
+    }
+
+    /**
+     * 用于构建复合条件子项的建造器。
+     */
+    public static final class ConditionBuilder {
+        private final ImmutableList.Builder<FlowNode> children = ImmutableList.builder();
+
+        private ConditionBuilder() {
+        }
+
+        public ConditionBuilder check(String variable, String op, Object value) {
+            children.add(buildCheckNodeInternal(variable, op, value));
+            return this;
+        }
+
+        public ConditionBuilder check(String variable, String op) {
+            children.add(buildCheckNodeInternal(variable, op, null));
+            return this;
+        }
+
+        public ConditionBuilder any(Consumer<ConditionBuilder> anyBuilder) {
+            ConditionBuilder cb = new ConditionBuilder();
+            anyBuilder.accept(cb);
+            children.add(new FlowNode(FlowNodeType.ANY, ImmutableMap.of("children", cb.children.build())));
+            return this;
+        }
+
+        public ConditionBuilder all(Consumer<ConditionBuilder> allBuilder) {
+            ConditionBuilder cb = new ConditionBuilder();
+            allBuilder.accept(cb);
+            children.add(new FlowNode(FlowNodeType.ALL, ImmutableMap.of("children", cb.children.build())));
+            return this;
+        }
     }
 
     // ======================== ACTION 节点 ========================

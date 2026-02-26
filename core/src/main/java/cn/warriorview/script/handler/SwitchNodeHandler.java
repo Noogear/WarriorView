@@ -12,6 +12,7 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +25,9 @@ import java.util.stream.IntStream;
  * 其他稀疏值使用 hashCode + {@code LOOKUPSWITCH} + equals 验证。
  */
 @SuppressWarnings("null")
-public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
+public final class SwitchNodeHandler
+        implements ScriptIR.FlowNodeHandler, ScriptIR.NodeTraverser, ScriptIR.VariableConsumer,
+        ScriptIR.BranchReorderer {
 
     static {
         FlowNodeType.registerHandler(FlowNodeType.SWITCH, SwitchNodeHandler::new);
@@ -317,4 +320,45 @@ public final class SwitchNodeHandler implements ScriptIR.FlowNodeHandler {
     public EnumSet<NodeCapability> capabilities() {
         return EnumSet.of(NodeCapability.HAS_BRANCHES);
     }
+
+    @Override
+    public Iterable<FlowNode> traverseChildren(FlowNode node) {
+        ArrayList<FlowNode> children = new ArrayList<>();
+        FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
+        if (conditionAction != null) {
+            children.add(conditionAction);
+        }
+        ImmutableMap<String, ImmutableList<FlowNode>> cases = node.getAttrOrDefault("cases", null);
+        if (cases != null) {
+            for (ImmutableList<FlowNode> actionNodes : cases.values()) {
+                children.addAll(actionNodes);
+            }
+        }
+        return children;
+    }
+
+    @Override
+    public FlowNode reorderBranches(FlowNode node, CompilationContext ctx) {
+        String variable = node.getAttrOrDefault("variable", null);
+        ImmutableMap<String, ImmutableList<FlowNode>> cases = node.getAttrOrDefault("cases", null);
+        double[] weights = ctx.getBranchWeights(variable);
+
+        if (weights != null && weights.length == cases.size()) {
+            List<String> keys = new ArrayList<>(cases.keySet());
+            java.util.Map<String, Integer> indexMap = new java.util.HashMap<>(keys.size());
+            for (int i = 0; i < keys.size(); i++) {
+                indexMap.put(keys.get(i), i);
+            }
+
+            keys.sort(java.util.Comparator.comparingDouble(k -> -weights[indexMap.get(k)]));
+
+            ImmutableMap.Builder<String, ImmutableList<FlowNode>> sorted = ImmutableMap.builder();
+            for (String key : keys) {
+                sorted.put(key, cases.get(key));
+            }
+            return node.withAttr("cases", sorted.build());
+        }
+        return node;
+    }
+
 }

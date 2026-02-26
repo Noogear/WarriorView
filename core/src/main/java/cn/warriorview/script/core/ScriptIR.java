@@ -3,10 +3,12 @@ package cn.warriorview.script.core;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.objectweb.asm.MethodVisitor;
+import cn.warriorview.script.optimizer.ScriptOptimizer;
 
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -205,7 +207,9 @@ public final class ScriptIR {
         CHECK,
         SWITCH,
         RETURN,
-        ACTION;
+        ACTION,
+        ANY,
+        ALL;
 
         private static final EnumMap<FlowNodeType, Supplier<FlowNodeHandler>> FACTORIES = new EnumMap<>(
                 FlowNodeType.class);
@@ -230,6 +234,8 @@ public final class ScriptIR {
                 case "switch" -> SWITCH;
                 case "return" -> RETURN;
                 case "action" -> ACTION;
+                case "any" -> ANY;
+                case "all" -> ALL;
                 default -> throw new IllegalArgumentException("Unknown flow node type: " + type);
             };
         }
@@ -248,6 +254,34 @@ public final class ScriptIR {
         EnumSet<NodeCapability> capabilities();
     }
 
+    /**
+     * 实现该接口的处理器表示其是一个条件判断原语，能够向外统一提供条件比较的底层逻辑方法。
+     * 允许复合节点（如 ANY/ALL）多态调用以判定任何条件，而不必强制下转为 CheckNodeHandler。
+     */
+    public interface ConditionEmitter {
+        /**
+         * 发射单个条件的比较字节码。
+         * 返回该条件成立时控制流应当执行的 Opcodes 跳转指令（例如 Opcodes.IFEQ）。
+         */
+        int emitCondition(FlowNode node, MethodVisitor mv, CompilationContext ctx);
+    }
+
+    /**
+     * 允许内部节点暴露自己所包含的所有逻辑上的子流程节点（如条件块产生的子集、any块的 children），
+     * 供 ScriptOptimizer 进行生命周期遍历而无需猜想具体变量。
+     */
+    public interface NodeTraverser {
+        Iterable<FlowNode> traverseChildren(FlowNode node);
+    }
+
+    /**
+     * 允许节点在编译前自身提取编译期常量，代替优化器寻找。
+     * 结果需追加至 defs，提取完成后可通过 `withAttr` 返回带标记的新节点以备字节码内消洗。
+     */
+    public interface ConstantHoister {
+        FlowNode hoistConstants(FlowNode node, List<CompilationContext.ConstantDef> defs, int[] counter);
+    }
+
     // ======================== 节点能力 ========================
 
     public enum NodeCapability {
@@ -256,5 +290,63 @@ public final class ScriptIR {
         TERMINATES_FLOW,
         SIDE_EFFECT,
         FOLDABLE
+    }
+
+    // ======================== 基于多态的脱离分析约束 ========================
+
+    /**
+     * 允许流节点自行判定在没有额外环境约束时能否得出绝对真伪（常量折叠）。
+     */
+    public interface ConstantFolder {
+        Boolean evaluateFold(FlowNode node, CompilationContext ctx);
+    }
+
+    /**
+     * 允许流节点报告其检查的变量名，并在已有约束下尝试被折叠，或对现有约束进行更新。
+     */
+    public interface RangePropagator {
+        default String getConstrainedVariable(FlowNode node) {
+            return node.getAttrOrDefault("variable", null);
+        }
+
+        Boolean tryFoldWithRange(FlowNode node, ScriptOptimizer.ValueRange range);
+
+        ScriptOptimizer.ValueRange updateRange(FlowNode node, ScriptOptimizer.ValueRange range);
+    }
+
+    /**
+     * 允许流节点在其结构中报告读取的特征变量，并提供吸收 Action 的虚拟闭包替换支持（用于按需下沉属性读取）。
+     */
+    public interface VariableConsumer {
+        default String getConsumedVariable(FlowNode node) {
+            return node.getAttrOrDefault("variable", null);
+        }
+
+        default FlowNode inlineAction(FlowNode node, FlowNode inlineHook) {
+            return node.withoutAttr("variable").withAttr("conditionAction", inlineHook);
+        }
+    }
+
+    /**
+     * 允许流节点根据上下文的权重表对内部分支进行重新排列重组，以提升短路命中率。
+     */
+    public interface BranchReorderer {
+        FlowNode reorderBranches(FlowNode node, cn.warriorview.script.core.CompilationContext ctx);
+    }
+
+    /**
+     * 允许对树形流节点的子级迭代执行映射回调并安全重建节点（主要用于静态常量提升阶段修剪树干）。
+     */
+    public interface NodeMutator extends NodeTraverser {
+        FlowNode mapChildren(FlowNode node, java.util.function.Function<FlowNode, FlowNode> mapper);
+    }
+
+    /**
+     * 允许流节点汇报自身是对某个变量值的产出者，并提供为按需消费环境的快照构建读取闭包的能力。
+     */
+    public interface VariableProducer {
+        String getProducedVariable(FlowNode node);
+
+        FlowNode createVirtualProducer(VarDecl decl);
     }
 }

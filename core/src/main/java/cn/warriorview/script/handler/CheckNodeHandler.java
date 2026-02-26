@@ -15,9 +15,11 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import cn.warriorview.script.optimizer.ScriptOptimizer;
 
 /**
  * CHECK 节点处理器（增强版）。
@@ -28,7 +30,9 @@ import java.util.Map;
  * 操作符：{@code null, ==, >, <, >=, <=, contains, starts_with, ends_with, matches, instanceof, in, between}
  */
 @SuppressWarnings("null")
-public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
+public final class CheckNodeHandler
+        implements ScriptIR.FlowNodeHandler, ScriptIR.ConditionEmitter, ScriptIR.NodeTraverser,
+        ScriptIR.ConstantHoister, ScriptIR.ConstantFolder, ScriptIR.RangePropagator, ScriptIR.VariableConsumer {
 
     static {
         FlowNodeType.registerHandler(FlowNodeType.CHECK, CheckNodeHandler::new);
@@ -95,6 +99,28 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
 
     @Override
     public void emit(FlowNode node, MethodVisitor mv, CompilationContext ctx) {
+        int jumpOp = emitCondition(node, mv, ctx);
+
+        Label continueLabel = new Label();
+        mv.visitJumpInsn(jumpOp, continueLabel);
+
+        // 分支失败处理：执行所有的 on_fail 动作
+        emitOnFail(node, mv, ctx);
+
+        mv.visitInsn(Opcodes.RETURN);
+        mv.visitLabel(continueLabel);
+    }
+
+    // ======================== 可复用条件原语 ========================
+
+    /**
+     * 发射单个条件的比较字节码，返回"条件成立时应跳转"的 opcode。
+     * <p>
+     * 实装 {@link ScriptIR.ConditionEmitter} 接口供复合节点复用。
+     * 已包含 negate（{@code !} 前缀）处理。
+     */
+    @Override
+    public int emitCondition(FlowNode node, MethodVisitor mv, CompilationContext ctx) {
         FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
         String op = null;
         boolean negate = false;
@@ -105,14 +131,13 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
             op = negate ? rawOp.substring(1) : rawOp;
         }
 
-        int jumpOp = -1;
+        int jumpOp;
 
         if (conditionAction != null) {
             String sinkingProp = conditionAction.getAttrOrDefault("_sinking_property", null);
             if (sinkingProp != null) {
-                // Property Sinking 闭包：执行临时装载提取
                 int tempSlot = ctx.nextSlot();
-                mv.visitVarInsn(Opcodes.ALOAD, 1); // Event 对象
+                mv.visitVarInsn(Opcodes.ALOAD, 1);
                 java.util.List<cn.warriorview.script.parser.accessor.PropertyAccessor> accessors = cn.warriorview.script.parser.ScriptParser.PropertyResolver
                         .resolveAccessors(
                                 com.google.common.reflect.TypeToken.of(ctx.payloadClass()), sinkingProp);
@@ -124,10 +149,8 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
                 int storeOp = cn.warriorview.script.codegen.ASMUtils.storeOpcode(exactType);
                 mv.visitVarInsn(storeOp, tempSlot);
 
-                // 将临时槽位输入到通用比较引擎中
                 jumpOp = emitSinkingCheck(mv, op, tempSlot, exactType, node);
             } else {
-                // Action 作为条件的情况，发射内联 Action，消费对应的栈顶返回值
                 conditionAction.type().handler().emit(conditionAction, mv, ctx);
                 jumpOp = Opcodes.IFNE;
             }
@@ -136,49 +159,54 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
             int slot = ctx.getSlot(variable);
             IRType type = ctx.getType(variable);
 
-            // AOT 语义验证区：执行特定算子的强制变量类型比配
-            if (">".equals(op) || ">=".equals(op) || "<".equals(op) || "<=".equals(op) || "between".equals(op)) {
-                if (type != IRType.INT && type != IRType.LONG && type != IRType.DOUBLE) {
-                    throw new cn.warriorview.script.core.ScriptCompileException(
-                            String.format(
-                                    "Operator '%s' requires a numeric type (INT/LONG/DOUBLE), but variable '%s' is of type %s.",
-                                    op, variable, type));
-                }
-            } else if ("starts_with".equals(op) || "ends_with".equals(op) || "matches".equals(op)) {
-                if (type != IRType.STRING) {
-                    throw new cn.warriorview.script.core.ScriptCompileException(
-                            String.format("Operator '%s' requires a STRING type, but variable '%s' is of type %s.",
-                                    op, variable, type));
-                }
-            } else if ("contains".equals(op)) {
-                if (type != IRType.STRING && type != IRType.COLLECTION) {
-                    throw new cn.warriorview.script.core.ScriptCompileException(
-                            String.format(
-                                    "Operator '%s' requires a STRING or COLLECTION type, but variable '%s' is of type %s.",
-                                    op, variable, type));
-                }
-            }
+            validateOpType(op, variable, type);
 
             jumpOp = emitSinkingCheck(mv, op, slot, type, node);
         }
 
-        // negate: 翻转跳转方向（零额外指令）
         if (negate)
             jumpOp = cn.warriorview.script.codegen.ASMUtils.invertJump(jumpOp);
 
-        Label continueLabel = new Label();
-        mv.visitJumpInsn(jumpOp, continueLabel);
+        return jumpOp;
+    }
 
-        // 分支失败处理：执行所有的 on_fail 动作
+    /**
+     * 发射 on_fail 动作列表。供 {@link CompositeCheckHandler} 复用。
+     */
+    void emitOnFail(FlowNode node, MethodVisitor mv, CompilationContext ctx) {
         ImmutableList<FlowNode> onFailNodes = node.getAttrOrDefault("onFailNodes", null);
         if (onFailNodes != null) {
             for (FlowNode failNode : onFailNodes) {
                 failNode.type().handler().emit(failNode, mv, ctx);
             }
         }
+    }
 
-        mv.visitInsn(Opcodes.RETURN);
-        mv.visitLabel(continueLabel);
+    /**
+     * AOT 语义验证：操作符与变量类型的兼容性检查。
+     */
+    private void validateOpType(String op, String variable, IRType type) {
+        if (">".equals(op) || ">=".equals(op) || "<".equals(op) || "<=".equals(op) || "between".equals(op)) {
+            if (type != IRType.INT && type != IRType.LONG && type != IRType.DOUBLE) {
+                throw new cn.warriorview.script.core.ScriptCompileException(
+                        String.format(
+                                "Operator '%s' requires a numeric type (INT/LONG/DOUBLE), but variable '%s' is of type %s.",
+                                op, variable, type));
+            }
+        } else if ("starts_with".equals(op) || "ends_with".equals(op) || "matches".equals(op)) {
+            if (type != IRType.STRING) {
+                throw new cn.warriorview.script.core.ScriptCompileException(
+                        String.format("Operator '%s' requires a STRING type, but variable '%s' is of type %s.",
+                                op, variable, type));
+            }
+        } else if ("contains".equals(op)) {
+            if (type != IRType.STRING && type != IRType.COLLECTION) {
+                throw new cn.warriorview.script.core.ScriptCompileException(
+                        String.format(
+                                "Operator '%s' requires a STRING or COLLECTION type, but variable '%s' is of type %s.",
+                                op, variable, type));
+            }
+        }
     }
 
     // ======================== null ========================
@@ -567,5 +595,165 @@ public final class CheckNodeHandler implements ScriptIR.FlowNodeHandler {
     @Override
     public EnumSet<NodeCapability> capabilities() {
         return EnumSet.of(NodeCapability.HAS_CONDITION, NodeCapability.FOLDABLE);
+    }
+
+    @Override
+    public Iterable<FlowNode> traverseChildren(FlowNode node) {
+        ArrayList<FlowNode> children = new ArrayList<>();
+        FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
+        if (conditionAction != null) {
+            children.add(conditionAction);
+        }
+        ImmutableList<FlowNode> onFailNodes = node.getAttrOrDefault("onFailNodes", null);
+        if (onFailNodes != null) {
+            children.addAll(onFailNodes);
+        }
+        return children;
+    }
+
+    @Override
+    public FlowNode hoistConstants(FlowNode node, List<CompilationContext.ConstantDef> defs, int[] counter) {
+        String rawOp = node.getAttrOrDefault("op", null);
+        if (rawOp == null)
+            return node;
+        String op = rawOp.startsWith("!") ? rawOp.substring(1) : rawOp;
+        String fieldName = null;
+
+        if ("matches".equals(op)) {
+            String pattern = node.getAttrOrDefault("value", null);
+            if (pattern != null) {
+                fieldName = "PATTERN_" + counter[0]++;
+                defs.add(new CompilationContext.ConstantDef(fieldName, CompilationContext.ConstantKind.PATTERN,
+                        pattern));
+            }
+        } else if ("in".equals(op)) {
+            ImmutableList<?> list = node.getAttrOrDefault("valueList", null);
+            if (list == null)
+                list = node.getAttrOrDefault("value", null);
+            if (list instanceof ImmutableList<?> vals && vals.size() > 3) {
+                fieldName = "SET_" + counter[0]++;
+                defs.add(new CompilationContext.ConstantDef(fieldName, CompilationContext.ConstantKind.STRING_SET,
+                        vals));
+            }
+        } else if ("between".equals(op)) {
+            ImmutableList<?> range = node.getAttrOrDefault("valueList", null);
+            if (range == null)
+                range = node.getAttrOrDefault("value", null);
+            if (range instanceof ImmutableList<?> vals && vals.size() == 2) {
+                double[] arr = {
+                        ((Number) vals.get(0)).doubleValue(),
+                        ((Number) vals.get(1)).doubleValue()
+                };
+                fieldName = "RANGE_" + counter[0]++;
+                defs.add(new CompilationContext.ConstantDef(fieldName, CompilationContext.ConstantKind.DOUBLE_ARRAY,
+                        arr));
+            }
+        }
+        return fieldName != null ? node.withAttr("_hoistedField", fieldName) : node;
+    }
+
+    // ======================== 实现脱离优化接口 ========================
+
+    @Override
+    public Boolean evaluateFold(ScriptIR.FlowNode node, cn.warriorview.script.core.CompilationContext ctx) {
+        String varName = node.getAttrOrDefault("variable", null);
+        if (varName == null || !ctx.isConstant(varName))
+            return null;
+
+        OpInfo info = parseOp(node);
+
+        Object varValue = ctx.getConstant(varName);
+        Boolean result = evaluateBaseOp(info.op(), varValue, node);
+        if (result != null && info.negate())
+            result = !result;
+        return result;
+    }
+
+    private Boolean evaluateBaseOp(String op, Object varValue, ScriptIR.FlowNode node) {
+        if ("null".equals(op))
+            return varValue == null;
+        if (varValue == null)
+            return null;
+
+        Object cmpValue = node.getAttrOrDefault("value", null);
+        if (cmpValue == null && "==".equals(op) && varValue instanceof Boolean b) {
+            return b;
+        }
+        if (cmpValue == null)
+            return null;
+
+        if (varValue instanceof Number v && cmpValue instanceof Number c) {
+            double vd = v.doubleValue(), cd = c.doubleValue();
+            return switch (op) {
+                case ">" -> vd > cd;
+                case ">=" -> vd >= cd;
+                case "<" -> vd < cd;
+                case "<=" -> vd <= cd;
+                case "==" -> vd == cd;
+                default -> null;
+            };
+        }
+
+        if ("==".equals(op))
+            return varValue.equals(cmpValue);
+        if ("contains".equals(op) && varValue instanceof String s && cmpValue instanceof String sub)
+            return s.contains(sub);
+        return null;
+    }
+
+    @Override
+    public Boolean tryFoldWithRange(ScriptIR.FlowNode node, ScriptOptimizer.ValueRange range) {
+        OpInfo info = parseOp(node);
+
+        Boolean foldResult = tryFoldWithRangeOp(range, info.op(), node);
+        if (foldResult != null && info.negate()) {
+            return !foldResult;
+        }
+        return foldResult;
+    }
+
+    private Boolean tryFoldWithRangeOp(ScriptOptimizer.ValueRange range, String op,
+            ScriptIR.FlowNode node) {
+        if (">".equals(op) || ">=".equals(op) || "<".equals(op) || "<=".equals(op) || "==".equals(op)) {
+            Object value = node.getAttrOrDefault("value", null);
+            if (value instanceof Number n) {
+                return range.canFold(op, n.doubleValue());
+            }
+            return range.canFoldExact(op, value);
+        }
+        if (range.nonNull()) {
+            if ("null".equals(op))
+                return Boolean.FALSE;
+            if ("!null".equals(op))
+                return Boolean.TRUE;
+        }
+        return null;
+    }
+
+    @Override
+    public ScriptOptimizer.ValueRange updateRange(ScriptIR.FlowNode node, ScriptOptimizer.ValueRange range) {
+        OpInfo info = parseOp(node);
+
+        Object value = node.getAttrOrDefault("value", null);
+        double d = value instanceof Number n ? n.doubleValue() : 0;
+
+        return switch (info.op()) {
+            case ">" -> range.withMin(d + Double.MIN_VALUE);
+            case ">=" -> range.withMin(d);
+            case "<" -> range.withMax(d - Double.MIN_VALUE);
+            case "<=" -> range.withMax(d);
+            case "==" -> value != null ? range.withExact(value) : range;
+            case "null" -> info.negate() ? range.withNonNull() : range;
+            default -> range;
+        };
+    }
+
+    private record OpInfo(String op, boolean negate) {
+    }
+
+    private OpInfo parseOp(ScriptIR.FlowNode node) {
+        String rawOp = node.getAttrOrDefault("op", null);
+        boolean negate = rawOp.startsWith("!");
+        return new OpInfo(negate ? rawOp.substring(1) : rawOp, negate);
     }
 }

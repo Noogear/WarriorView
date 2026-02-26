@@ -28,7 +28,7 @@ import java.util.Map;
  * 字符串模板使用 {@code invokedynamic StringConcatFactory}。
  */
 @SuppressWarnings("null")
-public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler {
+public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, ScriptIR.VariableProducer {
 
     private static final ActionRegistry REGISTRY = new ActionRegistry();
 
@@ -194,5 +194,18 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler {
     @Override
     public EnumSet<NodeCapability> capabilities() {
         return EnumSet.of(NodeCapability.SIDE_EFFECT);
+    }
+
+    @Override
+    public String getProducedVariable(FlowNode node) {
+        return node.getAttrOrDefault("store", null);
+    }
+
+    @Override
+    public FlowNode createVirtualProducer(ScriptIR.VarDecl decl) {
+        return new FlowNode(FlowNodeType.ACTION,
+                ImmutableMap.of(
+                        "_sinking_property", decl.property(),
+                        "returnType", decl.type()));
     }
 }
