@@ -57,6 +57,22 @@ public final class CheckNodeHandler
         String op = (String) yaml.get("op");
         Object value = yaml.get("value");
 
+        // AOT: 无 conditionAction 时 op 必填
+        if (conditionAction == null && op == null) {
+            throw new cn.warriorview.script.core.ScriptCompileException(
+                    "CHECK node requires an 'op' field when not using inline conditionAction.");
+        }
+
+        // AOT: instanceof 类名编译期验证
+        if ("instanceof".equals(op) && value instanceof String className) {
+            try {
+                Class.forName(className.replace('/', '.'));
+            } catch (ClassNotFoundException e) {
+                throw new cn.warriorview.script.core.ScriptCompileException(
+                        "instanceof check references unknown class: " + className);
+            }
+        }
+
         ImmutableMap.Builder<String, Object> attrs = ImmutableMap.builder();
         if (variable != null) {
             attrs.put("variable", variable);
@@ -206,6 +222,18 @@ public final class CheckNodeHandler
                                 "Operator '%s' requires a STRING or COLLECTION type, but variable '%s' is of type %s.",
                                 op, variable, type));
             }
+        } else if ("in".equals(op)) {
+            if (type == IRType.DOUBLE || type == IRType.LONG || type == IRType.BOOLEAN) {
+                throw new cn.warriorview.script.core.ScriptCompileException(
+                        String.format(
+                                "Operator 'in' is not supported for type %s on variable '%s'. Use numeric comparison instead.",
+                                type, variable));
+            }
+        } else if ("==".equals(op) && type == IRType.COLLECTION) {
+            java.util.logging.Logger.getLogger("WarriorView-Script").warning(
+                    String.format(
+                            "Operator '==' on COLLECTION variable '%s' compares by reference. Did you mean 'contains'?",
+                            variable));
         }
     }
 
@@ -393,7 +421,12 @@ public final class CheckNodeHandler
         } else {
             // 退化路径：动态创建 Set.of()
             int count = values.size();
-            for (Object val : values) {
+            ASMUtils.emitIntConst(mv, count);
+            mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
+            for (int i = 0; i < count; i++) {
+                mv.visitInsn(Opcodes.DUP);
+                ASMUtils.emitIntConst(mv, i);
+                Object val = values.get(i);
                 if (val instanceof String s) {
                     mv.visitLdcInsn(s);
                 } else if (val instanceof Number n) {
@@ -401,9 +434,8 @@ public final class CheckNodeHandler
                     mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Integer", "valueOf",
                             "(I)Ljava/lang/Integer;", false);
                 }
+                mv.visitInsn(Opcodes.AASTORE);
             }
-            mv.visitIntInsn(Opcodes.BIPUSH, count);
-            mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
             mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/util/Set", "of",
                     "([Ljava/lang/Object;)Ljava/util/Set;", true);
         }

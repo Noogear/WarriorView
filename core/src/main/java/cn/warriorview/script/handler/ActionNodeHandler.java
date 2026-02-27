@@ -29,7 +29,7 @@ import java.util.Map;
  */
 @SuppressWarnings("null")
 public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, ScriptIR.VariableProducer,
-        ScriptIR.VariableConsumer, ScriptIR.NodeTraverser {
+        ScriptIR.VariableConsumer, ScriptIR.NodeTraverser, ScriptIR.TypeValidator {
 
     private static final ActionRegistry REGISTRY = new ActionRegistry();
 
@@ -93,6 +93,16 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
                     throw new cn.warriorview.script.core.ScriptCompileException(
                             String.format("Action '%s' expects a boolean (true/false) at argument %d, but got '%s'.",
                                     action, methodParamIndex, argStr));
+                }
+            } else if (reqIRType == IRType.ENUM) {
+                try {
+                    @SuppressWarnings({ "unchecked", "rawtypes", "unused" })
+                    Object ignored = Enum.valueOf((Class<Enum>) reqType, argStr);
+                } catch (IllegalArgumentException e) {
+                    throw new cn.warriorview.script.core.ScriptCompileException(
+                            String.format(
+                                    "Action '%s' expects an enum value of %s at argument %d, but got invalid constant '%s'.",
+                                    action, reqType.getSimpleName(), methodParamIndex, argStr));
                 }
             }
         }
@@ -200,12 +210,22 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
                         // 方法要求原始类型
                         if (varType.isPrimitive()) {
                             // 变量本身是原始类型 → 直接 XLOAD
-                            int loadOp = switch (varType) {
-                                case INT, BOOLEAN -> Opcodes.ILOAD;
-                                case LONG -> Opcodes.LLOAD;
-                                case DOUBLE -> Opcodes.DLOAD;
-                                default -> Opcodes.ALOAD;
-                            };
+                            int loadOp;
+                            switch (varType.base()) {
+                                case INT:
+                                case BOOLEAN:
+                                    loadOp = Opcodes.ILOAD;
+                                    break;
+                                case LONG:
+                                    loadOp = Opcodes.LLOAD;
+                                    break;
+                                case DOUBLE:
+                                    loadOp = Opcodes.DLOAD;
+                                    break;
+                                default:
+                                    loadOp = Opcodes.ALOAD;
+                                    break;
+                            }
                             mv.visitVarInsn(loadOp, slot);
                         } else {
                             // 变量是引用类型但方法要原始类型 → ALOAD + 拆箱
@@ -263,11 +283,8 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
     }
 
     @Override
-    public FlowNode createVirtualProducer(ScriptIR.VarDecl decl) {
-        return new FlowNode(FlowNodeType.ACTION,
-                ImmutableMap.of(
-                        "_sinking_property", decl.property(),
-                        "returnType", decl.type()));
+    public FlowNode stripProducedVariable(FlowNode node) {
+        return node.withoutAttr("store");
     }
 
     @Override
@@ -309,5 +326,86 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
             return List.of(conditionAction);
         }
         return List.of();
+    }
+
+    @Override
+    public List<String> getAllConsumedVariables(FlowNode node) {
+        ImmutableList<String> args = node.getAttrOrDefault("args", ImmutableList.of());
+        List<String> vars = new java.util.ArrayList<>();
+        for (String arg : args) {
+            if (ScriptIR.isSingleVar(arg)) {
+                vars.add(arg.substring(1, arg.length() - 1));
+            } else if (ScriptIR.isTemplate(arg)) {
+                for (String part : ScriptIR.parseTemplate(arg)) {
+                    if (arg.contains("{" + part + "}")) {
+                        vars.add(part);
+                    }
+                }
+            }
+        }
+        return vars;
+    }
+
+    @Override
+    public void validateTypes(FlowNode node, CompilationContext ctx) {
+        ActionRegistry.ActionDef def = node.getRequiredAttr("def");
+        String actionName = node.getRequiredAttr("action");
+        ImmutableList<String> args = node.getAttrOrDefault("args", ImmutableList.of());
+        com.google.common.reflect.TypeToken<?>[] genericPTypes = def.genericParamTypes();
+
+        for (int i = 0; i < args.size(); i++) {
+            int paramIndex = i + 1; // 0 是隐式 Payload/Event
+            com.google.common.reflect.TypeToken<?> expectedToken = genericPTypes[paramIndex];
+            IRType expectedIR = IRType.fromToken(expectedToken);
+            String argStr = args.get(i);
+
+            if (ScriptIR.isSingleVar(argStr)) {
+                validateVarArgType(actionName, paramIndex, argStr, expectedIR, ctx);
+            } else if (ScriptIR.isTemplate(argStr)) {
+                validateTemplateArgType(actionName, paramIndex, argStr, expectedIR);
+            } else {
+                validateLiteralArgType(actionName, paramIndex, argStr, expectedToken.getRawType());
+            }
+        }
+    }
+
+    private static void validateVarArgType(String action, int paramIndex, String argStr,
+            IRType expected, CompilationContext ctx) {
+        String varName = argStr.substring(1, argStr.length() - 1);
+        if ("payload".equals(varName))
+            return;
+
+        IRType actual = ctx.getType(varName);
+        if (expected.isAssignableFrom(actual))
+            return;
+
+        throw new cn.warriorview.script.core.ScriptCompileException(String.format(
+                "Action '%s' expects %s at argument %d, but variable '{%s}' is of type %s.",
+                action, expected, paramIndex, varName, actual));
+    }
+
+    private static void validateTemplateArgType(String action, int paramIndex, String argStr,
+            IRType expected) {
+        if (expected == IRType.STRING || expected == IRType.OBJECT)
+            return;
+
+        throw new cn.warriorview.script.core.ScriptCompileException(String.format(
+                "Action '%s' expects %s at argument %d, but a string template '%s' was provided.",
+                action, expected, paramIndex, argStr));
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static void validateLiteralArgType(String action, int paramIndex, String argStr,
+            Class<?> expectedJavaType) {
+        if (!expectedJavaType.isEnum())
+            return;
+
+        try {
+            Enum.valueOf((Class<Enum>) expectedJavaType, argStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new cn.warriorview.script.core.ScriptCompileException(String.format(
+                    "Invalid enum value '%s' for action '%s' at argument %d. Expected enum type %s",
+                    argStr, action, paramIndex, expectedJavaType.getSimpleName()));
+        }
     }
 }

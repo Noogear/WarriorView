@@ -53,14 +53,16 @@ public final class ActionRegistry {
             int invokeType,
             int paramCount,
             Class<?>[] paramTypes,
+            com.google.common.reflect.TypeToken<?>[] genericParamTypes,
             Class<?> returnType,
             boolean isBuiltin) {
         /**
          * 简易构造（非 builtin）。
          */
         public ActionDef(String owner, String method, String descriptor, int invokeType, int paramCount,
-                Class<?>[] paramTypes, Class<?> returnType) {
-            this(owner, method, descriptor, invokeType, paramCount, paramTypes, returnType, false);
+                Class<?>[] paramTypes, com.google.common.reflect.TypeToken<?>[] genericParamTypes,
+                Class<?> returnType) {
+            this(owner, method, descriptor, invokeType, paramCount, paramTypes, genericParamTypes, returnType, false);
         }
     }
 
@@ -96,11 +98,16 @@ public final class ActionRegistry {
                 String descriptor = Type.getMethodDescriptor(method);
                 int paramCount = method.getParameterCount();
                 Class<?>[] paramTypes = method.getParameterTypes();
+                java.lang.reflect.Type[] genericTypes = method.getGenericParameterTypes();
+                com.google.common.reflect.TypeToken<?>[] genericParamTypes = new com.google.common.reflect.TypeToken<?>[paramCount];
+                for (int i = 0; i < paramCount; i++) {
+                    genericParamTypes[i] = com.google.common.reflect.TypeToken.of(genericTypes[i]);
+                }
                 Class<?> returnType = method.getReturnType();
 
                 register(actionName, new ActionDef(
                         owner, method.getName(), descriptor,
-                        Opcodes.INVOKESTATIC, paramCount, paramTypes, returnType, true));
+                        Opcodes.INVOKESTATIC, paramCount, paramTypes, genericParamTypes, returnType, true));
             }
         }
     }

@@ -459,7 +459,7 @@ public final class ScriptBuilder {
      * @return 运行速度等同于原生硬编码 Java 代码的回调函数
      */
     public Consumer<Object> compile() {
-        return buildCompiledScript().newHandler();
+        return buildCompiledScript(Object.class).newHandler();
     }
 
     /**
@@ -469,12 +469,26 @@ public final class ScriptBuilder {
      *         指定变量的装箱值
      */
     public Function<Object, Object> compileAsFunction() {
-        return buildCompiledScript().newFunction();
+        return buildCompiledScript(Object.class).newFunction();
     }
 
-    private CompiledScript buildCompiledScript() {
+    /**
+     * 编译为强类型计算函数。
+     * 包含在运行期间零损耗的绝对类型校验机制（在脚本编译阶段实施类型阻断）。
+     *
+     * @param expectedReturnType 期待输出的返回类型
+     * @param <T>                Payload 参数的具体类型（在构建器实例化时确定）
+     * @param <R>                返回结果的具体类型
+     * @return 强类型 Function，直接跳过 instanceOf 开销
+     */
+    @SuppressWarnings("unchecked")
+    public <T, R> Function<T, R> compileTypedFunction(Class<R> expectedReturnType) {
+        return (Function<T, R>) buildCompiledScript(expectedReturnType).newFunction();
+    }
+
+    private CompiledScript buildCompiledScript(Class<?> expectedReturnType) {
         ScriptUnit unit = new ScriptUnit(payloadClazz.getName(), 0, vars.build(), flow.build());
-        return new CompilationPipeline().compile(unit);
+        return new CompilationPipeline().compile(unit, expectedReturnType);
     }
 
     // ======================== 内部辅助 ========================

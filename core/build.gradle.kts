@@ -32,6 +32,11 @@ tasks {
         }
     }
 
+    register<JavaExec>("runCustomTests") {
+        mainClass.set("cn.warriorview.script.core.CompilationTypeValidationTest")
+        classpath = sourceSets["test"].runtimeClasspath
+    }
+
     // run-paper 开发服务器配置
     runServer {
         minecraftVersion("1.21.1")

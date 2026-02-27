@@ -150,6 +150,20 @@ public final class ScriptIR {
             }
             return new FlowNode(type, builder.build(), numericValue, flags);
         }
+
+        /** 创建优化器注入的提前终止节点，用于恒假分支截断。 */
+        public static FlowNode earlyReturn() {
+            return new FlowNode(FlowNodeType.RETURN, ImmutableMap.of())
+                    .withFlag(FLAG_DEAD_AFTER | FLAG_OPTIMIZER_INJECTED);
+        }
+
+        /** 为属性下沉构建匿名虚拟生产者节点。 */
+        public static FlowNode virtualProducer(VarDecl decl) {
+            return new FlowNode(FlowNodeType.ACTION,
+                    ImmutableMap.of(
+                            "_sinking_property", decl.property(),
+                            "returnType", decl.type()));
+        }
     }
 
     // ======================== 变量占位符语法 ========================
@@ -196,10 +210,42 @@ public final class ScriptIR {
     // ======================== 类型枚举 ========================
 
     /**
-     * IR 值类型。
+     * 基础枚举核心，用于支持 switch 查表等干净的原始匹配逻辑。
      */
-    public enum IRType {
-        INT, LONG, DOUBLE, STRING, ENUM, OBJECT, BOOLEAN, COLLECTION;
+    public enum BaseType {
+        INT, LONG, DOUBLE, STRING, ENUM, OBJECT, BOOLEAN, COLLECTION
+    }
+
+    /**
+     * IR 值类型，携带泛型基因。
+     */
+    public static final class IRType {
+        private final BaseType baseType;
+        private final com.google.common.reflect.TypeToken<?> typeToken;
+
+        private IRType(BaseType baseType, com.google.common.reflect.TypeToken<?> typeToken) {
+            this.baseType = baseType;
+            this.typeToken = typeToken;
+        }
+
+        public BaseType base() {
+            return baseType;
+        }
+
+        public static final IRType INT = new IRType(BaseType.INT,
+                com.google.common.reflect.TypeToken.of(Integer.class));
+        public static final IRType LONG = new IRType(BaseType.LONG, com.google.common.reflect.TypeToken.of(Long.class));
+        public static final IRType DOUBLE = new IRType(BaseType.DOUBLE,
+                com.google.common.reflect.TypeToken.of(Double.class));
+        public static final IRType STRING = new IRType(BaseType.STRING,
+                com.google.common.reflect.TypeToken.of(String.class));
+        public static final IRType ENUM = new IRType(BaseType.ENUM, com.google.common.reflect.TypeToken.of(Enum.class));
+        public static final IRType OBJECT = new IRType(BaseType.OBJECT,
+                com.google.common.reflect.TypeToken.of(Object.class));
+        public static final IRType BOOLEAN = new IRType(BaseType.BOOLEAN,
+                com.google.common.reflect.TypeToken.of(Boolean.class));
+        public static final IRType COLLECTION = new IRType(BaseType.COLLECTION,
+                com.google.common.reflect.TypeToken.of(java.util.Collection.class));
 
         private static final java.util.Map<Class<?>, IRType> PRIMITIVE_MAP = java.util.Map.of(
                 int.class, INT,
@@ -208,11 +254,8 @@ public final class ScriptIR {
                 float.class, DOUBLE,
                 boolean.class, BOOLEAN);
 
-        /**
-         * 从实际的 Java 类中极速推导红外类型 (O(1) Map 路由 + Primitives 解包)。
-         */
-        public static IRType fromClass(Class<?> rawClass) {
-            Class<?> clazz = com.google.common.primitives.Primitives.unwrap(rawClass);
+        public static IRType fromToken(com.google.common.reflect.TypeToken<?> token) {
+            Class<?> clazz = com.google.common.primitives.Primitives.unwrap(token.getRawType());
             IRType primitiveType = PRIMITIVE_MAP.get(clazz);
             if (primitiveType != null) {
                 return primitiveType;
@@ -220,25 +263,69 @@ public final class ScriptIR {
             if (clazz == String.class)
                 return STRING;
             if (clazz.isEnum())
-                return ENUM;
+                return new IRType(BaseType.ENUM, token);
             if (java.util.Collection.class.isAssignableFrom(clazz) || clazz.isArray())
-                return COLLECTION;
-            return OBJECT;
+                return new IRType(BaseType.COLLECTION, token);
+            return new IRType(BaseType.OBJECT, token);
+        }
+
+        public static IRType fromClass(Class<?> rawClass) {
+            return fromToken(com.google.common.reflect.TypeToken.of(rawClass));
+        }
+
+        public boolean isAssignableFrom(IRType actual) {
+            if (this == OBJECT)
+                return true;
+            if (this.getToken().isSupertypeOf(actual.getToken()))
+                return true;
+            if (this.equals(actual))
+                return true;
+            if (this.isNumeric() && actual.isNumeric())
+                return true;
+            return false;
         }
 
         public boolean isNumeric() {
-            return this == INT || this == LONG || this == DOUBLE;
+            return baseType == BaseType.INT || baseType == BaseType.LONG || baseType == BaseType.DOUBLE;
         }
 
         public boolean isPrimitive() {
-            return this == INT || this == LONG || this == DOUBLE || this == BOOLEAN;
+            return baseType == BaseType.INT || baseType == BaseType.LONG || baseType == BaseType.DOUBLE
+                    || baseType == BaseType.BOOLEAN;
         }
 
-        /**
-         * 是否为可包含元素的容器类型。
-         */
         public boolean isContainer() {
-            return this == COLLECTION || this == STRING;
+            return baseType == BaseType.COLLECTION || baseType == BaseType.STRING;
+        }
+
+        public com.google.common.reflect.TypeToken<?> getToken() {
+            return typeToken;
+        }
+
+        public String name() {
+            return baseType.name();
+        }
+
+        @Override
+        public String toString() {
+            if (typeToken.getType() instanceof Class) {
+                return baseType.name();
+            }
+            return baseType.name() + "<" + typeToken.toString().replaceAll("\\b[a-z_][a-z0-9_]*\\.", "") + ">";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (!(o instanceof IRType irType))
+                return false;
+            return baseType == irType.baseType && typeToken.equals(irType.typeToken);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(baseType, typeToken);
         }
     }
 
@@ -366,9 +453,21 @@ public final class ScriptIR {
             return node.getAttrOrDefault("variable", null);
         }
 
+        default java.util.List<String> getAllConsumedVariables(FlowNode node) {
+            String single = getConsumedVariable(node);
+            return single != null ? java.util.List.of(single) : java.util.List.of();
+        }
+
         default FlowNode inlineAction(FlowNode node, FlowNode inlineHook) {
             return node.withoutAttr("variable").withAttr("conditionAction", inlineHook);
         }
+    }
+
+    /**
+     * 允许节点自行校验参数与上下文变量之间的类型兼容性。
+     */
+    public interface TypeValidator {
+        void validateTypes(FlowNode node, cn.warriorview.script.core.CompilationContext ctx);
     }
 
     /**
@@ -386,11 +485,12 @@ public final class ScriptIR {
     }
 
     /**
-     * 允许流节点汇报自身是对某个变量值的产出者，并提供为按需消费环境的快照构建读取闭包的能力。
+     * 允许流节点汇报自身是对某个变量值的产出者，并提供剥离产出标记的能力。
      */
     public interface VariableProducer {
         String getProducedVariable(FlowNode node);
 
-        FlowNode createVirtualProducer(VarDecl decl);
+        /** 剥离节点中的“产出变量”标记，返回纯执行节点。由具体 handler 处理自己的 attr 布局。 */
+        FlowNode stripProducedVariable(FlowNode node);
     }
 }

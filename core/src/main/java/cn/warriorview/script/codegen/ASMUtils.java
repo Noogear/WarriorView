@@ -115,11 +115,20 @@ public final class ASMUtils {
      */
     public static void emitLoadBoxed(MethodVisitor mv, int slot,
             cn.warriorview.script.core.ScriptIR.IRType type) {
-        switch (type) {
-            case INT, BOOLEAN -> mv.visitVarInsn(Opcodes.ILOAD, slot);
-            case LONG -> mv.visitVarInsn(Opcodes.LLOAD, slot);
-            case DOUBLE -> mv.visitVarInsn(Opcodes.DLOAD, slot);
-            default -> mv.visitVarInsn(Opcodes.ALOAD, slot);
+        switch (type.base()) {
+            case INT:
+            case BOOLEAN:
+                mv.visitVarInsn(Opcodes.ILOAD, slot);
+                break;
+            case LONG:
+                mv.visitVarInsn(Opcodes.LLOAD, slot);
+                break;
+            case DOUBLE:
+                mv.visitVarInsn(Opcodes.DLOAD, slot);
+                break;
+            default:
+                mv.visitVarInsn(Opcodes.ALOAD, slot);
+                break;
         }
         if (type.isPrimitive()) {
             emitBox(mv, type);
@@ -137,7 +146,7 @@ public final class ASMUtils {
      * 发射：Integer.valueOf() / Double.valueOf() 等装箱操作
      */
     public static void emitBox(MethodVisitor mv, cn.warriorview.script.core.ScriptIR.IRType type) {
-        switch (type) {
+        switch (type.base()) {
             case INT:
                 mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;",
                         false);
@@ -161,7 +170,7 @@ public final class ASMUtils {
      * 发射：Number.intValue() / Number.doubleValue() 等拆箱操作
      */
     public static void emitUnbox(MethodVisitor mv, cn.warriorview.script.core.ScriptIR.IRType type) {
-        switch (type) {
+        switch (type.base()) {
             case INT:
                 mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Number", "intValue", "()I", false);
                 break;
@@ -220,12 +229,17 @@ public final class ASMUtils {
      * 集中维护 IRType 到字节码指令的权威映射，避免散落在各处的重复 switch。
      */
     public static int storeOpcode(cn.warriorview.script.core.ScriptIR.IRType type) {
-        return switch (type) {
-            case INT, BOOLEAN -> Opcodes.ISTORE;
-            case LONG -> Opcodes.LSTORE;
-            case DOUBLE -> Opcodes.DSTORE;
-            default -> Opcodes.ASTORE;
-        };
+        switch (type.base()) {
+            case INT:
+            case BOOLEAN:
+                return Opcodes.ISTORE;
+            case LONG:
+                return Opcodes.LSTORE;
+            case DOUBLE:
+                return Opcodes.DSTORE;
+            default:
+                return Opcodes.ASTORE;
+        }
     }
 
     // ======================== 对象工具方法 ========================

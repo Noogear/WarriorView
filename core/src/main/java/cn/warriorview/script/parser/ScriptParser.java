@@ -280,7 +280,7 @@ public final class ScriptParser {
             if (accessors.isEmpty()) {
                 return ScriptIR.IRType.fromClass(payloadClass);
             }
-            return ScriptIR.IRType.fromClass(accessors.get(accessors.size() - 1).returnType().getRawType());
+            return ScriptIR.IRType.fromToken(accessors.get(accessors.size() - 1).returnType());
         }
 
         /**

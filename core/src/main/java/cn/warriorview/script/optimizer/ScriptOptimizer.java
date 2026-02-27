@@ -4,12 +4,10 @@ import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.CompilationContext.ConstantDef;
 import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
-import cn.warriorview.script.core.ScriptIR.FlowNodeType;
 import cn.warriorview.script.core.ScriptIR.NodeCapability;
 import cn.warriorview.script.core.ScriptIR.ScriptUnit;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multiset;
 
 import java.util.ArrayList;
@@ -119,8 +117,7 @@ public final class ScriptOptimizer {
                 } else if (result) {
                     optimized.add(node.withFlag(FlowNode.FLAG_FOLDED));
                 } else {
-                    optimized.add(new FlowNode(FlowNodeType.RETURN, ImmutableMap.of())
-                            .withFlag(FlowNode.FLAG_DEAD_AFTER | FlowNode.FLAG_OPTIMIZER_INJECTED));
+                    optimized.add(FlowNode.earlyReturn());
                     break;
                 }
             } else {
@@ -172,8 +169,7 @@ public final class ScriptOptimizer {
                             optimized.add(node.withFlag(FlowNode.FLAG_FOLDED));
                             continue;
                         } else {
-                            optimized.add(new FlowNode(FlowNodeType.RETURN, ImmutableMap.of())
-                                    .withFlag(FlowNode.FLAG_DEAD_AFTER | FlowNode.FLAG_OPTIMIZER_INJECTED));
+                            optimized.add(FlowNode.earlyReturn());
                             break;
                         }
                     }
@@ -363,7 +359,7 @@ public final class ScriptOptimizer {
                         if (next.type().handler() instanceof ScriptIR.VariableConsumer consumer) {
                             String nextVar = consumer.getConsumedVariable(next);
                             if (storeTarget.equals(nextVar)) {
-                                FlowNode peelAction = current.withoutAttr("store");
+                                FlowNode peelAction = producer.stripProducedVariable(current);
                                 FlowNode modifiedCheck = consumer.inlineAction(next, peelAction);
                                 optimized.add(modifiedCheck);
                                 i++; // 跳过消费节点
@@ -382,8 +378,7 @@ public final class ScriptOptimizer {
 
                     // 构建一个匿名 ActionNode 作为模拟获取器，它不会经过标准的 emit 执行分发
                     // 它只会被消费节点 (如 Check) 特判并通过附带的 Accessor 执行内联出栈
-                    ScriptIR.VariableProducer dummyProducer = (ScriptIR.VariableProducer) FlowNodeType.ACTION.handler();
-                    FlowNode virtualHook = dummyProducer.createVirtualProducer(decl);
+                    FlowNode virtualHook = FlowNode.virtualProducer(decl);
 
                     FlowNode modifiedTarget = consumer.inlineAction(current, virtualHook);
 

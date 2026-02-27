@@ -40,19 +40,26 @@ public final class SwitchNodeHandler
     @SuppressWarnings("unchecked")
     public FlowNode parse(Map<String, Object> yaml) {
         String variable = (String) yaml.get("variable");
+        if (variable == null) {
+            throw new cn.warriorview.script.core.ScriptCompileException(
+                    "SWITCH node requires a 'variable' field.");
+        }
+
         Map<String, Object> casesRaw = (Map<String, Object>) yaml.get("cases");
+        if (casesRaw == null || casesRaw.isEmpty()) {
+            throw new cn.warriorview.script.core.ScriptCompileException(
+                    "SWITCH node requires at least one case in 'cases'.");
+        }
 
         ImmutableMap.Builder<String, ImmutableList<FlowNode>> cases = ImmutableMap.builder();
-        if (casesRaw != null) {
-            for (Map.Entry<String, Object> entry : casesRaw.entrySet()) {
-                String key = entry.getKey();
-                List<Map<String, Object>> actions = (List<Map<String, Object>>) entry.getValue();
-                ImmutableList.Builder<FlowNode> actionNodes = ImmutableList.builder();
-                for (Map<String, Object> actionYaml : actions) {
-                    actionNodes.add(FlowNodeType.ACTION.handler().parse(actionYaml));
-                }
-                cases.put(key, actionNodes.build());
+        for (Map.Entry<String, Object> entry : casesRaw.entrySet()) {
+            String key = entry.getKey();
+            List<Map<String, Object>> actions = (List<Map<String, Object>>) entry.getValue();
+            ImmutableList.Builder<FlowNode> actionNodes = ImmutableList.builder();
+            for (Map<String, Object> actionYaml : actions) {
+                actionNodes.add(FlowNodeType.ACTION.handler().parse(actionYaml));
             }
+            cases.put(key, actionNodes.build());
         }
 
         return new FlowNode(FlowNodeType.SWITCH, ImmutableMap.of(
@@ -103,8 +110,17 @@ public final class SwitchNodeHandler
 
         if ("AUTO".equals(strategy) || "CASCADE".equals(strategy)) {
             if (type == IRType.ENUM) {
-                // Enum 统一使用基于 hashCode 的哈希查表，无需在编译期反射成员全集
+                // Enum 统一使用基于 hashCode 的哈希查表
                 strategy = "LOOKUP_STRING";
+
+                // AOT: 检查 case key 是否符合 Java 标识符规则（枚举常量命名约定）
+                for (String key : cases.keySet()) {
+                    if (!isValidEnumName(key)) {
+                        java.util.logging.Logger.getLogger("WarriorView-Script").warning(
+                                String.format("SWITCH case key '%s' does not look like a valid enum constant name.",
+                                        key));
+                    }
+                }
             } else if (type == IRType.INT) {
                 int min = Integer.MAX_VALUE;
                 int max = Integer.MIN_VALUE;
@@ -361,4 +377,18 @@ public final class SwitchNodeHandler
         return node;
     }
 
+    /**
+     * 检查 case key 是否像合法的枚举常量名（Java 标识符规则）。
+     */
+    private static boolean isValidEnumName(String name) {
+        if (name == null || name.isEmpty())
+            return false;
+        if (!Character.isJavaIdentifierStart(name.charAt(0)))
+            return false;
+        for (int i = 1; i < name.length(); i++) {
+            if (!Character.isJavaIdentifierPart(name.charAt(i)))
+                return false;
+        }
+        return true;
+    }
 }

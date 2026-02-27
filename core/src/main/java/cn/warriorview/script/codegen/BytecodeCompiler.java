@@ -66,7 +66,7 @@ public final class BytecodeCompiler implements Opcodes {
 
         // 所有脚本统一生成 Function<Object,Object>，干通返回 null，有值返回真实值。
         // 调用侧通过 CompilationPipeline.newHandler() 茇薄包装为 Consumer。
-        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         cw.visit(Opcodes.V21, ACC_PUBLIC | ACC_FINAL | ACC_SUPER,
                 className, null, OBJECT_INTERNAL,
                 new String[] { FUNCTION_INTERNAL });
@@ -210,6 +210,14 @@ public final class BytecodeCompiler implements Opcodes {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "apply", descriptor, null, null);
         mv.visitCode();
 
+        // ---- try-catch 错误隔离 ----
+        org.objectweb.asm.Label tryStart = new org.objectweb.asm.Label();
+        org.objectweb.asm.Label tryEnd = new org.objectweb.asm.Label();
+        org.objectweb.asm.Label catchHandler = new org.objectweb.asm.Label();
+        mv.visitTryCatchBlock(tryStart, tryEnd, catchHandler, "java/lang/Throwable");
+
+        mv.visitLabel(tryStart);
+
         emitVarExtractionWithCSE(mv, unit.vars(), ctx, payloadInternal, liveVars);
 
         for (FlowNode node : unit.flow()) {
@@ -217,9 +225,34 @@ public final class BytecodeCompiler implements Opcodes {
             enhancedNode.type().handler().emit(enhancedNode, mv, ctx);
         }
 
-        // 尾部干通兼容
+        // 正常干通返回 null
         mv.visitInsn(ACONST_NULL);
         mv.visitInsn(ARETURN);
+        mv.visitLabel(tryEnd);
+
+        // ---- catch(Throwable t) ----
+        mv.visitLabel(catchHandler);
+        // 栈顶: Throwable, 存到临时槽
+        int exSlot = ctx.nextSlot();
+        mv.visitVarInsn(ASTORE, exSlot);
+
+        // Logger.getLogger("WarriorView-Script").severe("Script error in <className>")
+        mv.visitLdcInsn("WarriorView-Script");
+        mv.visitMethodInsn(INVOKESTATIC, "java/util/logging/Logger", "getLogger",
+                "(Ljava/lang/String;)Ljava/util/logging/Logger;", false);
+        mv.visitLdcInsn("Script error in " + className);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/logging/Logger", "severe",
+                "(Ljava/lang/String;)V", false);
+
+        // throwable.printStackTrace()
+        mv.visitVarInsn(ALOAD, exSlot);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Throwable", "printStackTrace",
+                "()V", false);
+
+        // return null
+        mv.visitInsn(ACONST_NULL);
+        mv.visitInsn(ARETURN);
+
         mv.visitMaxs(0, 0);
         mv.visitEnd();
     }
@@ -327,23 +360,24 @@ public final class BytecodeCompiler implements Opcodes {
                 recipe.append('\u0001');
                 int slot = ctx.getSlot(part);
                 ScriptIR.IRType type = ctx.getType(part);
-                switch (type) {
-                    case INT, BOOLEAN -> {
+                switch (type.base()) {
+                    case INT:
+                    case BOOLEAN:
                         mv.visitVarInsn(ILOAD, slot);
                         descriptor.append("I");
-                    }
-                    case LONG -> {
+                        break;
+                    case LONG:
                         mv.visitVarInsn(LLOAD, slot);
                         descriptor.append("J");
-                    }
-                    case DOUBLE -> {
+                        break;
+                    case DOUBLE:
                         mv.visitVarInsn(DLOAD, slot);
                         descriptor.append("D");
-                    }
-                    default -> {
+                        break;
+                    default:
                         mv.visitVarInsn(ALOAD, slot);
                         descriptor.append("Ljava/lang/Object;");
-                    }
+                        break;
                 }
             } else {
                 for (char c : part.toCharArray()) {
