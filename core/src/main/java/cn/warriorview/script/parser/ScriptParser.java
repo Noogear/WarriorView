@@ -181,9 +181,6 @@ public final class ScriptParser {
      */
     public static final class ValueParser {
 
-        /** 模板字符串占位符 */
-        private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{(\\w+)}");
-
         private ValueParser() {
         }
 
@@ -234,35 +231,6 @@ public final class ScriptParser {
                 return def;
             Integer i = Ints.tryParse(s);
             return i != null ? i : def;
-        }
-
-        /**
-         * 解析模板字符串，提取变量占位符。
-         *
-         * @return 交替的字面量和变量名列表，例如 ["你好 ", "name", "！"]
-         */
-        public static List<String> parseTemplate(String template) {
-            List<String> parts = new ArrayList<>();
-            Matcher matcher = TEMPLATE_PATTERN.matcher(template);
-            int last = 0;
-            while (matcher.find()) {
-                if (matcher.start() > last) {
-                    parts.add(template.substring(last, matcher.start()));
-                }
-                parts.add(matcher.group(1)); // 变量名
-                last = matcher.end();
-            }
-            if (last < template.length()) {
-                parts.add(template.substring(last));
-            }
-            return parts;
-        }
-
-        /**
-         * 判断字符串是否包含模板占位符。
-         */
-        public static boolean isTemplate(String s) {
-            return TEMPLATE_PATTERN.matcher(s).find();
         }
     }
 

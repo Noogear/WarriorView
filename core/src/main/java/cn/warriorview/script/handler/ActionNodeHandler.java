@@ -28,7 +28,8 @@ import java.util.Map;
  * 字符串模板使用 {@code invokedynamic StringConcatFactory}。
  */
 @SuppressWarnings("null")
-public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, ScriptIR.VariableProducer {
+public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, ScriptIR.VariableProducer,
+        ScriptIR.VariableConsumer, ScriptIR.NodeTraverser {
 
     private static final ActionRegistry REGISTRY = new ActionRegistry();
 
@@ -72,7 +73,7 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
             int methodParamIndex = i + 1;
 
             // 跳过包含模板变量的参数（因为在运行时拼接，暂时无法纯静态检查）
-            if (cn.warriorview.script.parser.ScriptParser.ValueParser.isTemplate(argStr)) {
+            if (ScriptIR.isTemplate(argStr)) {
                 continue;
             }
 
@@ -125,7 +126,7 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
         String store = node.getAttrOrDefault("store", null);
 
         // 统一分发：加载参数 → 调用方法
-        emitActionCall(mv, def, args, ctx);
+        emitActionCall(mv, def, args, ctx, node);
 
         // 处理返回值栈平衡与保存
         Class<?> retClass = def.returnType();
@@ -151,19 +152,79 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
      * 字符串模板使用 invokedynamic StringConcatFactory。
      */
     private void emitActionCall(MethodVisitor mv, ActionRegistry.ActionDef def,
-            ImmutableList<String> args, CompilationContext ctx) {
+            ImmutableList<String> args, CompilationContext ctx, FlowNode node) {
         // 加载 event 参数（slot 1）作为第一个方法参数
         mv.visitVarInsn(Opcodes.ALOAD, 1);
 
         Class<?>[] pTypes = def.paramTypes();
 
-        // 加载后续参数
+        // Load arguments
+        FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
+        int sinkArgIndex = node.getAttrOrDefault("_sink_arg_index", -1);
+
         for (int i = 0; i < args.size(); i++) {
             String arg = args.get(i);
             int methodParamIndex = i + 1;
             Class<?> reqType = pTypes[methodParamIndex];
 
-            if (ScriptParser.ValueParser.isTemplate(arg)) {
+            if (i == sinkArgIndex && conditionAction != null) {
+                // Sunk property argument
+                String sinkingProp = conditionAction.getRequiredAttr("_sinking_property");
+                IRType returnType = conditionAction.getRequiredAttr("returnType");
+
+                BytecodeCompiler.emitSunkPropertyLoad(mv, ctx, sinkingProp);
+
+                Class<?> unwrappedType = com.google.common.primitives.Primitives.unwrap(reqType);
+                if (unwrappedType.isPrimitive()) {
+                    if (!returnType.isPrimitive()) {
+                        // Expecting primitive but returnType is Object (e.g map property), rare but
+                        // possible, needs unbox if we had it, but sinking properties are usually
+                        // strictly typed in VarDecl.
+                        // If it's strictly typed from VarDecl, PropertyResolver has already emitted the
+                        // primitive.
+                        // Do nothing, assuming PropertyResolver returns the right primitive type for
+                        // primitive fields.
+                    }
+                } else if (returnType.isPrimitive()) {
+                    ASMUtils.emitBox(mv, returnType);
+                }
+
+            } else if (ScriptIR.isSingleVar(arg) && reqType != String.class) {
+                // 纯变量引用 → 直传对象（非 String 参数场景）
+                String varName = arg.substring(1, arg.length() - 1);
+                int slot = ctx.getSlot(varName);
+                if (slot >= 0) {
+                    IRType varType = ctx.getType(varName);
+                    Class<?> unwrappedReq = com.google.common.primitives.Primitives.unwrap(reqType);
+                    if (unwrappedReq.isPrimitive()) {
+                        // 方法要求原始类型
+                        if (varType.isPrimitive()) {
+                            // 变量本身是原始类型 → 直接 XLOAD
+                            int loadOp = switch (varType) {
+                                case INT, BOOLEAN -> Opcodes.ILOAD;
+                                case LONG -> Opcodes.LLOAD;
+                                case DOUBLE -> Opcodes.DLOAD;
+                                default -> Opcodes.ALOAD;
+                            };
+                            mv.visitVarInsn(loadOp, slot);
+                        } else {
+                            // 变量是引用类型但方法要原始类型 → ALOAD + 拆箱
+                            mv.visitVarInsn(Opcodes.ALOAD, slot);
+                            ASMUtils.emitUnbox(mv, IRType.fromClass(unwrappedReq));
+                        }
+                    } else {
+                        // 方法要求引用类型 → 加载并按需装箱
+                        ASMUtils.emitLoadBoxed(mv, slot, varType);
+                        if (reqType != Object.class) {
+                            mv.visitTypeInsn(Opcodes.CHECKCAST,
+                                    org.objectweb.asm.Type.getInternalName(reqType));
+                        }
+                    }
+                } else {
+                    // 变量未找到，fallback 到字符串
+                    mv.visitLdcInsn(arg);
+                }
+            } else if (ScriptIR.isTemplate(arg)) {
                 // 模板字符串 → invokedynamic StringConcatFactory
                 BytecodeCompiler.emitStringConcat(mv, arg, ctx);
             } else {
@@ -207,5 +268,46 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
                 ImmutableMap.of(
                         "_sinking_property", decl.property(),
                         "returnType", decl.type()));
+    }
+
+    @Override
+    public String getConsumedVariable(FlowNode node) {
+        ImmutableList<String> args = node.getAttrOrDefault("args", ImmutableList.of());
+        String foundVar = null;
+        for (String arg : args) {
+            if (ScriptIR.isSingleVar(arg)) {
+                if (foundVar != null) {
+                    // More than one pure variable arg, too complex to sink right now
+                    return null;
+                }
+                foundVar = arg.substring(1, arg.length() - 1);
+            }
+        }
+        return foundVar;
+    }
+
+    @Override
+    public FlowNode inlineAction(FlowNode node, FlowNode inlineHook) {
+        // Find which arg needs replacing
+        ImmutableList<String> args = node.getAttrOrDefault("args", ImmutableList.of());
+        int targetIndex = -1;
+        for (int i = 0; i < args.size(); i++) {
+            String arg = args.get(i);
+            if (ScriptIR.isSingleVar(arg)) {
+                targetIndex = i;
+                break;
+            }
+        }
+
+        return node.withAttr("conditionAction", inlineHook).withAttr("_sink_arg_index", targetIndex);
+    }
+
+    @Override
+    public Iterable<FlowNode> traverseChildren(FlowNode node) {
+        FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
+        if (conditionAction != null) {
+            return List.of(conditionAction);
+        }
+        return List.of();
     }
 }

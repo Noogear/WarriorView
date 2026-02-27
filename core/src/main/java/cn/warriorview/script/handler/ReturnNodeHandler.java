@@ -3,10 +3,10 @@ package cn.warriorview.script.handler;
 import cn.warriorview.script.codegen.ASMUtils;
 import cn.warriorview.script.codegen.BytecodeCompiler;
 import cn.warriorview.script.core.CompilationContext;
+import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
 import cn.warriorview.script.core.ScriptIR.FlowNodeType;
 import cn.warriorview.script.core.ScriptIR.NodeCapability;
-import cn.warriorview.script.parser.ScriptParser;
 import com.google.common.collect.ImmutableMap;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
@@ -44,7 +44,8 @@ import java.util.Map;
  * - return: [1, "{hp}", "fixed"]
  * }</pre>
  */
-public final class ReturnNodeHandler implements cn.warriorview.script.core.ScriptIR.FlowNodeHandler {
+public final class ReturnNodeHandler implements cn.warriorview.script.core.ScriptIR.FlowNodeHandler,
+        cn.warriorview.script.core.ScriptIR.VariableConsumer, cn.warriorview.script.core.ScriptIR.NodeTraverser {
 
     static {
         FlowNodeType.registerHandler(FlowNodeType.RETURN, ReturnNodeHandler::new);
@@ -93,6 +94,23 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
 
         Object value = node.getAttrOrDefault("value", null);
         if (value == null) {
+            // Check for sinking hooked dummy producer
+            FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
+            if (conditionAction != null) {
+                // Sunk property hook
+                String sinkingProp = conditionAction.getRequiredAttr("_sinking_property");
+                cn.warriorview.script.core.ScriptIR.IRType returnType = conditionAction.getRequiredAttr("returnType");
+
+                BytecodeCompiler.emitSunkPropertyLoad(mv, ctx, sinkingProp);
+
+                if (returnType.isPrimitive()) {
+                    ASMUtils.emitBox(mv, returnType);
+                }
+
+                mv.visitInsn(Opcodes.ARETURN);
+                return;
+            }
+
             // 路径4：空返回
             mv.visitInsn(Opcodes.ACONST_NULL);
             mv.visitInsn(Opcodes.ARETURN);
@@ -108,7 +126,7 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
 
         // 路径2/3：字符串值 — 区分单变量、模板、字面量
         if (value instanceof String strVal) {
-            if (isSingleVar(strVal)) {
+            if (ScriptIR.isSingleVar(strVal)) {
                 // 路径2a："{dmg}" → 变量路径
                 String singleVarName = strVal.substring(1, strVal.length() - 1);
                 if (ctx.getSlot(singleVarName) >= 0) {
@@ -117,7 +135,7 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
                     return;
                 }
             }
-            if (ScriptParser.ValueParser.isTemplate(strVal)) {
+            if (ScriptIR.isTemplate(strVal)) {
                 // 路径2b："HP:{hp} 伤:{dmg}" → invokedynamic 模板
                 BytecodeCompiler.emitStringConcat(mv, strVal, ctx);
                 mv.visitInsn(Opcodes.ARETURN);
@@ -136,11 +154,7 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
 
     // ── 工具方法 ────────────────────────────────────────
 
-    /** 判断是否为纯单变量格式，如 "{dmg}"（全部内容就是一个占位符，无其他文字）。 */
-    private static boolean isSingleVar(String s) {
-        return s.length() > 2 && s.charAt(0) == '{' && s.charAt(s.length() - 1) == '}'
-                && s.indexOf('{', 1) == -1;
-    }
+    // ── 工具方法 ────────────────────────────────────────
 
     /** 发射变量加载 + 原始类型装箱，结果始终为 Object。 */
     private static void emitVariable(MethodVisitor mv, CompilationContext ctx, String varName) {
@@ -171,14 +185,14 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
 
     private static void emitSingleElement(MethodVisitor mv, CompilationContext ctx, Object elem) {
         if (elem instanceof String s) {
-            if (isSingleVar(s)) {
+            if (ScriptIR.isSingleVar(s)) {
                 String varName = s.substring(1, s.length() - 1);
                 if (ctx.getSlot(varName) >= 0) {
                     emitVariable(mv, ctx, varName);
                     return;
                 }
             }
-            if (ScriptParser.ValueParser.isTemplate(s)) {
+            if (ScriptIR.isTemplate(s)) {
                 BytecodeCompiler.emitStringConcat(mv, s, ctx);
                 return;
             }
@@ -189,5 +203,29 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
     @Override
     public EnumSet<NodeCapability> capabilities() {
         return EnumSet.of(NodeCapability.TERMINATES_FLOW);
+    }
+
+    @Override
+    public String getConsumedVariable(FlowNode node) {
+        String varName = node.getAttrOrDefault("variable", null);
+        if (varName != null) {
+            return varName;
+        }
+
+        Object value = node.getAttrOrDefault("value", null);
+        if (value instanceof String strVal && ScriptIR.isSingleVar(strVal)) {
+            return strVal.substring(1, strVal.length() - 1);
+        }
+
+        return null; // Not a primitive single variable return, don't sink
+    }
+
+    @Override
+    public Iterable<FlowNode> traverseChildren(FlowNode node) {
+        FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
+        if (conditionAction != null) {
+            return List.of(conditionAction);
+        }
+        return List.of();
     }
 }

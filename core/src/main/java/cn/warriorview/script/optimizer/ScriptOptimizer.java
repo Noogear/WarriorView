@@ -20,11 +20,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 脚本优化器，合并所有优化 Pass 为单文件。
+ * 脚本核心优化器。
  * <p>
- * 优化按序执行：常量折叠 → 死代码消除 → 类型特化 → 空检查消除 → 值域传播 → Switch优化 → 分支重排 → 变量缓存
+ * 优化按序执行：常量折叠 → 值域传播 → 死代码消除 → 分支重排 → 变量下沉与内联预估 → 变量缓存推算
+ * 此外包含分析型 Pass：常量提取、活跃变量分析。
  * <p>
- * 使用 {@link FlowNode#flags} 位掩码替代 attrs Map 存储优化标记（零装箱）。
+ * 使用 {@link FlowNode#flags} 位掩码存储优化标记，实现零装箱分配。
  */
 @SuppressWarnings("null")
 public final class ScriptOptimizer {
@@ -308,12 +309,15 @@ public final class ScriptOptimizer {
     // ======================== 11. 局部变量内联融合 ========================
 
     /**
-     * 指令下沉与窥孔内联优化 (Variable Sinking & Inlining)
+     * 指令下沉与窥孔内联融合优化 (Variable Sinking & Inlining)
      * <p>
-     * 1. ActionInlining: 发现独立执行的 ACTION 及其 store，若被下文紧随其后的消费者单次访问，
-     * 则摘除包装为闭包供下游消费栈顶处理。
-     * 2. PropertySinking: 对于 {@code variables} 环境快照区块的属性声明，若全局唯有 1 处使用，
-     * 则踢出预提取 (CSE) 名单，转化为仅在判定点就地发射的虚拟获取闭包。
+     * 全局扫描利用了抽象接口体系 {@link ScriptIR.VariableProducer} /
+     * {@link ScriptIR.VariableConsumer}。
+     * <p>
+     * 1. 生产者内联 (Producer Inlining): 发现局部声明生产的实体及所输出的变量，
+     * 若被紧随其后的消费者单次访问，则剥离自身封装作为环境快照供下游消费闭包栈顶处理。
+     * 2. 属性下沉 (Property Sinking): 对于 {@code variables} 环境块内声明的独立提取，若全域唯有 1 处使用，
+     * 则剔除预装载 (CSE) 清单，转换为仅在判定点即时通过虚拟生产者 (DummyProducer) 闭包发射动作。
      */
     private ScriptUnit variableInlining(ScriptUnit unit, CompilationContext ctx) {
         ImmutableList<FlowNode> oldFlow = unit.flow();
@@ -350,7 +354,7 @@ public final class ScriptOptimizer {
         for (int i = 0; i < oldFlow.size(); i++) {
             FlowNode current = oldFlow.get(i);
 
-            // ==== 【阶段 A】 侦测并吞食 Action Inlining ====
+            // ==== 【阶段 A】 侦测并吞食生产者到消费者的直接内联 (Producer Inlining) ====
             if (current.type().handler() instanceof ScriptIR.VariableProducer producer) {
                 String storeTarget = producer.getProducedVariable(current);
                 if (storeTarget != null && refs.count(storeTarget) == 1) {

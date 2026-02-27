@@ -317,7 +317,7 @@ public final class BytecodeCompiler implements Opcodes {
      * 使用 {@code invokedynamic StringConcatFactory.makeConcatWithConstants} 发射字符串拼接。
      */
     public static void emitStringConcat(MethodVisitor mv, String template, CompilationContext ctx) {
-        List<String> parts = ScriptParser.ValueParser.parseTemplate(template);
+        List<String> parts = ScriptIR.parseTemplate(template);
 
         StringBuilder recipe = new StringBuilder();
         StringBuilder descriptor = new StringBuilder("(");
@@ -367,6 +367,30 @@ public final class BytecodeCompiler implements Opcodes {
 
     private static boolean isTemplatePart(String fullTemplate, String part) {
         return fullTemplate.contains("{" + part + "}");
+    }
+
+    // ======================== 属性下沉发射 ========================
+
+    /**
+     * 发射属性下沉加载序列：ALOAD 1 + PropertyAccessor 链。
+     * 桥接 PropertyResolver 解析与 ASM 字节码发射，与 {@link #emitStringConcat} 同级。
+     *
+     * @param mv          方法访问器
+     * @param ctx         编译上下文
+     * @param sinkingProp 下沉的属性表达式 (e.g. "health")
+     */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public static void emitSunkPropertyLoad(MethodVisitor mv, CompilationContext ctx,
+            String sinkingProp) {
+        mv.visitVarInsn(Opcodes.ALOAD, 1);
+
+        List<cn.warriorview.script.parser.accessor.PropertyAccessor> accessors = ScriptParser.PropertyResolver
+                .resolveAccessors(
+                        com.google.common.reflect.TypeToken.of((Class) ctx.payloadClass()), sinkingProp);
+
+        for (cn.warriorview.script.parser.accessor.PropertyAccessor acr : accessors) {
+            acr.emitLoad(mv);
+        }
     }
 
 }

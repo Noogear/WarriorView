@@ -11,6 +11,9 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.ArrayList;
 
 /**
  * 脚本引擎中间表示（IR）体系。
@@ -147,6 +150,47 @@ public final class ScriptIR {
             }
             return new FlowNode(type, builder.build(), numericValue, flags);
         }
+    }
+
+    // ======================== 变量占位符语法 ========================
+
+    /** 模板字符串占位符正则 */
+    private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{(\\w+)}");
+
+    /**
+     * 判断字符串是否为纯单变量引用，如 "{dmg}"（全部内容就是一个占位符，无其他文本）。
+     */
+    public static boolean isSingleVar(String s) {
+        return s != null && s.length() > 2 && s.charAt(0) == '{' && s.charAt(s.length() - 1) == '}'
+                && s.indexOf('{', 1) == -1;
+    }
+
+    /**
+     * 判断字符串是否包含模板占位符（如 "HP:{hp} 伤害:{dmg}"）。
+     */
+    public static boolean isTemplate(String s) {
+        return s != null && TEMPLATE_PATTERN.matcher(s).find();
+    }
+
+    /**
+     * 解析模板字符串，提取交替的字面量和变量名列表。
+     * 例如 "HP:{hp}!" → ["HP:", "hp", "!"]
+     */
+    public static List<String> parseTemplate(String template) {
+        List<String> parts = new ArrayList<>();
+        Matcher matcher = TEMPLATE_PATTERN.matcher(template);
+        int last = 0;
+        while (matcher.find()) {
+            if (matcher.start() > last) {
+                parts.add(template.substring(last, matcher.start()));
+            }
+            parts.add(matcher.group(1));
+            last = matcher.end();
+        }
+        if (last < template.length()) {
+            parts.add(template.substring(last));
+        }
+        return parts;
     }
 
     // ======================== 类型枚举 ========================
