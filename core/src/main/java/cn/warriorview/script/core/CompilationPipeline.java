@@ -3,8 +3,8 @@ package cn.warriorview.script.core;
 import cn.warriorview.script.codegen.BytecodeCompiler;
 import cn.warriorview.script.optimizer.ScriptOptimizer;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 
+import java.lang.reflect.Method;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -57,31 +57,82 @@ public final class CompilationPipeline {
         int key = deepHash(unit) * 31 + expectedReturnType.hashCode(); // 加入返回类型以隔离缓存
         CompiledScript cached = CACHE.get(key);
         if (cached != null) {
-            return cached;
+            return new CompiledScript(unit, cached.handlerClass(), cached.loader());
         }
 
-        // 2. 构建编译上下文
-        CompilationContext ctx = buildContext(unit);
+        try {
+            // 2. 构建编译上下文
+            // 当 expectedReturnType 不是接口时，代表默认的 ScriptUnit / 返回值校验模式，不改变字节码目标接口
+            CompilationContext ctx = buildContext(unit, expectedReturnType);
 
-        // 2.5 变量引用与类型完整性检查
-        validateVariableReferences(unit, ctx);
-        validateActionParameterTypes(unit, ctx);
-        validateReturnType(unit, ctx, expectedReturnType);
+            // 2.5 变量引用与类型完整性检查
+            validateVariableReferences(unit, ctx);
+            validateActionParameterTypes(unit, ctx);
+            validateReturnType(unit, ctx, expectedReturnType);
 
-        // 3. 优化 IR
-        ScriptIR.ScriptUnit optimized = optimizer.optimize(unit, ctx);
+            // 3. 优化 IR
+            ScriptIR.ScriptUnit optimized = optimizer.optimize(unit, ctx);
 
-        // 4. 生成字节码
-        byte[] bytecode = compiler.compile(optimized, ctx);
+            // 4. 生成字节码
+            byte[] bytecode = compiler.compile(optimized, ctx);
 
-        // 5. 加载类
-        // 直接传递 null 代表委托给底层 JVM 从字节码里自发解析内部全限定类名，安全且防报错。
-        ScriptClassLoader loader = new ScriptClassLoader(getClass().getClassLoader());
-        Class<?> clazz = loader.define(null, bytecode);
+            // 5. 加载类
+            // 直接传递 null 代表委托给底层 JVM 从字节码里自发解析内部全限定类名，安全且防报错。
+            ScriptClassLoader loader = new ScriptClassLoader(getClass().getClassLoader());
+            Class<?> clazz = loader.define(null, bytecode);
 
-        CompiledScript result = new CompiledScript(optimized, clazz, loader);
-        CACHE.put(key, result);
-        return result;
+            CompiledScript result = new CompiledScript(optimized, clazz, loader);
+            CACHE.put(key, result);
+            return result;
+        } catch (Exception e) {
+            String msg = e.getMessage();
+            if (e instanceof ScriptCompileException && msg != null && msg.startsWith("Error compiling script")) {
+                throw (ScriptCompileException) e;
+            }
+            throw new ScriptCompileException("Error compiling script [" + unit.id() + "]: " + msg, e);
+        }
+    }
+
+    /**
+     * 动态接口自适应编译。根据用户传入的目标 SAM 接口动态生成无装箱字节码。
+     */
+    public <T> T compileInterface(ScriptIR.ScriptUnit unit, Class<T> expectedInterfaceType) {
+        Preconditions.checkNotNull(unit, "unit");
+        Preconditions.checkNotNull(expectedInterfaceType, "expectedInterfaceType");
+        Preconditions.checkArgument(expectedInterfaceType.isInterface(), "target must be an interface");
+
+        Method sam = findSAM(expectedInterfaceType);
+        Class<?> expectedReturnType = sam.getReturnType();
+
+        int key = deepHash(unit) * 31 + expectedInterfaceType.hashCode();
+        CompiledScript cached = CACHE.get(key);
+        if (cached != null) {
+            return cached.newInstance(unit.id());
+        }
+
+        try {
+            CompilationContext ctx = buildContext(unit, expectedInterfaceType);
+
+            validateVariableReferences(unit, ctx);
+            validateActionParameterTypes(unit, ctx);
+            validateReturnType(unit, ctx, expectedReturnType);
+
+            ScriptIR.ScriptUnit optimized = optimizer.optimize(unit, ctx);
+            byte[] bytecode = compiler.compile(optimized, ctx);
+            ScriptClassLoader loader = new ScriptClassLoader(getClass().getClassLoader());
+            Class<?> clazz = loader.define(null, bytecode);
+
+            CompiledScript result = new CompiledScript(optimized, clazz, loader);
+            CACHE.put(key, result);
+
+            return result.newInstance(unit.id());
+        } catch (Exception e) {
+            String msg = e.getMessage();
+            if (e instanceof ScriptCompileException && msg != null && msg.startsWith("Error compiling script")) {
+                throw (ScriptCompileException) e;
+            }
+            throw new ScriptCompileException("Error compiling script [" + unit.id() + "]: " + msg, e);
+        }
     }
 
     /**
@@ -112,10 +163,19 @@ public final class CompilationPipeline {
         return h;
     }
 
-    private CompilationContext buildContext(ScriptIR.ScriptUnit unit) {
+    private CompilationContext buildContext(ScriptIR.ScriptUnit unit, Class<?> expectedInterfaceType) {
         try {
             Class<?> payloadClass = Class.forName(unit.payloadClass());
             CompilationContext.Builder builder = CompilationContext.builder(payloadClass);
+
+            if (expectedInterfaceType != null && expectedInterfaceType.isInterface()) {
+                Method sam = findSAM(expectedInterfaceType);
+                builder.targetMethod(
+                        org.objectweb.asm.Type.getInternalName(expectedInterfaceType),
+                        sam.getName(),
+                        org.objectweb.asm.Type.getMethodDescriptor(sam),
+                        org.objectweb.asm.Type.getReturnType(sam));
+            }
 
             Set<String> registeredVars = new HashSet<>();
             for (ScriptIR.VarDecl var : unit.vars()) {
@@ -141,6 +201,35 @@ public final class CompilationPipeline {
             return builder.build();
         } catch (ClassNotFoundException e) {
             throw new IllegalArgumentException("Payload class not found: " + unit.payloadClass(), e);
+        }
+    }
+
+    private static Method findSAM(Class<?> interfaceClass) {
+        Method sam = null;
+        for (Method m : interfaceClass.getMethods()) {
+            if (java.lang.reflect.Modifier.isAbstract(m.getModifiers())
+                    && !m.isDefault()
+                    && !isObjectMethod(m)) {
+                if (sam != null) {
+                    throw new IllegalArgumentException("Target interface " + interfaceClass.getName()
+                            + " is not a single abstract method (SAM) interface.");
+                }
+                sam = m;
+            }
+        }
+        if (sam == null) {
+            throw new IllegalArgumentException(
+                    "Target interface " + interfaceClass.getName() + " has no abstract method.");
+        }
+        return sam;
+    }
+
+    private static boolean isObjectMethod(Method m) {
+        try {
+            Object.class.getMethod(m.getName(), m.getParameterTypes());
+            return true;
+        } catch (NoSuchMethodException e) {
+            return false;
         }
     }
 
@@ -279,16 +368,23 @@ public final class CompilationPipeline {
         }
 
         /**
+         * 动态实例化（用于零装箱等纯粹动态匹配）。
+         */
+        @SuppressWarnings("unchecked")
+        public <T> T newInstance(String scriptId) {
+            try {
+                return (T) handlerClass.getDeclaredConstructor(String.class).newInstance(scriptId);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("Cannot instantiate compiled function for script: " + scriptId, e);
+            }
+        }
+
+        /**
          * 创建计算型处理器实例。
          * 膀本返回 null（void RETURN），有值返回装箱后的变量（RETURN_VALUE）。
          */
-        @SuppressWarnings("unchecked")
         public Function<Object, Object> newFunction() {
-            try {
-                return (Function<Object, Object>) handlerClass.getDeclaredConstructor().newInstance();
-            } catch (ReflectiveOperationException e) {
-                throw new IllegalStateException("Cannot instantiate compiled function", e);
-            }
+            return newInstance(ir.id());
         }
     }
 

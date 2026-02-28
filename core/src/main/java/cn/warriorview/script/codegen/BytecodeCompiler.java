@@ -2,6 +2,7 @@ package cn.warriorview.script.codegen;
 
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.CompilationContext.ConstantDef;
+import cn.warriorview.script.core.ScriptErrorHandler;
 import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
 import cn.warriorview.script.core.ScriptIR.ScriptUnit;
@@ -12,7 +13,6 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.Type;
 import static cn.warriorview.script.codegen.ASMUtils.*;
 
 import java.lang.invoke.CallSite;
@@ -24,7 +24,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * ASM 字节码编译器。
@@ -42,8 +41,6 @@ import java.util.function.Function;
  */
 public final class BytecodeCompiler implements Opcodes {
 
-    /** 所有脚本统一编译为此接口，简化内部模式选择 */
-    private static final String FUNCTION_INTERNAL = Type.getInternalName(Function.class);
     private static final String OBJECT_INTERNAL = "java/lang/Object";
 
     /** StringConcatFactory bootstrap handle */
@@ -64,21 +61,35 @@ public final class BytecodeCompiler implements Opcodes {
         List<ConstantDef> constants = ctx.hoistedConstants();
         Set<String> liveVars = ctx.liveVars();
 
-        // 所有脚本统一生成 Function<Object,Object>，干通返回 null，有值返回真实值。
-        // 调用侧通过 CompilationPipeline.newHandler() 茇薄包装为 Consumer。
+        // 实现 CompilationContext 提供的动态目标接口
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         cw.visit(Opcodes.V21, ACC_PUBLIC | ACC_FINAL | ACC_SUPER,
                 className, null, OBJECT_INTERNAL,
-                new String[] { FUNCTION_INTERNAL });
+                new String[] { ctx.targetInterfaceInternalName() });
 
         emitStaticFields(cw, constants);
+        cw.visitField(ACC_PUBLIC | ACC_FINAL, "$scriptId", "Ljava/lang/String;", null, null).visitEnd();
         emitClinit(cw, className, constants);
-        emitConstructor(cw);
-        emitBridgeApply(cw, className, payloadInternal);
-        emitApplyMethod(cw, className, unit, ctx, liveVars, payloadInternal);
+        emitConstructor(cw, className);
+
+        String typedDescriptor = "(L" + payloadInternal + ";)" + ctx.targetReturnType().getDescriptor();
+
+        // 当接口参数因为泛型擦除变成 Object，或者与具体 Payload 不一致时，生成桥接方法
+        if (!ctx.targetMethodDescriptor().equals(typedDescriptor)) {
+            emitBridgeMethod(cw, className, payloadInternal, ctx.targetMethodName(), ctx.targetMethodDescriptor(),
+                    typedDescriptor);
+        }
+
+        emitTargetMethod(cw, className, unit, ctx, liveVars, payloadInternal, typedDescriptor);
 
         cw.visitEnd();
-        return cw.toByteArray();
+        byte[] bytes = cw.toByteArray();
+        try {
+            java.nio.file.Files.write(java.nio.file.Paths.get("ScriptDump.class"), bytes);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return bytes;
     }
 
     // ======================== static final 字段 ========================
@@ -164,50 +175,68 @@ public final class BytecodeCompiler implements Opcodes {
 
     // ======================== 构造器 + 桥接 ========================
 
-    private void emitConstructor(ClassWriter cw) {
-        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
+    private void emitConstructor(ClassWriter cw, String className) {
+        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "<init>", "(Ljava/lang/String;)V", null, null);
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitMethodInsn(INVOKESPECIAL, OBJECT_INTERNAL, "<init>", "()V", false);
+
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitFieldInsn(PUTFIELD, className, "$scriptId", "Ljava/lang/String;");
+
         emitVoidReturn(mv);
-        mv.visitMaxs(1, 1);
+        mv.visitMaxs(2, 2);
         mv.visitEnd();
     }
 
     // ======================== 桥接 + apply 方法 ========================
 
     /**
-     * bridge：apply(Object)Object → apply(PayloadType)Object ，满足 Function 接口的类型擦除要求。
+     * bridge 桥接方法：例如实现了 Function 接口但需要类型转换。
+     * 调用真实的强类型 PayloadType 签名方法。
      */
-    private void emitBridgeApply(ClassWriter cw, String className, String payloadInternal) {
+    private void emitBridgeMethod(ClassWriter cw, String className, String payloadInternal,
+            String targetMethodName, String erasedDescriptor, String typedDescriptor) {
         MethodVisitor mv = cw.visitMethod(
                 ACC_PUBLIC | ACC_BRIDGE | ACC_SYNTHETIC,
-                "apply", "(Ljava/lang/Object;)Ljava/lang/Object;", null, null);
+                targetMethodName, erasedDescriptor, null, null);
         mv.visitCode();
-        mv.visitVarInsn(ALOAD, 0);
-        mv.visitVarInsn(ALOAD, 1);
-        mv.visitTypeInsn(CHECKCAST, payloadInternal);
-        mv.visitMethodInsn(INVOKEVIRTUAL, className, "apply",
-                "(L" + payloadInternal + ";)Ljava/lang/Object;", false);
-        mv.visitInsn(ARETURN);
+        mv.visitVarInsn(ALOAD, 0); // this
+
+        // 提取被擦除的入参指令
+        org.objectweb.asm.Type erasedArgs[] = org.objectweb.asm.Type.getArgumentTypes(erasedDescriptor);
+        if (erasedArgs.length > 0) {
+            org.objectweb.asm.Type firstArg = erasedArgs[0];
+            mv.visitVarInsn(firstArg.getOpcode(ILOAD), 1);
+            if (!firstArg.getInternalName().equals(payloadInternal)) {
+                mv.visitTypeInsn(CHECKCAST, payloadInternal);
+            }
+        }
+
+        // 调用我们生成的强类型方法
+        mv.visitMethodInsn(INVOKEVIRTUAL, className, targetMethodName, typedDescriptor, false);
+
+        // 返回转换
+        org.objectweb.asm.Type returnType = org.objectweb.asm.Type.getReturnType(erasedDescriptor);
+        mv.visitInsn(returnType.getOpcode(IRETURN));
+
         mv.visitMaxs(2, 2);
         mv.visitEnd();
     }
 
     /**
-     * 生成 {@code apply(PayloadType)Object} 方法。
+     * 生成目标强类型方法主体。
      * <ul>
-     * <li>RETURN 节点 → handler 发射 {@code ACONST_NULL + ARETURN}（返回 null）</li>
-     * <li>RETURN_VALUE 节点 → handler 发射 {@code XLOAD + [装箱] + ARETURN}（返回实值）</li>
-     * <li>尾部干通兼容：未到达任何显式返回时，返回 null。</li>
+     * <li>RETURN 节点 → 由 ReturnNodeHandler 自行发射底层原始返回码（IRETURN、ARETURN 等）</li>
+     * <li>尾部干通兼容：若未显式执行任何 Return，根据目标返回类型返回默认值（引用的 null，或者原生的 0）</li>
      * </ul>
      */
-    private void emitApplyMethod(ClassWriter cw, String className,
+    private void emitTargetMethod(ClassWriter cw, String className,
             ScriptUnit unit, CompilationContext ctx,
-            Set<String> liveVars, String payloadInternal) {
-        String descriptor = "(L" + payloadInternal + ";)Ljava/lang/Object;";
+            Set<String> liveVars, String payloadInternal, String typedDescriptor) {
 
-        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "apply", descriptor, null, null);
+        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, ctx.targetMethodName(), typedDescriptor, null, null);
         mv.visitCode();
 
         // ---- try-catch 错误隔离 ----
@@ -223,11 +252,16 @@ public final class BytecodeCompiler implements Opcodes {
         for (FlowNode node : unit.flow()) {
             FlowNode enhancedNode = node.withAttr("_className", className);
             enhancedNode.type().handler().emit(enhancedNode, mv, ctx);
+
+            if (enhancedNode.type().handler().capabilities().contains(ScriptIR.NodeCapability.TERMINATES_FLOW)) {
+                // 短路优化：如果前一个节点明确包含 TERMINATES_FLOW 断言，停止往下发射。
+                // 这在遇到 RETURN / ERROR 节点时阻止死代码的强制发射。
+                break;
+            }
         }
 
-        // 正常干通返回 null
-        mv.visitInsn(ACONST_NULL);
-        mv.visitInsn(ARETURN);
+        // 正常干通返回：依据原生需求返回默认的 0 或 null
+        emitDefaultReturn(mv, ctx.targetReturnType());
         mv.visitLabel(tryEnd);
 
         // ---- catch(Throwable t) ----
@@ -236,25 +270,42 @@ public final class BytecodeCompiler implements Opcodes {
         int exSlot = ctx.nextSlot();
         mv.visitVarInsn(ASTORE, exSlot);
 
-        // Logger.getLogger("WarriorView-Script").severe("Script error in <className>")
-        mv.visitLdcInsn("WarriorView-Script");
-        mv.visitMethodInsn(INVOKESTATIC, "java/util/logging/Logger", "getLogger",
-                "(Ljava/lang/String;)Ljava/util/logging/Logger;", false);
-        mv.visitLdcInsn("Script error in " + className);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/logging/Logger", "severe",
-                "(Ljava/lang/String;)V", false);
-
-        // throwable.printStackTrace()
+        // 调用 ScriptErrorHandler.handleException(Throwable, String, String)
         mv.visitVarInsn(ALOAD, exSlot);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Throwable", "printStackTrace",
-                "()V", false);
+        mv.visitLdcInsn(className);
+        mv.visitVarInsn(ALOAD, 0); // this
+        mv.visitFieldInsn(GETFIELD, className, "$scriptId", "Ljava/lang/String;");
+        mv.visitMethodInsn(INVOKESTATIC, org.objectweb.asm.Type.getInternalName(ScriptErrorHandler.class),
+                "handleException", "(Ljava/lang/Throwable;Ljava/lang/String;Ljava/lang/String;)V", false);
 
-        // return null
-        mv.visitInsn(ACONST_NULL);
-        mv.visitInsn(ARETURN);
+        // 异常干通返回：依据原生需求返回默认的 0 或 null
+        emitDefaultReturn(mv, ctx.targetReturnType());
 
         mv.visitMaxs(0, 0);
         mv.visitEnd();
+    }
+
+    private void emitDefaultReturn(MethodVisitor mv, org.objectweb.asm.Type retType) {
+        if (retType.getSort() == org.objectweb.asm.Type.VOID) {
+            mv.visitInsn(RETURN);
+        } else if (retType.getSort() == org.objectweb.asm.Type.OBJECT
+                || retType.getSort() == org.objectweb.asm.Type.ARRAY) {
+            mv.visitInsn(ACONST_NULL);
+            mv.visitInsn(ARETURN);
+        } else if (retType.getSort() == org.objectweb.asm.Type.DOUBLE) {
+            mv.visitInsn(DCONST_0);
+            mv.visitInsn(DRETURN);
+        } else if (retType.getSort() == org.objectweb.asm.Type.FLOAT) {
+            mv.visitInsn(FCONST_0);
+            mv.visitInsn(FRETURN);
+        } else if (retType.getSort() == org.objectweb.asm.Type.LONG) {
+            mv.visitInsn(LCONST_0);
+            mv.visitInsn(LRETURN);
+        } else {
+            // int/boolean/short/byte/char
+            mv.visitInsn(ICONST_0);
+            mv.visitInsn(IRETURN);
+        }
     }
 
     /**

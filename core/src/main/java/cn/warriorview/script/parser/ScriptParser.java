@@ -37,6 +37,7 @@ public final class ScriptParser {
     @SuppressWarnings("unchecked")
     public static ScriptUnit parse(Map<String, Object> root) {
         // 顶层字段
+        String idStr = String.valueOf(root.getOrDefault("id", "AnonymousScript"));
         String payloadClassStr = (String) root.get("event");
         int priority = ScriptParser.ValueParser.parseInteger(
                 String.valueOf(root.getOrDefault("priority", "0")), 0);
@@ -61,7 +62,7 @@ public final class ScriptParser {
         // 流程列表
         List<Map<String, Object>> flowList = (List<Map<String, Object>>) root.getOrDefault("flow", List.of());
 
-        return new ScriptUnit(payloadClassStr, priority, vars.build(), parseFlowNodes(flowList));
+        return new ScriptUnit(idStr, payloadClassStr, priority, vars.build(), parseFlowNodes(flowList));
     }
 
     /**

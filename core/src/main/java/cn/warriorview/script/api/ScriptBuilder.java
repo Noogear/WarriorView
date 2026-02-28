@@ -24,12 +24,22 @@ import java.util.function.Function;
 public final class ScriptBuilder {
 
     private final Class<?> payloadClazz;
+    private String scriptId;
     private final ImmutableList.Builder<VarDecl> vars = ImmutableList.<VarDecl>builder();
     private final ImmutableList.Builder<FlowNode> flow = ImmutableList.<FlowNode>builder();
     private ActionRegistry actionRegistry;
 
     private ScriptBuilder(Class<?> payloadClass) {
         this.payloadClazz = payloadClass;
+        this.scriptId = "Builder-" + java.util.UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    /**
+     * 手动指定本脚本的来源标识，用于运行期报错追踪。
+     */
+    public ScriptBuilder id(String id) {
+        this.scriptId = id;
+        return this;
     }
 
     /**
@@ -170,6 +180,7 @@ public final class ScriptBuilder {
 
         if (onFail != null) {
             ScriptBuilder failBuilder = new ScriptBuilder(payloadClazz);
+            failBuilder.id(this.scriptId + "-fail");
             failBuilder.actionRegistry = this.actionRegistry;
             onFail.accept(failBuilder);
             attrs.put("onFailNodes", failBuilder.flow.build());
@@ -239,6 +250,7 @@ public final class ScriptBuilder {
 
         if (onFail != null) {
             ScriptBuilder failBuilder = new ScriptBuilder(payloadClazz);
+            failBuilder.id(this.scriptId + "-fail");
             failBuilder.actionRegistry = this.actionRegistry;
             onFail.accept(failBuilder);
             attrs.put("onFailNodes", failBuilder.flow.build());
@@ -440,6 +452,7 @@ public final class ScriptBuilder {
          */
         public SwitchBuilder caseOf(Object caseKey, Consumer<ScriptBuilder> branchBuilder) {
             ScriptBuilder subBuilder = new ScriptBuilder(payloadClazz);
+            subBuilder.id("SwitchCase-" + caseKey);
             subBuilder.actionRegistry = this.actionRegistry;
             branchBuilder.accept(subBuilder);
             cases.put(String.valueOf(caseKey), subBuilder.flow.build());
@@ -486,8 +499,25 @@ public final class ScriptBuilder {
         return (Function<T, R>) buildCompiledScript(expectedReturnType).newFunction();
     }
 
+    /**
+     * 动态编译并直接实例化为指定的零损耗字节码接口（Zero-Boxing Adaptation）。
+     * <p>
+     * 在后台直接抛弃通用的 Function&lt;Object, Object&gt;。通过反射分析给定接口方法的真实参数与返回值，
+     * 利用 ASM 从字节码根源上自适应消除拆开箱损耗（例如直接通过 {@code IRETURN} 返回 int 给
+     * {@code ToIntFunction}）。
+     *
+     * @param expectedInterfaceType 目标单方法接口的 Class，例如
+     *                              {@code java.util.function.ToIntFunction.class}
+     * @param <T>                   具体接口类型的泛型
+     * @return 编译就绪且无拆装箱性能损耗的代理实例
+     */
+    public <T> T compileInterface(Class<T> expectedInterfaceType) {
+        ScriptUnit unit = new ScriptUnit(scriptId, payloadClazz.getName(), 0, vars.build(), flow.build());
+        return new CompilationPipeline().compileInterface(unit, expectedInterfaceType);
+    }
+
     private CompiledScript buildCompiledScript(Class<?> expectedReturnType) {
-        ScriptUnit unit = new ScriptUnit(payloadClazz.getName(), 0, vars.build(), flow.build());
+        ScriptUnit unit = new ScriptUnit(scriptId, payloadClazz.getName(), 0, vars.build(), flow.build());
         return new CompilationPipeline().compile(unit, expectedReturnType);
     }
 

@@ -87,8 +87,7 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
         // 路径1：旧格式 variable attr（由 ScriptBuilder.returnVar 注入）
         String varName = node.getAttrOrDefault("variable", null);
         if (varName != null) {
-            emitVariable(mv, ctx, varName);
-            mv.visitInsn(Opcodes.ARETURN);
+            emitTargetVariableReturn(mv, ctx, varName);
             return;
         }
 
@@ -103,23 +102,19 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
 
                 BytecodeCompiler.emitSunkPropertyLoad(mv, ctx, sinkingProp);
 
-                if (returnType.isPrimitive()) {
-                    ASMUtils.emitBox(mv, returnType);
-                }
-
-                mv.visitInsn(Opcodes.ARETURN);
+                // 按目标接口自适应返回指令，不无脑 ARETURN
+                emitAdaptiveReturn(mv, ctx, returnType);
                 return;
             }
 
-            // 路径4：空返回
-            mv.visitInsn(Opcodes.ACONST_NULL);
-            mv.visitInsn(Opcodes.ARETURN);
+            // 路径4：空返回 (null / 0)
+            emitZeroReturn(mv, ctx);
             return;
         }
 
         // 路径5：集合
         if (value instanceof List<?> list) {
-            emitList(mv, ctx, list);
+            emitList(mv, ctx, list); // emits ALOAD (Array)
             mv.visitInsn(Opcodes.ARETURN);
             return;
         }
@@ -130,8 +125,7 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
                 // 路径2a："{dmg}" → 变量路径
                 String singleVarName = strVal.substring(1, strVal.length() - 1);
                 if (ctx.getSlot(singleVarName) >= 0) {
-                    emitVariable(mv, ctx, singleVarName);
-                    mv.visitInsn(Opcodes.ARETURN);
+                    emitTargetVariableReturn(mv, ctx, singleVarName);
                     return;
                 }
             }
@@ -142,23 +136,129 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
                 return;
             }
             // 路径3：纯字符串字面量
-            ASMUtils.emitLiteral(mv, strVal);
+            ASMUtils.emitLiteral(mv, strVal); // String is reference
             mv.visitInsn(Opcodes.ARETURN);
             return;
         }
 
         // 路径3：数字/布尔字面量
-        ASMUtils.emitLiteral(mv, value);
-        mv.visitInsn(Opcodes.ARETURN);
+        org.objectweb.asm.Type tType = ctx.targetReturnType();
+        if (tType.getSort() == org.objectweb.asm.Type.OBJECT || tType.getSort() == org.objectweb.asm.Type.ARRAY) {
+            ASMUtils.emitLiteral(mv, value); // emit boxed
+            mv.visitInsn(Opcodes.ARETURN);
+        } else {
+            // 极速路径：直接将数字常量发射为原生栈帧，再触发原始返回
+            emitNativeLiteral(mv, value, tType);
+            mv.visitInsn(tType.getOpcode(Opcodes.IRETURN));
+        }
     }
 
     // ── 工具方法 ────────────────────────────────────────
 
-    // ── 工具方法 ────────────────────────────────────────
+    /** 根据目标接口确切要求，返回原生类型自适应指令。 */
+    private static void emitAdaptiveReturn(MethodVisitor mv, CompilationContext ctx,
+            cn.warriorview.script.core.ScriptIR.IRType varType) {
+        org.objectweb.asm.Type tType = ctx.targetReturnType();
 
-    /** 发射变量加载 + 原始类型装箱，结果始终为 Object。 */
+        if (tType.getSort() == org.objectweb.asm.Type.VOID) {
+            if (varType.isPrimitive()) {
+                // 弹出没用的原始值（单字或双字）
+                if (varType.base() == ScriptIR.BaseType.DOUBLE || varType.base() == ScriptIR.BaseType.LONG) {
+                    mv.visitInsn(Opcodes.POP2);
+                } else {
+                    mv.visitInsn(Opcodes.POP);
+                }
+            } else {
+                mv.visitInsn(Opcodes.POP); // 弹出引用
+            }
+            mv.visitInsn(Opcodes.RETURN);
+            return;
+        }
+
+        if (tType.getSort() == org.objectweb.asm.Type.OBJECT || tType.getSort() == org.objectweb.asm.Type.ARRAY) {
+            if (varType.isPrimitive()) {
+                ASMUtils.emitBox(mv, varType);
+            }
+            mv.visitInsn(Opcodes.ARETURN);
+            return;
+        }
+
+        // 否则必定为原生返回目标，且依据校验管道已通过可赋值检验。我们直接以原生的 return opcode 退出。
+        mv.visitInsn(tType.getOpcode(Opcodes.IRETURN));
+    }
+
+    /** 针对明确的变量发射，如果需要装箱则装，如果是原生则按原始返回。 */
+    private static void emitTargetVariableReturn(MethodVisitor mv, CompilationContext ctx, String varName) {
+        org.objectweb.asm.Type tType = ctx.targetReturnType();
+        ScriptIR.IRType varType = ctx.getType(varName);
+        int slot = ctx.getSlot(varName);
+
+        if (tType.getSort() == org.objectweb.asm.Type.OBJECT || tType.getSort() == org.objectweb.asm.Type.ARRAY) {
+            ASMUtils.emitLoadBoxed(mv, slot, varType);
+            mv.visitInsn(Opcodes.ARETURN);
+        } else {
+            // 直接原始指令压栈
+            switch (varType.base()) {
+                case INT:
+                case BOOLEAN:
+                    mv.visitVarInsn(Opcodes.ILOAD, slot);
+                    break;
+                case LONG:
+                    mv.visitVarInsn(Opcodes.LLOAD, slot);
+                    break;
+                case DOUBLE:
+                    mv.visitVarInsn(Opcodes.DLOAD, slot);
+                    break;
+                default:
+                    throw new IllegalStateException("Trying to return Object unboxed natively.");
+            }
+            mv.visitInsn(tType.getOpcode(Opcodes.IRETURN));
+        }
+    }
+
+    /** 始终发射变量加载 + 装箱（如 List 元素加载） */
     private static void emitVariable(MethodVisitor mv, CompilationContext ctx, String varName) {
         ASMUtils.emitLoadBoxed(mv, ctx.getSlot(varName), ctx.getType(varName));
+    }
+
+    private static void emitNativeLiteral(MethodVisitor mv, Object parsed, org.objectweb.asm.Type tType) {
+        if (tType.getSort() == org.objectweb.asm.Type.BOOLEAN) {
+            mv.visitInsn(((Boolean) parsed) ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
+        } else if (tType.getSort() == org.objectweb.asm.Type.INT || tType.getSort() == org.objectweb.asm.Type.SHORT
+                || tType.getSort() == org.objectweb.asm.Type.BYTE) {
+            ASMUtils.emitIntConst(mv, ((Number) parsed).intValue());
+        } else if (tType.getSort() == org.objectweb.asm.Type.LONG) {
+            ASMUtils.emitLongConst(mv, ((Number) parsed).longValue());
+        } else if (tType.getSort() == org.objectweb.asm.Type.DOUBLE) {
+            ASMUtils.emitDoubleConst(mv, ((Number) parsed).doubleValue());
+        } else if (tType.getSort() == org.objectweb.asm.Type.FLOAT) {
+            ASMUtils.emitFloatConst(mv, ((Number) parsed).floatValue());
+        } else {
+            throw new IllegalArgumentException("emitNativeLiteral unsupported: " + tType);
+        }
+    }
+
+    private static void emitZeroReturn(MethodVisitor mv, CompilationContext ctx) {
+        org.objectweb.asm.Type retType = ctx.targetReturnType();
+        if (retType.getSort() == org.objectweb.asm.Type.VOID) {
+            mv.visitInsn(Opcodes.RETURN);
+        } else if (retType.getSort() == org.objectweb.asm.Type.OBJECT
+                || retType.getSort() == org.objectweb.asm.Type.ARRAY) {
+            mv.visitInsn(Opcodes.ACONST_NULL);
+            mv.visitInsn(Opcodes.ARETURN);
+        } else if (retType.getSort() == org.objectweb.asm.Type.DOUBLE) {
+            mv.visitInsn(Opcodes.DCONST_0);
+            mv.visitInsn(Opcodes.DRETURN);
+        } else if (retType.getSort() == org.objectweb.asm.Type.FLOAT) {
+            mv.visitInsn(Opcodes.FCONST_0);
+            mv.visitInsn(Opcodes.FRETURN);
+        } else if (retType.getSort() == org.objectweb.asm.Type.LONG) {
+            mv.visitInsn(Opcodes.LCONST_0);
+            mv.visitInsn(Opcodes.LRETURN);
+        } else {
+            mv.visitInsn(Opcodes.ICONST_0);
+            mv.visitInsn(Opcodes.IRETURN);
+        }
     }
 
     /**

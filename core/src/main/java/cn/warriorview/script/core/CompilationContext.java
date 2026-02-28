@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import org.objectweb.asm.Type;
 
 /**
  * 编译上下文，管理变量槽位分配、类型信息传播、常量池和反射缓存。
@@ -62,6 +63,18 @@ public final class CompilationContext {
     /** 活跃变量集合（由 ScriptOptimizer 填充） */
     private Set<String> liveVars = new HashSet<>();
 
+    /** 目标接口的内部名称（如 java/util/function/ToIntFunction） */
+    private final String targetInterfaceInternalName;
+
+    /** 目标接口的方法名（如 applyAsInt） */
+    private final String targetMethodName;
+
+    /** 目标接口的方法字节码描述符（如 (Ljava/lang/Object;)I） */
+    private final String targetMethodDescriptor;
+
+    /** 目标接口的返回类型 (ASM) */
+    private final Type targetReturnType;
+
     /** 下一个可用的局部变量槽位 */
     private final int nextSlot;
 
@@ -70,6 +83,10 @@ public final class CompilationContext {
         this.typeTable = builder.typeTable.build();
         this.constants = builder.constants.build();
         this.payloadClass = builder.payloadClass;
+        this.targetInterfaceInternalName = builder.targetInterfaceInternalName;
+        this.targetMethodName = builder.targetMethodName;
+        this.targetMethodDescriptor = builder.targetMethodDescriptor;
+        this.targetReturnType = builder.targetReturnType;
         // slot 0 = this, slot 1 = payload 参数
         this.nextSlot = 2 + this.varSlots.size();
     }
@@ -101,6 +118,22 @@ public final class CompilationContext {
 
     public Class<?> payloadClass() {
         return payloadClass;
+    }
+
+    public String targetInterfaceInternalName() {
+        return targetInterfaceInternalName;
+    }
+
+    public String targetMethodName() {
+        return targetMethodName;
+    }
+
+    public String targetMethodDescriptor() {
+        return targetMethodDescriptor;
+    }
+
+    public Type targetReturnType() {
+        return targetReturnType;
     }
 
     public int nextSlot() {
@@ -173,6 +206,12 @@ public final class CompilationContext {
         private final ImmutableMap.Builder<String, Object> constants = ImmutableMap.builder();
         private int slotCounter = 2; // 0=this, 1=payload
 
+        // Defaults to Action Handler via Function<Object, Object>
+        private String targetInterfaceInternalName = "java/util/function/Function";
+        private String targetMethodName = "apply";
+        private String targetMethodDescriptor = "(Ljava/lang/Object;)Ljava/lang/Object;";
+        private Type targetReturnType = Type.getType(Object.class);
+
         private Builder(Class<?> payloadClass) {
             this.payloadClass = payloadClass;
             // 预留 payload 的类型
@@ -193,6 +232,14 @@ public final class CompilationContext {
 
         public Builder addConstant(String name, Object value) {
             constants.put(name, value);
+            return this;
+        }
+
+        public Builder targetMethod(String internalName, String name, String descriptor, Type returnType) {
+            this.targetInterfaceInternalName = internalName;
+            this.targetMethodName = name;
+            this.targetMethodDescriptor = descriptor;
+            this.targetReturnType = returnType;
             return this;
         }
 

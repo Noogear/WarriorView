@@ -32,16 +32,17 @@ public final class ScriptIR {
      * 顶层脚本单元。
      */
     public record ScriptUnit(
+            String id,
             String payloadClass,
             int priority,
             ImmutableList<VarDecl> vars,
             ImmutableList<FlowNode> flow) {
         public ScriptUnit withFlow(ImmutableList<FlowNode> newFlow) {
-            return new ScriptUnit(payloadClass, priority, vars, newFlow);
+            return new ScriptUnit(id, payloadClass, priority, vars, newFlow);
         }
 
         public ScriptUnit withVars(ImmutableList<VarDecl> newVars) {
-            return new ScriptUnit(payloadClass, priority, newVars, flow);
+            return new ScriptUnit(id, payloadClass, priority, newVars, flow);
         }
     }
 
