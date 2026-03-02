@@ -58,7 +58,6 @@ public final class CompositeCheckHandler implements cn.warriorview.script.core.S
         ImmutableList.Builder<FlowNode> children = ImmutableList.builder();
         for (Object item : conditionList) {
             if (item instanceof Map<?, ?> rawMap) {
-                @SuppressWarnings("unchecked")
                 Map<String, Object> childYaml = (Map<String, Object>) rawMap;
 
                 if (childYaml.containsKey("any") || childYaml.containsKey("all")) {

@@ -81,6 +81,25 @@ public final class ScriptIR {
             this(type, attrs, 0.0, 0);
         }
 
+        /**
+         * 提取隐式传入的行号上下文。
+         *
+         * @return 节点所在的 YAML 配置文件中的行号。如果没有，则返回 -1（极好的解耦兼容性）。
+         */
+        public int getLineNumber() {
+            Object line = attrs.get("__line__");
+            if (line instanceof Number num) {
+                return num.intValue();
+            }
+            if (line instanceof String str) {
+                try {
+                    return Integer.parseInt(str);
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            return -1;
+        }
+
         // --- Code Slimming 辅助方法 ---
 
         /**

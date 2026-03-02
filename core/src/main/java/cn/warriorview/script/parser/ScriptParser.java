@@ -389,6 +389,16 @@ public final class ScriptParser {
             } catch (NoSuchMethodException ignored) {
             }
 
+            // 最后尝试 Record 组件或 Fluent API 风格纯同名访问器 (例如: record.name())
+            try {
+                Method fallback = clazz.getMethod(property);
+                // 必须过滤掉无返回值的普通方法，防止被当成 getter 从而在求值时造成执行副作用（如 clear() 等）
+                if (fallback.getReturnType() != void.class) {
+                    return fallback;
+                }
+            } catch (NoSuchMethodException ignored) {
+            }
+
             throw new IllegalArgumentException("No getter found for '" + property + "' on " + clazz.getName());
         }
 

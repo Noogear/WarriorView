@@ -251,6 +251,15 @@ public final class BytecodeCompiler implements Opcodes {
 
         for (FlowNode node : unit.flow()) {
             FlowNode enhancedNode = node.withAttr("_className", className);
+
+            // 核心功能：自动将 SnakeYAML 提取的脚本行号注入生成的 JVM 核心字节码中
+            int line = enhancedNode.getLineNumber();
+            if (line > 0) {
+                org.objectweb.asm.Label sourceLineLabel = new org.objectweb.asm.Label();
+                mv.visitLabel(sourceLineLabel);
+                mv.visitLineNumber(line, sourceLineLabel);
+            }
+
             enhancedNode.type().handler().emit(enhancedNode, mv, ctx);
 
             if (enhancedNode.type().handler().capabilities().contains(ScriptIR.NodeCapability.TERMINATES_FLOW)) {

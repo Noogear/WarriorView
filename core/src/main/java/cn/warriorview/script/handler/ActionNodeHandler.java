@@ -360,17 +360,17 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
             String argStr = args.get(i);
 
             if (ScriptIR.isSingleVar(argStr)) {
-                validateVarArgType(actionName, paramIndex, argStr, expectedIR, ctx);
+                validateVarArgType(actionName, paramIndex, argStr, expectedIR, ctx, node);
             } else if (ScriptIR.isTemplate(argStr)) {
-                validateTemplateArgType(actionName, paramIndex, argStr, expectedIR);
+                validateTemplateArgType(actionName, paramIndex, argStr, expectedIR, node);
             } else {
-                validateLiteralArgType(actionName, paramIndex, argStr, expectedToken.getRawType());
+                validateLiteralArgType(actionName, paramIndex, argStr, expectedToken.getRawType(), node);
             }
         }
     }
 
     private static void validateVarArgType(String action, int paramIndex, String argStr,
-            IRType expected, CompilationContext ctx) {
+            IRType expected, CompilationContext ctx, FlowNode node) {
         String varName = argStr.substring(1, argStr.length() - 1);
         if ("payload".equals(varName))
             return;
@@ -379,31 +379,31 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
         if (expected.isAssignableFrom(actual))
             return;
 
-        throw new cn.warriorview.script.core.ScriptCompileException(String.format(
+        throw cn.warriorview.script.core.ScriptCompileException.create(node, String.format(
                 "Action '%s' expects %s at argument %d, but variable '{%s}' is of type %s.",
                 action, expected, paramIndex, varName, actual));
     }
 
     private static void validateTemplateArgType(String action, int paramIndex, String argStr,
-            IRType expected) {
+            IRType expected, FlowNode node) {
         if (expected == IRType.STRING || expected == IRType.OBJECT)
             return;
 
-        throw new cn.warriorview.script.core.ScriptCompileException(String.format(
+        throw cn.warriorview.script.core.ScriptCompileException.create(node, String.format(
                 "Action '%s' expects %s at argument %d, but a string template '%s' was provided.",
                 action, expected, paramIndex, argStr));
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static void validateLiteralArgType(String action, int paramIndex, String argStr,
-            Class<?> expectedJavaType) {
+            Class<?> expectedJavaType, FlowNode node) {
         if (!expectedJavaType.isEnum())
             return;
 
         try {
             Enum.valueOf((Class<Enum>) expectedJavaType, argStr.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new cn.warriorview.script.core.ScriptCompileException(String.format(
+            throw cn.warriorview.script.core.ScriptCompileException.create(node, String.format(
                     "Invalid enum value '%s' for action '%s' at argument %d. Expected enum type %s",
                     argStr, action, paramIndex, expectedJavaType.getSimpleName()));
         }

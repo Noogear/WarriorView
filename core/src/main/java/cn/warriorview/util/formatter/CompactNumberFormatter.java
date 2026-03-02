@@ -7,10 +7,17 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Supplier;
 
+/**
+ * 紧凑型数字格式化器，支持将大数字格式化为带尾缀的短字符串（如 1.2K, 3.5M）。
+ * 支持自定小数精度，并针对虚拟线程（Virtual Threads）进行了缓存优化。
+ */
 public class CompactNumberFormatter {
     private static final long[] POW10_CACHE = new long[18];
     private static final char[] DIGITS = "0123456789".toCharArray();
 
+    /**
+     * 缓存 Thread.isVirtual() 的方法句柄，用于兼容运行时尚不支持虚拟线程的较低版本 JDK。
+     */
     private static final MethodHandle IS_VIRTUAL_MH;
 
     static {
@@ -22,7 +29,8 @@ public class CompactNumberFormatter {
 
         MethodHandle mh = null;
         try {
-            mh = MethodHandles.publicLookup().findVirtual(Thread.class, "isVirtual", MethodType.methodType(boolean.class));
+            mh = MethodHandles.publicLookup().findVirtual(Thread.class, "isVirtual",
+                    MethodType.methodType(boolean.class));
         } catch (NoSuchMethodException | IllegalAccessException e) {
             mh = null;
         }
@@ -65,10 +73,18 @@ public class CompactNumberFormatter {
         }
     }
 
+    /**
+     * 创建格式化器建造器实例
+     */
     public static Builder builder() {
         return new Builder();
     }
 
+    /**
+     * 根据配置映射快速创建格式化器
+     * 
+     * @param configuration 阈值与单位的映射配置
+     */
     public static CompactNumberFormatter of(Map<Double, String> configuration) {
         if (configuration == null || configuration.isEmpty()) {
             return new CompactNumberFormatter(new double[0], new double[0], new char[0][]);
@@ -78,6 +94,13 @@ public class CompactNumberFormatter {
         return builder.build();
     }
 
+    /**
+     * 格式化数字
+     *
+     * @param value     数值
+     * @param precision 小数精度
+     * @return 格式化后的短字符串
+     */
     public String format(double value, int precision) {
         if (Double.isNaN(value)) {
             return "NaN";
@@ -86,7 +109,7 @@ public class CompactNumberFormatter {
             return value > 0 ? "Infinity" : "-Infinity";
         }
         if (precision < 0 || precision >= POW10_CACHE.length) {
-            throw new IllegalArgumentException("精度必须在 0 到 " + (POW10_CACHE.length - 1) + " 之间。");
+            throw new IllegalArgumentException("Precision must be between 0 and " + (POW10_CACHE.length - 1) + ".");
         }
 
         final StringBuilder buf = bufferSupplier.get();
@@ -158,6 +181,12 @@ public class CompactNumberFormatter {
     public static class Builder {
         private final TreeMap<Double, String> config = new TreeMap<>();
 
+        /**
+         * 添加阈值与对应单位
+         *
+         * @param threshold 阈值
+         * @param symbol    单位符号
+         */
         public Builder add(double threshold, String symbol) {
             if (threshold > 0 && symbol != null) {
                 config.put(threshold, symbol);
@@ -165,6 +194,9 @@ public class CompactNumberFormatter {
             return this;
         }
 
+        /**
+         * 构建紧凑数字格式化器
+         */
         public CompactNumberFormatter build() {
             int size = config.size();
             var thresholds = new double[size];

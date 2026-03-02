@@ -1,173 +1,143 @@
 package cn.warriorview.util;
 
 import org.bukkit.Location;
-import org.bukkit.entity.Entity;
 import org.joml.Vector3d;
 
 public class LocationUtil {
 
-    public static Vector3d getHitLocation(Location attackerEyeLoc, Entity victim) {
-        // 1. 提取玩家眼睛坐标
-        double ax = attackerEyeLoc.getX();
-        double ay = attackerEyeLoc.getY();
-        double az = attackerEyeLoc.getZ();
+    /**
+     * 算法 1：点积视线投影法 (Dot Product Projection)
+     * 利用向量点积计算目标视线投影点，结合体型防穿模。
+     * 适用：常规技能与弹道法术。
+     */
+    public static Vector3d getProjectedHitLocation(Location attackerEyeLoc, Location victimLoc, double victimH,
+            double victimW) {
+        final double ax = attackerEyeLoc.getX();
+        final double ay = attackerEyeLoc.getY();
+        final double az = attackerEyeLoc.getZ();
 
-        // 2. 将角度转换为弧度 (直接乘常量，0.017453292519943295 = Math.PI / 180.0)
-        double pitch = attackerEyeLoc.getPitch() * 0.017453292519943295;
-        double yaw = attackerEyeLoc.getYaw() * 0.017453292519943295;
-        double xz = Math.cos(pitch);
+        final double pitch = attackerEyeLoc.getPitch() * 0.017453292519943295;
+        final double yaw = attackerEyeLoc.getYaw() * 0.017453292519943295;
+        final double xz = Math.cos(pitch);
 
-        // 3. 计算玩家视线的单位方向向量
-        double dirX = -xz * Math.sin(yaw);
-        double dirY = -Math.sin(pitch);
-        double dirZ = xz * Math.cos(yaw);
+        final double dirX = -xz * Math.sin(yaw);
+        final double dirY = -Math.sin(pitch);
+        final double dirZ = xz * Math.cos(yaw);
 
-        // 4. 获取怪物真实中心点
-        Location vLoc = victim.getLocation();
-        double dx = vLoc.getX() - ax;
-        double dy = (vLoc.getY() + victim.getHeight() / 2.0) - ay; // 加上身高的一半，取胸口中心
-        double dz = vLoc.getZ() - az;
+        final double dx = victimLoc.getX() - ax;
+        final double dy = (victimLoc.getY() + victimH / 2.0) - ay;
+        final double dz = victimLoc.getZ() - az;
 
-        // 5. 点积计算：求出怪物中心点在玩家视线上的精确“投影长度”
         double projectionDistance = dx * dirX + dy * dirY + dz * dirZ;
 
-        // 6. 拉回距离：减去怪物的半宽，再多退 0.3 格空气
-        double pushback = (victim.getWidth() / 2.0) + 0.3;
+        // 防穿模拉回
+        final double pushback = (victimW / 2.0) + 0.3;
         projectionDistance -= pushback;
 
-        // 7. 沿视线方向推进最终的长度，得出绝对击中坐标
-        double targetX = ax + dirX * projectionDistance;
-        double targetY = ay + dirY * projectionDistance;
-        double targetZ = az + dirZ * projectionDistance;
+        final double targetX = ax + dirX * projectionDistance;
+        final double targetY = ay + dirY * projectionDistance;
+        final double targetZ = az + dirZ * projectionDistance;
 
         return new Vector3d(targetX, targetY, targetZ);
     }
 
-    public static Vector3d getClampLocation(Location attackerEyeLoc, Entity victim) {
-        // 1. 提取玩家眼睛坐标 (基础 double 类型)
-        double eyeX = attackerEyeLoc.getX();
-        double eyeY = attackerEyeLoc.getY();
-        double eyeZ = attackerEyeLoc.getZ();
+    /**
+     * 算法 2：AABB 膨胀钳制法 (Expanded AABB Clamping)
+     * 无开方和三角函数运算，计算极快。
+     * 适用：AoE 及持续性跳伤等无需精准追踪的技能。
+     */
+    public static Vector3d getClampedHitLocation(Location attackerEyeLoc, Location victimLoc, double victimH,
+            double victimW) {
+        final double eyeX = attackerEyeLoc.getX();
+        final double eyeY = attackerEyeLoc.getY();
+        final double eyeZ = attackerEyeLoc.getZ();
 
-        // 2. 获取怪物中心坐标与体型尺寸 (取代 getBoundingBox)
-        Location vLoc = victim.getLocation();
-        double vX = vLoc.getX();
-        double vY = vLoc.getY();
-        double vZ = vLoc.getZ();
+        final double vX = victimLoc.getX();
+        final double vY = victimLoc.getY();
+        final double vZ = victimLoc.getZ();
 
-        double halfWidth = victim.getWidth() / 2.0;
-        double height = victim.getHeight();
+        final double halfWidth = victimW / 2.0;
+        final double height = victimH;
 
-        // 3. 设定防穿模膨胀量
-        double padding = 0.3;
+        final double padding = 0.3;
 
-        // 4. 手动计算并融合膨胀量后的 AABB 绝对边界
-        // 这样可以提前把 padding 算进去，减少后面的加减法次数
-        double minX = vX - halfWidth - padding;
-        double maxX = vX + halfWidth + padding;
-        double minY = vY - padding;
-        double maxY = vY + height + padding;
-        double minZ = vZ - halfWidth - padding;
-        double maxZ = vZ + halfWidth + padding;
+        final double minX = vX - halfWidth - padding;
+        final double maxX = vX + halfWidth + padding;
+        final double minY = vY - padding;
+        final double maxY = vY + height + padding;
+        final double minZ = vZ - halfWidth - padding;
+        final double maxZ = vZ + halfWidth + padding;
 
-        // 5. O(1) 纯硬件级指令钳制 (Clamp)
-        // 找寻膨胀箱表面距离玩家眼睛最近的 X, Y, Z 点
-        double hitX = Math.max(minX, Math.min(eyeX, maxX));
-        double hitY = Math.max(minY, Math.min(eyeY, maxY));
-        double hitZ = Math.max(minZ, Math.min(eyeZ, maxZ));
+        // 几何钳制
+        final double hitX = Math.max(minX, Math.min(eyeX, maxX));
+        final double hitY = Math.max(minY, Math.min(eyeY, maxY));
+        final double hitZ = Math.max(minZ, Math.min(eyeZ, maxZ));
 
-        // 6. 直接封装返回
         return new Vector3d(hitX, hitY, hitZ);
     }
 
-    public static Vector3d getRayTraceLocation(Location attackerEyeLoc, Entity victim) {
-        // 1. 提取玩家眼睛坐标 (0 GC)
-        double startX = attackerEyeLoc.getX();
-        double startY = attackerEyeLoc.getY();
-        double startZ = attackerEyeLoc.getZ();
+    /**
+     * 算法 3：射线检测法 (Liang-Barsky Ray-AABB Intersection)
+     * 计算视线与碰撞箱的真实交点，零 GC，精确度高。
+     * 适用：硬核单体技能，如狙击、爆头判定等。
+     */
+    public static Vector3d getRayTracedHitLocation(Location attackerEyeLoc, Location victimLoc, double victimH,
+            double victimW) {
+        // 初始化攻击者数据
+        final double startX = attackerEyeLoc.getX();
+        final double startY = attackerEyeLoc.getY();
+        final double startZ = attackerEyeLoc.getZ();
 
-        // 2. 从 Pitch/Yaw 计算归一化方向向量 (0 GC)
-        double pitch = Math.toRadians(attackerEyeLoc.getPitch());
-        double yaw = Math.toRadians(attackerEyeLoc.getYaw());
-        double xz = Math.cos(pitch);
-        double dirX = -xz * Math.sin(yaw);
-        double dirY = -Math.sin(pitch);
-        double dirZ = xz * Math.cos(yaw);
+        // 计算方向向量
+        final double pitch = attackerEyeLoc.getPitch() * 0.017453292519943295;
+        final double yaw = attackerEyeLoc.getYaw() * 0.017453292519943295;
+        final double xz = Math.cos(pitch);
+        final double dirX = -xz * Math.sin(yaw);
+        final double dirY = -Math.sin(pitch);
+        final double dirZ = xz * Math.cos(yaw);
 
-        // 3. 计算怪物的物理碰撞箱边界 (无需 victim.getBoundingBox()，0 GC)
-        Location vLoc = victim.getLocation();
-        double vX = vLoc.getX();
-        double vY = vLoc.getY();
-        double vZ = vLoc.getZ();
-        double halfWidth = victim.getWidth() / 2.0;
-        double height = victim.getHeight();
+        // 获取并构建目标 AABB
+        final double vX = victimLoc.getX();
+        final double vY = victimLoc.getY();
+        final double vZ = victimLoc.getZ();
+        final double hWidth = victimW / 2.0;
+        final double height = victimH;
 
-        double minX = vX - halfWidth;
-        double maxX = vX + halfWidth;
-        double minY = vY;
-        double maxY = vY + height;
-        double minZ = vZ - halfWidth;
-        double maxZ = vZ + halfWidth;
+        // 实体边界
+        final double minX = vX - hWidth;
+        final double maxX = vX + hWidth;
+        final double minY = vY;
+        final double maxY = vY + height;
+        final double minZ = vZ - hWidth;
+        final double maxZ = vZ + hWidth;
 
-        // 4. Liang-Barsky 射线与 AABB 碰撞检测核心算法
-        double tMin = 0.0;
-        double tMax = 5.0; // 设定最大攻击距离为 5.0 格
+        // 预计算方向倒数优化性能
+        final double invX = (Math.abs(dirX) > 1.0E-5) ? 1.0 / dirX : Double.POSITIVE_INFINITY;
+        final double invY = (Math.abs(dirY) > 1.0E-5) ? 1.0 / dirY : Double.POSITIVE_INFINITY;
+        final double invZ = (Math.abs(dirZ) > 1.0E-5) ? 1.0 / dirZ : Double.POSITIVE_INFINITY;
 
-        // 检查 X 轴面
-        if (Math.abs(dirX) < 1.0E-5) {
-            if (startX < minX || startX > maxX)
-                return getFallback(vX, vY, vZ, height);
-        } else {
-            double t1 = (minX - startX) / dirX;
-            double t2 = (maxX - startX) / dirX;
-            tMin = Math.max(tMin, Math.min(t1, t2));
-            tMax = Math.min(tMax, Math.max(t1, t2));
+        // 计算射线与六面相交情况
+        final double t1 = (minX - startX) * invX;
+        final double t2 = (maxX - startX) * invX;
+        final double t3 = (minY - startY) * invY;
+        final double t4 = (maxY - startY) * invY;
+        final double t5 = (minZ - startZ) * invZ;
+        final double t6 = (maxZ - startZ) * invZ;
+
+        // 取进入点最大值与退出点最小值
+        final double tMin = Math.max(Math.max(Math.min(t1, t2), Math.min(t3, t4)), Math.min(t5, t6));
+        final double tMax = Math.min(Math.min(Math.max(t1, t2), Math.max(t3, t4)), Math.max(t5, t6));
+
+        // 判定：穿过盒子且在前方 5 格内
+        if (tMax >= tMin && tMin >= 0 && tMin <= 5.0) {
+            // 计算击中点并轻微后退防穿模
+            return new Vector3d(
+                    startX + dirX * tMin - dirX * 0.3,
+                    startY + dirY * tMin - dirY * 0.3,
+                    startZ + dirZ * tMin - dirZ * 0.3);
         }
 
-        // 检查 Y 轴面
-        if (Math.abs(dirY) < 1.0E-5) {
-            if (startY < minY || startY > maxY)
-                return getFallback(vX, vY, vZ, height);
-        } else {
-            double t1 = (minY - startY) / dirY;
-            double t2 = (maxY - startY) / dirY;
-            tMin = Math.max(tMin, Math.min(t1, t2));
-            tMax = Math.min(tMax, Math.max(t1, t2));
-        }
-
-        // 检查 Z 轴面
-        if (Math.abs(dirZ) < 1.0E-5) {
-            if (startZ < minZ || startZ > maxZ)
-                return getFallback(vX, vY, vZ, height);
-        } else {
-            double t1 = (minZ - startZ) / dirZ;
-            double t2 = (maxZ - startZ) / dirZ;
-            tMin = Math.max(tMin, Math.min(t1, t2));
-            tMax = Math.min(tMax, Math.max(t1, t2));
-        }
-
-        // 5. 判断是否击中 (tMax >= tMin 代表射线与方块有实际交集)
-        if (tMax >= tMin && tMin <= 5.0) {
-            // 计算精确击中点
-            double hitX = startX + dirX * tMin;
-            double hitY = startY + dirY * tMin;
-            double hitZ = startZ + dirZ * tMin;
-
-            // 防穿模：向视线反方向拉回 0.3 格
-            hitX -= dirX * 0.3;
-            hitY -= dirY * 0.3;
-            hitZ -= dirZ * 0.3;
-
-            return new Vector3d(hitX, hitY, hitZ);
-        }
-
-        // 没有击中时返回保底坐标
-        return getFallback(vX, vY, vZ, height);
-    }
-
-    // 提取保底坐标方法以保持代码整洁
-    private static Vector3d getFallback(double vX, double vY, double vZ, double height) {
+        // 未击中时返回保底坐标
         return new Vector3d(vX, vY + height * 0.75, vZ);
     }
-
 }

@@ -14,11 +14,19 @@ import org.bukkit.event.Listener;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
-import org.bukkit.configuration.file.YamlConfiguration;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.nodes.MappingNode;
+import org.yaml.snakeyaml.nodes.Node;
+import org.yaml.snakeyaml.nodes.NodeTuple;
+import org.yaml.snakeyaml.nodes.ScalarNode;
+import org.yaml.snakeyaml.nodes.SequenceNode;
 
 import java.io.File;
+import java.io.FileReader;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 
@@ -64,17 +72,19 @@ public class BukkitScriptManager implements ScriptHost {
 
         int success = 0;
         for (File file : files) {
-            try {
-                YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-                java.util.Map<String, Object> rootMap = config.getValues(false);
+            try (FileReader reader = new FileReader(file)) {
+                Yaml yaml = new Yaml();
+                Node rootNode = yaml.compose(reader);
+                if (!(rootNode instanceof MappingNode)) {
+                    plugin.getLogger().warning("Script file is not a valid map structure: " + file.getName());
+                    continue;
+                }
 
-                // 嵌套层级的特判解包，因为 getValues(false) 对深层可能保留为 ConfigurationSection
-                if (config.isList("flow")) {
-                    rootMap.put("flow", config.getMapList("flow"));
-                }
-                if (config.isConfigurationSection("variables")) {
-                    rootMap.put("variables", config.getConfigurationSection("variables").getValues(false));
-                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> rootMap = (Map<String, Object>) parseYamlNode(rootNode);
+
+                // 强制将文件相对路径/名称作为 ScriptUnit.id() 存入，后续报错直接追踪到此文件
+                rootMap.put("id", file.getName());
 
                 injector.inject(rootMap);
                 success++;
@@ -87,6 +97,46 @@ public class BukkitScriptManager implements ScriptHost {
         }
         plugin.getLogger()
                 .info("Loaded " + success + " scripts successfully (" + (files.length - success) + " failed).");
+    }
+
+    /**
+     * 递归解析 SnakeYAML 的 AST 节点，转换为标准的 Java 结构 (List, Map, Object)。
+     * 在处理字典结构 (MappingNode) 时，会自动将底层配置文件的行号压入 `__line__` 字段。
+     */
+    private Object parseYamlNode(Node node) {
+        if (node instanceof ScalarNode scalar) {
+            // 这里简单处理：YAML 库在装配好后可以直接提供原始字面量。
+            // 最佳实践：SnakeYAML 提供隐式转换（如将 "42" 转作整数）。为简化处理，这里默认依赖 Bukkit 的 snakeyaml 自带的构造器，
+            // 但如果处于 compose 层面，我们只能拿到 String Value。我们依赖后续 ScriptBuilder / ScriptParser
+            // 自己做数值推断。
+
+            // 重要：如果你在其他地方对 Boolean/Number 比较依赖原生的 YamlConfiguration（因为它会自动转布尔等），
+            // 你可以通过 StandardConstructor 构建，这里采取简单的隐式推导或依赖 ScriptParser 自己强大的 inferType 能力。
+            String value = scalar.getValue();
+            // Boolean 快捷转换
+            if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value))
+                return Boolean.parseBoolean(value);
+            return value;
+        } else if (node instanceof SequenceNode sequence) {
+            List<Object> list = new ArrayList<>(sequence.getValue().size());
+            for (Node child : sequence.getValue()) {
+                list.add(parseYamlNode(child));
+            }
+            return list;
+        } else if (node instanceof MappingNode mapping) {
+            Map<String, Object> map = new LinkedHashMap<>(mapping.getValue().size() + 1);
+            // 魔法：在此处注入配置文件的精确行号
+            int line = mapping.getStartMark().getLine() + 1;
+            map.put("__line__", line);
+
+            for (NodeTuple tuple : mapping.getValue()) {
+                String key = ((ScalarNode) tuple.getKeyNode()).getValue();
+                Object value = parseYamlNode(tuple.getValueNode());
+                map.put(key, value);
+            }
+            return map;
+        }
+        return null;
     }
 
     /**
