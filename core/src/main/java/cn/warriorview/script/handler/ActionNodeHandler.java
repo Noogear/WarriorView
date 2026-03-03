@@ -144,7 +144,16 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
 
         if (hasReturn) {
             if (store != null) {
-                int slot = ctx.getSlot(store);
+                int slot;
+                try {
+                    slot = ctx.getSlot(store);
+                } catch (IllegalArgumentException e) {
+                    throw cn.warriorview.script.core.ScriptCompileException.create(node,
+                            String.format("Undefined store variable '%s' for action '%s'. "
+                                    + "If using ScriptBuilder.actionStore(), this is likely an internal error — "
+                                    + "the variable should have been auto-declared.",
+                                    store, node.getAttrOrDefault("action", "?")));
+                }
                 int storeOpcode = org.objectweb.asm.Type.getType(retClass).getOpcode(Opcodes.ISTORE);
                 mv.visitVarInsn(storeOpcode, slot);
             } else {
@@ -156,12 +165,30 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
     }
 
     /**
+     * 发射动作调用并将返回值留在操作数栈顶，不执行 STORE 或 POP。
+     * <p>
+     * 与 {@link #emit} 的区别：{@code emit} 会视 {@code store} 属性决定是否
+     * ISTORE / DSTORE 或 POP 返回值；本方法则直接把返回值留在栈上供调用方消费。
+     * <p>
+     * 仅供 ReturnNodeHandler 的生产者内联路径使用。
+     *
+     * @param node 已剥离 {@code store} 属性的 ACTION FlowNode
+     */
+    void emitActionCallLeaveOnStack(MethodVisitor mv, ActionRegistry.ActionDef def,
+            ImmutableList<String> args, CompilationContext ctx, FlowNode node) {
+        // emitActionCall 只负责 ALOAD 1 + arg loading + INVOKESTATIC，
+        // 不含任何 STORE / POP 逻辑（那部分在 emit() 中处理）。
+        // 因此直接调用即可让返回值停留在操作数栈顶。
+        emitActionCall(mv, def, args, ctx, node);
+    }
+
+    /**
      * 统一动作调用发射。
      * <p>
      * 根据 ActionDef 的参数类型智能加载参数，
      * 字符串模板使用 invokedynamic StringConcatFactory。
      */
-    private void emitActionCall(MethodVisitor mv, ActionRegistry.ActionDef def,
+    void emitActionCall(MethodVisitor mv, ActionRegistry.ActionDef def,
             ImmutableList<String> args, CompilationContext ctx, FlowNode node) {
         // 加载 event 参数（slot 1）作为第一个方法参数
         mv.visitVarInsn(Opcodes.ALOAD, 1);
@@ -235,18 +262,33 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
                         }
                     } else {
                         // 方法要求引用类型 → 加载并按需装箱
+                        // 利用窄化类型：若变量已经过 instanceof 窄化，且窄化类是 reqType 的子类，直接 cast 到窄化类
+                        Class<?> narrowed = ctx.getNarrowedClass(varName);
+                        Class<?> castTarget = (narrowed != null && reqType.isAssignableFrom(narrowed))
+                                ? narrowed : reqType;
                         ASMUtils.emitLoadBoxed(mv, slot, varType);
-                        if (reqType != Object.class) {
+                        if (castTarget != Object.class) {
                             mv.visitTypeInsn(Opcodes.CHECKCAST,
-                                    org.objectweb.asm.Type.getInternalName(reqType));
+                                    org.objectweb.asm.Type.getInternalName(castTarget));
                         }
                     }
                 } else {
                     // 变量未找到，fallback 到字符串
                     mv.visitLdcInsn(arg);
                 }
+            } else if (ScriptIR.isDottedSingleRef(arg)) {
+                // 纯点链引用 {entity.name} → 直接发射窄化属性加载（不经过 StringConcat）
+                String inner = arg.substring(1, arg.length() - 1);
+                BytecodeCompiler.emitNarrowedPropertyLoad(mv, ctx, inner);
+                // 若方法要求具体子类型则追加 CHECKCAST
+                Class<?> unwrappedReq = com.google.common.primitives.Primitives.unwrap(reqType);
+                if (!unwrappedReq.isPrimitive() && reqType != Object.class) {
+                    mv.visitTypeInsn(Opcodes.CHECKCAST,
+                            org.objectweb.asm.Type.getInternalName(reqType));
+                }
+
             } else if (ScriptIR.isTemplate(arg)) {
-                // 模板字符串 → invokedynamic StringConcatFactory
+                // 模板字符串（含字面量 + 占位符） → invokedynamic StringConcatFactory
                 BytecodeCompiler.emitStringConcat(mv, arg, ctx);
             } else {
                 Class<?> unwrappedType = com.google.common.primitives.Primitives.unwrap(reqType);
@@ -293,15 +335,31 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
         ImmutableList<String> args = node.getAttrOrDefault("args", ImmutableList.of());
         String foundVar = null;
         for (String arg : args) {
-            if (ScriptIR.isSingleVar(arg)) {
-                if (foundVar != null) {
-                    // More than one pure variable arg, too complex to sink right now
-                    return null;
+            String baseVar = null;
+            if (ScriptIR.isSingleVar(arg) || ScriptIR.isDottedSingleRef(arg)) {
+                baseVar = baseVarOf(arg);
+            } else if (ScriptIR.isTemplate(arg)) {
+                // 提取模板中所有点链引用的头变量；多头不同时放弃下沉
+                for (String bv : ScriptIR.templateBaseVars(arg)) {
+                    if (baseVar == null) baseVar = bv;
+                    else if (!baseVar.equals(bv)) return null;
                 }
-                foundVar = arg.substring(1, arg.length() - 1);
+            }
+            if (baseVar != null) {
+                if (foundVar != null && !foundVar.equals(baseVar)) return null;
+                foundVar = baseVar;
             }
         }
         return foundVar;
+    }
+
+    /**
+     * 从 {@code \{var\}} 或 {@code \{entity.name\}} 形式的括号参数提取基础变量名。
+     * 点链引用取头部：{@code \{entity.health\}} → {@code entity}。
+     */
+    private static String baseVarOf(String bracketedArg) {
+        String inner = bracketedArg.substring(1, bracketedArg.length() - 1);
+        return ScriptIR.isDottedPart(inner) ? ScriptIR.splitDotted(inner)[0] : inner;
     }
 
     @Override
@@ -334,14 +392,10 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
         ImmutableList<String> args = node.getAttrOrDefault("args", ImmutableList.of());
         List<String> vars = new java.util.ArrayList<>();
         for (String arg : args) {
-            if (ScriptIR.isSingleVar(arg)) {
-                vars.add(arg.substring(1, arg.length() - 1));
+            if (ScriptIR.isSingleVar(arg) || ScriptIR.isDottedSingleRef(arg)) {
+                vars.add(baseVarOf(arg));
             } else if (ScriptIR.isTemplate(arg)) {
-                for (String part : ScriptIR.parseTemplate(arg)) {
-                    if (arg.contains("{" + part + "}")) {
-                        vars.add(part);
-                    }
-                }
+                vars.addAll(ScriptIR.templateBaseVars(arg));
             }
         }
         return vars;
@@ -373,11 +427,16 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
     private static void validateVarArgType(String action, int paramIndex, String argStr,
             IRType expected, CompilationContext ctx, FlowNode node) {
         String varName = argStr.substring(1, argStr.length() - 1);
-        if ("payload".equals(varName))
+        // payload 及其别名（slot 1）：用 payload 具体类参与类型检查，而非泛化的 OBJECT
+        IRType actual = (ctx.getSlot(varName) == 1)
+                ? IRType.fromClass(ctx.payloadClass())
+                : ctx.getType(varName);
+        if (expected.isAssignableFrom(actual))
             return;
 
-        IRType actual = ctx.getType(varName);
-        if (expected.isAssignableFrom(actual))
+        // 如果变量已经过 instanceof 窄化，检查窄化类型是否能满足期望类型
+        Class<?> narrowed = ctx.getNarrowedClass(varName);
+        if (narrowed != null && expected.isAssignableFrom(IRType.fromClass(narrowed)))
             return;
 
         throw cn.warriorview.script.core.ScriptCompileException.create(node, String.format(

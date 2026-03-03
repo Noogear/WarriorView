@@ -55,8 +55,13 @@ public final class ScriptParser {
         for (Map.Entry<String, String> entry : varMap.entrySet()) {
             String name = entry.getKey();
             String property = entry.getValue();
-            IRType type = PropertyResolver.resolveType(payloadClazz, property);
-            vars.add(new VarDecl(name, property, type));
+            if ("$self".equals(property)) {
+                // payload 别名：跳过属性解析，类型在 buildContext 中用 payload 实际类填充
+                vars.add(new VarDecl(name, "$self", ScriptIR.IRType.OBJECT));
+            } else {
+                IRType type = PropertyResolver.resolveType(payloadClazz, property);
+                vars.add(new VarDecl(name, property, type));
+            }
         }
 
         // 流程列表

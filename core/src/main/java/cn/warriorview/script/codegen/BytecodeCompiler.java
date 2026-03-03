@@ -332,6 +332,8 @@ public final class BytecodeCompiler implements Opcodes {
         for (VarDecl var : vars) {
             if (!liveVars.contains(var.name()))
                 continue;
+            if (var.isPayloadAlias())
+                continue; // 别名直接引用 slot 1（方法入参），无需任何提取指令
 
             // 按 Parser 规定的属性语法截取根基名称（提取第一段复用前缀）
             String firstPart = cn.warriorview.script.parser.ScriptParser.PropertyResolver
@@ -408,55 +410,115 @@ public final class BytecodeCompiler implements Opcodes {
 
     /**
      * 使用 {@code invokedynamic StringConcatFactory.makeConcatWithConstants} 发射字符串拼接。
+     * <p>
+     * 支持普通变量占位符 {@code {hp}} 和窄化点链 {@code {entity.name}}。
+     * 窄化点链要求目标变量已经通过 {@code check: instanceof} 完成窄化。
      */
     public static void emitStringConcat(MethodVisitor mv, String template, CompilationContext ctx) {
         List<String> parts = ScriptIR.parseTemplate(template);
-
-        StringBuilder recipe = new StringBuilder();
+        StringBuilder recipe     = new StringBuilder();
         StringBuilder descriptor = new StringBuilder("(");
 
         for (String part : parts) {
-            if (isTemplatePart(template, part)) {
-                recipe.append('\u0001');
-                int slot = ctx.getSlot(part);
-                ScriptIR.IRType type = ctx.getType(part);
-                switch (type.base()) {
-                    case INT:
-                    case BOOLEAN:
-                        mv.visitVarInsn(ILOAD, slot);
-                        descriptor.append("I");
-                        break;
-                    case LONG:
-                        mv.visitVarInsn(LLOAD, slot);
-                        descriptor.append("J");
-                        break;
-                    case DOUBLE:
-                        mv.visitVarInsn(DLOAD, slot);
-                        descriptor.append("D");
-                        break;
-                    default:
-                        mv.visitVarInsn(ALOAD, slot);
-                        descriptor.append("Ljava/lang/Object;");
-                        break;
-                }
-            } else {
+            // ---- 纯文本段：转义 recipe 保留字符后原样追加 ----
+            if (!isTemplatePart(template, part)) {
                 for (char c : part.toCharArray()) {
-                    if (c == '\u0001' || c == '\u0002') {
-                        recipe.append('\u0002').append(c);
-                    } else {
-                        recipe.append(c);
-                    }
+                    if (c == '\u0001' || c == '\u0002') recipe.append('\u0002');
+                    recipe.append(c);
                 }
+                continue;
+            }
+
+            // ---- 占位符段：发射 LOAD + 追加描述符 ----
+            recipe.append('\u0001');
+            if (ScriptIR.isDottedPart(part)) {
+                // 窄化点链：ALOAD slot + CHECKCAST + accessor 链，返回末端类型
+                Class<?> propRaw = emitNarrowedPropertyLoad(mv, ctx, part).getRawType();
+                descriptor.append(concatDescriptorOf(propRaw));
+            } else {
+                // 普通变量槽：类型感知 LOAD
+                descriptor.append(emitSlotLoad(mv, ctx.getSlot(part), ctx.getType(part)));
             }
         }
 
         descriptor.append(")Ljava/lang/String;");
-
         mv.visitInvokeDynamicInsn(
                 "makeConcatWithConstants",
                 descriptor.toString(),
                 STRING_CONCAT_HANDLE,
                 recipe.toString());
+    }
+
+    /**
+     * 返回 invokedynamic MethodType 参数中对应原生类型的描述符片段。
+     * 非原生类型统一用 {@code Ljava/lang/Object;}。
+     * int 与 boolean 均映射至 {@code I}（与 JVM 局部变量槽类型一致）。
+     */
+    private static String concatDescriptorOf(Class<?> raw) {
+        if (raw == int.class)     return "I";
+        if (raw == boolean.class) return "Z"; // StringConcatFactory 用 Z 才输出 true/false
+        if (raw == long.class)    return "J";
+        if (raw == double.class)  return "D";
+        if (raw == float.class)   return "F";
+        return "Ljava/lang/Object;";
+    }
+
+    /**
+     * 针对给定槽和 IR 类型发射类型正确的 LOAD 指令，返回对应描述符片段。
+     * 将"发射指令"与"生成描述符"合二为一，消除原有两路并行的 switch。
+     */
+    private static String emitSlotLoad(MethodVisitor mv, int slot, ScriptIR.IRType type) {
+        return switch (type.base()) {
+            case INT     -> { mv.visitVarInsn(ILOAD, slot); yield "I"; }
+            case BOOLEAN -> { mv.visitVarInsn(ILOAD, slot); yield "Z"; } // 槽类型同 int，但描述符用 Z
+            case LONG    -> { mv.visitVarInsn(LLOAD, slot); yield "J"; }
+            case DOUBLE  -> { mv.visitVarInsn(DLOAD, slot); yield "D"; }
+            default      -> { mv.visitVarInsn(ALOAD, slot); yield "Ljava/lang/Object;"; }
+        };
+    }
+
+    /**
+     * 发射窄化点链属性读取： ALOAD slot + CHECKCAST narrowedClass + 属性链 emitLoad。
+     * <p>
+     * 例：{@code entity.playerListName} →
+     * {@code ALOAD slot; CHECKCAST Player; INVOKEVIRTUAL Player.getPlayerListName}。
+     *
+     * @param mv   MethodVisitor
+     * @param ctx  编译上下文
+     * @param part 点链引用，如 {@code "entity.name"}
+     * @throws cn.warriorview.script.core.ScriptCompileException 若变量未窄化
+     */
+    /**
+     * 发射窄化点链属性读取，并返回最终 accessor 的真实返回类型（供调用方决定 invokedynamic 描述符）。
+     *
+     * @return 末端 accessor 的 {@code TypeToken}；若无 accessor 则返回 {@code TypeToken.of(narrowed)}
+     */
+    public static com.google.common.reflect.TypeToken<?> emitNarrowedPropertyLoad(
+            MethodVisitor mv, CompilationContext ctx, String part) {
+        String[] kv = ScriptIR.splitDotted(part);
+        String varName = kv[0];
+        String propPath = kv[1];
+
+        Class<?> narrowed = ctx.getNarrowedClass(varName);
+        if (narrowed == null) {
+            throw new cn.warriorview.script.core.ScriptCompileException(
+                    "Dotted template {" + part + "}: variable '" + varName +
+                    "' has no narrowed type. Add 'check: op: instanceof' before this action.");
+        }
+
+        int slot = ctx.getSlot(varName);
+        mv.visitVarInsn(ALOAD, slot);
+        mv.visitTypeInsn(CHECKCAST, org.objectweb.asm.Type.getInternalName(narrowed));
+
+        List<cn.warriorview.script.parser.accessor.PropertyAccessor> accessors =
+                ScriptParser.PropertyResolver.resolveAccessors(
+                        com.google.common.reflect.TypeToken.of(narrowed), propPath);
+        for (cn.warriorview.script.parser.accessor.PropertyAccessor acr : accessors) {
+            acr.emitLoad(mv);
+        }
+        return accessors.isEmpty()
+                ? com.google.common.reflect.TypeToken.of(narrowed)
+                : accessors.get(accessors.size() - 1).returnType();
     }
 
     private static boolean isTemplatePart(String fullTemplate, String part) {

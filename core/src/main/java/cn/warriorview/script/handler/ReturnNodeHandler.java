@@ -1,7 +1,9 @@
 package cn.warriorview.script.handler;
 
+import cn.warriorview.script.action.ActionRegistry;
 import cn.warriorview.script.codegen.ASMUtils;
 import cn.warriorview.script.codegen.BytecodeCompiler;
+import com.google.common.collect.ImmutableList;
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
@@ -93,15 +95,21 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
 
         Object value = node.getAttrOrDefault("value", null);
         if (value == null) {
-            // Check for sinking hooked dummy producer
+            // Check for sinking hooked dummy producer or inlined producer
             FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
             if (conditionAction != null) {
-                // Sunk property hook
-                String sinkingProp = conditionAction.getRequiredAttr("_sinking_property");
+                String sinkingProp = conditionAction.getAttrOrDefault("_sinking_property", null);
                 cn.warriorview.script.core.ScriptIR.IRType returnType = conditionAction.getRequiredAttr("returnType");
-
-                BytecodeCompiler.emitSunkPropertyLoad(mv, ctx, sinkingProp);
-
+                if (sinkingProp != null) {
+                    // 路径 CA：属性下沉（Property Sinking）— virtual producer
+                    BytecodeCompiler.emitSunkPropertyLoad(mv, ctx, sinkingProp);
+                } else {
+                    // 路径 CB：生产者内联（Producer Inlining）— inlined ACTION node
+                    // 需要直接发射调用并把返回值留在栈顶，而非让 ActionNodeHandler.emit 弹出它
+                    ActionRegistry.ActionDef def = conditionAction.getRequiredAttr("def");
+                    ImmutableList<String> args = conditionAction.getRequiredAttr("args");
+                    new ActionNodeHandler().emitActionCallLeaveOnStack(mv, def, args, ctx, conditionAction);
+                }
                 // 按目标接口自适应返回指令，不无脑 ARETURN
                 emitAdaptiveReturn(mv, ctx, returnType);
                 return;
@@ -305,6 +313,20 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
         return EnumSet.of(NodeCapability.TERMINATES_FLOW);
     }
 
+    /**
+     * 覆盖默认的内联实现，同时清除 {@code variable} 和单变量 {@code value} attr。
+     * <p>
+     * 两者都可能经由 {@link #getConsumedVariable} 触发属性下沉，若仅清除 {@code variable}（默认行为），
+     * {@code value="{score}"} 会残留，导致 {@link #emit} 走 value 分支时找不到已被移除的局部变量 slot
+     * 进而在运行时抛出 {@code VerifyError}。
+     */
+    @Override
+    public FlowNode inlineAction(FlowNode node, FlowNode inlineHook) {
+        return node.withoutAttr("variable")
+                   .withoutAttr("value")        // 消除 value="{singleVar}" 残留
+                   .withAttr("conditionAction", inlineHook);
+    }
+
     @Override
     public String getConsumedVariable(FlowNode node) {
         String varName = node.getAttrOrDefault("variable", null);
@@ -318,6 +340,43 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
         }
 
         return null; // Not a primitive single variable return, don't sink
+    }
+
+    /**
+     * 报告所有被消费的变量名，使 liveness analysis 正确预初始化对应 slot。
+     * 覆盖默认实现以支持模板字符串（含多变量）和集合元素场景。
+     */
+    @Override
+    public List<String> getAllConsumedVariables(FlowNode node) {
+        String varAttr = node.getAttrOrDefault("variable", null);
+        if (varAttr != null) return List.of(varAttr);
+
+        Object value = node.getAttrOrDefault("value", null);
+        if (value == null) return List.of();
+
+        if (value instanceof String strVal) {
+            if (ScriptIR.isSingleVar(strVal)) {
+                return List.of(strVal.substring(1, strVal.length() - 1));
+            }
+            // templateBaseVars 复用已编译的 TEMPLATE_PATTERN，避免热路径上的 Pattern.compile 开销
+            return ScriptIR.isTemplate(strVal) ? ScriptIR.templateBaseVars(strVal) : List.of();
+        }
+
+        if (value instanceof List<?> list) {
+            List<String> vars = new java.util.ArrayList<>();
+            for (Object elem : list) {
+                if (elem instanceof String s) {
+                    if (ScriptIR.isSingleVar(s)) {
+                        vars.add(s.substring(1, s.length() - 1));
+                    } else if (ScriptIR.isTemplate(s)) {
+                        vars.addAll(ScriptIR.templateBaseVars(s));
+                    }
+                }
+            }
+            return vars;
+        }
+
+        return List.of();
     }
 
     @Override

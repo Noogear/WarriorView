@@ -112,26 +112,33 @@ public final class CompositeCheckHandler implements cn.warriorview.script.core.S
             MethodVisitor mv, CompilationContext ctx) {
         Label passLabel = new Label();
 
+        // 进入 any 前保存快照： any 内部的 instanceof 窄化不应泄漏到父级作用域
+        Map<String, Class<?>> outerSnapshot = ctx.snapshotNarrowed();
+
         for (FlowNode child : children) {
+            // 每个分支使用各自独立的快照，防止吉兆互串窄化
+            Map<String, Class<?>> branchSnapshot = ctx.snapshotNarrowed();
             if (child.type() == FlowNodeType.ANY || child.type() == FlowNodeType.ALL) {
                 // 嵌套复合节点：用临时 boolean 变量桥接
                 emitNestedComposite(child, mv, ctx, passLabel, true);
             } else if (child.type().handler() instanceof ConditionEmitter emitter) {
-                // 单个条件：发射条件，反转跳转方向 → 成立时跳到 passLabel
+                // 单个条件：条件成立时跳到 passLabel（OR 短路：任一 TRUE → 跳过 fail handler）
                 int jumpOp = emitter.emitCondition(child, mv, ctx);
-                int invertedOp = ASMUtils.invertJump(jumpOp);
-                mv.visitJumpInsn(invertedOp, passLabel);
+                mv.visitJumpInsn(jumpOp, passLabel);
             } else {
                 throw new cn.warriorview.script.core.ScriptCompileException(
                         "Node type " + child.type() + " is not supported inside ANY node.");
             }
+            ctx.restoreNarrowed(branchSnapshot);
         }
 
-        // 全部不满足 → on_fail + return
+        // 全部不满足 → on_fail + 提前退出（返回类型和方法签名一致）
         emitOnFail(node, mv, ctx);
-        mv.visitInsn(Opcodes.RETURN);
+        CheckNodeHandler.emitEarlyReturn(mv, ctx);
 
         mv.visitLabel(passLabel);
+        // any 内部快照不传出到父级
+        ctx.restoreNarrowed(outerSnapshot);
     }
 
     /**
@@ -150,7 +157,12 @@ public final class CompositeCheckHandler implements cn.warriorview.script.core.S
         Label failLabel = new Label();
         Label continueLabel = new Label();
 
+        // 进入 all 前保存快照
+        Map<String, Class<?>> outerSnapshot = ctx.snapshotNarrowed();
+
         for (FlowNode child : children) {
+            // 每个分支使用各自独立的快照
+            Map<String, Class<?>> branchSnapshot = ctx.snapshotNarrowed();
             if (child.type() == FlowNodeType.ANY || child.type() == FlowNodeType.ALL) {
                 emitNestedComposite(child, mv, ctx, failLabel, false);
             } else if (child.type().handler() instanceof ConditionEmitter emitter) {
@@ -163,6 +175,7 @@ public final class CompositeCheckHandler implements cn.warriorview.script.core.S
                 throw new cn.warriorview.script.core.ScriptCompileException(
                         "Node type " + child.type() + " is not supported inside ALL node.");
             }
+            ctx.restoreNarrowed(branchSnapshot);
         }
 
         // 全部通过
@@ -171,9 +184,11 @@ public final class CompositeCheckHandler implements cn.warriorview.script.core.S
         // 失败路径
         mv.visitLabel(failLabel);
         emitOnFail(node, mv, ctx);
-        mv.visitInsn(Opcodes.RETURN);
+        CheckNodeHandler.emitEarlyReturn(mv, ctx);
 
         mv.visitLabel(continueLabel);
+        // all 内部快照不传出到父级
+        ctx.restoreNarrowed(outerSnapshot);
     }
 
     /**
@@ -193,52 +208,62 @@ public final class CompositeCheckHandler implements cn.warriorview.script.core.S
         Label nestedFailLabel = new Label();
 
         if (isNestedAny) {
-            // 嵌套 ANY：任一成立 → nestedPassLabel
+            // 嵌套 ANY：任一 TRUE → nestedPassLabel（OR 短路）
             for (FlowNode gc : grandChildren) {
                 if (gc.type() == FlowNodeType.ANY || gc.type() == FlowNodeType.ALL) {
                     emitNestedComposite(gc, mv, ctx, nestedPassLabel, true);
                 } else if (gc.type().handler() instanceof ConditionEmitter emitter) {
                     int jumpOp = emitter.emitCondition(gc, mv, ctx);
-                    mv.visitJumpInsn(ASMUtils.invertJump(jumpOp), nestedPassLabel);
+                    mv.visitJumpInsn(jumpOp, nestedPassLabel); // TRUE → jump to pass
                 }
             }
-            // 全部不满足 → nestedFail
+            // 所有条件均不满足 → 显式跳到 nestedFailLabel（避免 fall-through 到 passLabel）
             mv.visitJumpInsn(Opcodes.GOTO, nestedFailLabel);
+
             mv.visitLabel(nestedPassLabel);
-
-            // 嵌套 any 通过 → 如果父期望 jumpOnPass，跳到 parentTarget
             if (jumpOnPass) {
+                // ANY 在 ANY 内：任一通过 → 跳到父级 passLabel
                 mv.visitJumpInsn(Opcodes.GOTO, parentTarget);
-            }
-            // 否则继续（ALL 父级需要继续检查下一个子条件）
-
-            mv.visitLabel(nestedFailLabel);
-            if (!jumpOnPass) {
-                // 嵌套 any 失败 → ALL 父级的某个条件失败 → 跳到 parentTarget(failLabel)
+                // fail 路径 fall-through 到下一条父 ANY 子条件
+                mv.visitLabel(nestedFailLabel);
+            } else {
+                // ANY 在 ALL 内：任一通过 → 跳过失败路径，继续 ALL 下一个子条件
+                Label nestedDoneLabel = new Label();
+                mv.visitJumpInsn(Opcodes.GOTO, nestedDoneLabel);
+                mv.visitLabel(nestedFailLabel);
+                // 全部失败 → ALL 某条件失败 → 跳到父级 failLabel
                 mv.visitJumpInsn(Opcodes.GOTO, parentTarget);
+                mv.visitLabel(nestedDoneLabel);
+                // continue：继续 ALL 的下一个子条件
             }
         } else {
-            // 嵌套 ALL：任一失败 → nestedFailLabel
+            // 嵌套 ALL：任一 FALSE → nestedFailLabel（AND 短路：失败即跳）
             for (FlowNode gc : grandChildren) {
                 if (gc.type() == FlowNodeType.ANY || gc.type() == FlowNodeType.ALL) {
                     emitNestedComposite(gc, mv, ctx, nestedFailLabel, false);
                 } else if (gc.type().handler() instanceof ConditionEmitter emitter) {
                     int jumpOp = emitter.emitCondition(gc, mv, ctx);
-                    mv.visitJumpInsn(jumpOp, nestedFailLabel);
+                    mv.visitJumpInsn(ASMUtils.invertJump(jumpOp), nestedFailLabel); // FALSE → jump to fail
                 }
             }
-            // 全部通过 → nestedPass
+            // 所有条件均通过 → 显式跳到 nestedPassLabel（避免 fall-through 到 failLabel）
             mv.visitJumpInsn(Opcodes.GOTO, nestedPassLabel);
+
             mv.visitLabel(nestedFailLabel);
-
             if (!jumpOnPass) {
-                // 嵌套 all 失败 → 跳到 parentTarget
+                // ALL 在 ALL 内：失败 → 跳到父级 failLabel
                 mv.visitJumpInsn(Opcodes.GOTO, parentTarget);
-            }
-
-            mv.visitLabel(nestedPassLabel);
-            if (jumpOnPass) {
+                // pass 路径 fall-through 到下一个 ALL 子条件
+                mv.visitLabel(nestedPassLabel);
+            } else {
+                // ALL 在 ANY 内：失败 → 跳过通过路径，继续 ANY 下一个子条件
+                Label nestedDoneLabel = new Label();
+                mv.visitJumpInsn(Opcodes.GOTO, nestedDoneLabel);
+                mv.visitLabel(nestedPassLabel);
+                // 全部通过 → ANY 父级可 pass → 跳到父级 passLabel
                 mv.visitJumpInsn(Opcodes.GOTO, parentTarget);
+                mv.visitLabel(nestedDoneLabel);
+                // continue：继续 ANY 的下一个子条件
             }
         }
     }

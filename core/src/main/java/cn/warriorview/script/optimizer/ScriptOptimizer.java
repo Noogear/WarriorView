@@ -347,6 +347,11 @@ public final class ScriptOptimizer {
         ImmutableList.Builder<cn.warriorview.script.core.ScriptIR.VarDecl> optimizedVars = ImmutableList.builder();
 
         for (cn.warriorview.script.core.ScriptIR.VarDecl v : unit.vars()) {
+            if (v.isPayloadAlias()) {
+                // payload 别名不能被下沉（它就是 slot 1，无需提取也无法虚拟化属性链）
+                optimizedVars.add(v);
+                continue;
+            }
             if (refs.count(v.name()) == 1) {
                 // 单次引用，从 CSE 数组中踢出，转入待下放池
                 sinkingVars.put(v.name(), v);
@@ -361,21 +366,45 @@ public final class ScriptOptimizer {
             FlowNode current = oldFlow.get(i);
 
             // ==== 【阶段 A】 侦测并吞食生产者到消费者的直接内联 (Producer Inlining) ====
+            //
+            // 改进：允许跨越纯守卫节点 (CHECK / ANY / ALL) 寻找消费者。
+            // 被跳过的守卫节点照常输出，仅生产者与消费者合并。
+            // 这也是一个安全的子优化：如果中间的 CHECK 提前终止了脚本，
+            // 生产者的动作调用会被完全跳过（减少不必要的副作用执行）。
             if (current.type().handler() instanceof ScriptIR.VariableProducer producer) {
                 String storeTarget = producer.getProducedVariable(current);
                 if (storeTarget != null && refs.count(storeTarget) == 1) {
-                    if (i + 1 < oldFlow.size()) {
-                        FlowNode next = oldFlow.get(i + 1);
-                        if (next.type().handler() instanceof ScriptIR.VariableConsumer consumer) {
-                            String nextVar = consumer.getConsumedVariable(next);
-                            if (storeTarget.equals(nextVar)) {
-                                FlowNode peelAction = producer.stripProducedVariable(current);
-                                FlowNode modifiedCheck = consumer.inlineAction(next, peelAction);
-                                optimized.add(modifiedCheck);
-                                i++; // 跳过消费节点
-                                continue;
+                    // 前瞻扫描：跳过纯守卫节点，寻找唯一的消费者
+                    int consumerIdx = -1;
+                    for (int j = i + 1; j < oldFlow.size() && j <= i + 8; j++) {
+                        FlowNode candidate = oldFlow.get(j);
+                        if (candidate.type().handler() instanceof ScriptIR.VariableConsumer vc) {
+                            String cVar = vc.getConsumedVariable(candidate);
+                            if (storeTarget.equals(cVar)) {
+                                consumerIdx = j;
+                                break;
                             }
                         }
+                        // 仅允许跳过无副作用的纯守卫节点
+                        if (!isPureGuardNode(candidate)) {
+                            break;
+                        }
+                    }
+
+                    if (consumerIdx > 0) {
+                        FlowNode peelAction = producer.stripProducedVariable(current);
+                        FlowNode consumerNode = oldFlow.get(consumerIdx);
+                        ScriptIR.VariableConsumer consumer =
+                                (ScriptIR.VariableConsumer) consumerNode.type().handler();
+                        FlowNode modifiedConsumer = consumer.inlineAction(consumerNode, peelAction);
+
+                        // 输出中间的守卫节点（保持原始执行顺序）
+                        for (int k = i + 1; k < consumerIdx; k++) {
+                            optimized.add(oldFlow.get(k));
+                        }
+                        optimized.add(modifiedConsumer);
+                        i = consumerIdx; // 跳过已处理的节点
+                        continue;
                     }
                 }
             }
@@ -402,5 +431,18 @@ public final class ScriptOptimizer {
         }
 
         return unit.withFlow(ImmutableList.copyOf(optimized)).withVars(optimizedVars.build());
+    }
+
+    /**
+     * 判断节点是否为"纯守卫"——无外部副作用、仅作条件分支控制的节点。
+     * <p>
+     * 用于 Phase A 前瞻扫描：生产者内联可以安全地跳过这些节点，
+     * 使得中间的守卫检查仍然正常执行，而动作调用则延迟到消费者位置。
+     */
+    private static boolean isPureGuardNode(FlowNode node) {
+        return switch (node.type()) {
+            case CHECK, ANY, ALL -> true;
+            default -> false;
+        };
     }
 }

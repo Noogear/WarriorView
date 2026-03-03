@@ -15,6 +15,7 @@ import com.google.common.collect.ImmutableMap;
 
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.Set;
 
 /**
  * 纯 Java 环境下的脚本无字面量（YAML）构建器。
@@ -22,6 +23,44 @@ import java.util.function.Function;
  * 为开发者提供脱离 YAML 文本、基于链式调用直接生成内部抽象语法树（AST）和执行回调的超高速 API。
  */
 public final class ScriptBuilder {
+
+    /**
+     * 编译器所有支持的操作符（不含 ! 取反前缀）。
+     * 用于 API 层的前置校验，避免拼写错误在编译/运行时才暴露。
+     */
+    private static final Set<String> KNOWN_OPS = Set.of(
+            "null", "==", "!=", ">", "<", ">=", "<=",
+            "contains", "starts_with", "ends_with", "matches",
+            "instanceof", "in", "between"
+    );
+
+    /**
+     * 常见拼写错误 → 正确操作符的映射，用于友好的错误提示。
+     */
+    private static final java.util.Map<String, String> TYPO_SUGGESTIONS = java.util.Map.ofEntries(
+            java.util.Map.entry("startswith", "starts_with"),
+            java.util.Map.entry("startsWith", "starts_with"),
+            java.util.Map.entry("start_with", "starts_with"),
+            java.util.Map.entry("endswith", "ends_with"),
+            java.util.Map.entry("endsWith", "ends_with"),
+            java.util.Map.entry("end_with", "ends_with"),
+            java.util.Map.entry("match", "matches"),
+            java.util.Map.entry("regex", "matches"),
+            java.util.Map.entry("include", "contains"),
+            java.util.Map.entry("includes", "contains"),
+            java.util.Map.entry("has", "contains"),
+            java.util.Map.entry("eq", "=="),
+            java.util.Map.entry("ne", "!="),
+            java.util.Map.entry("neq", "!="),
+            java.util.Map.entry("gt", ">"),
+            java.util.Map.entry("lt", "<"),
+            java.util.Map.entry("gte", ">="),
+            java.util.Map.entry("lte", "<="),
+            java.util.Map.entry("is", "=="),
+            java.util.Map.entry("not", "!="),
+            java.util.Map.entry("equal", "=="),
+            java.util.Map.entry("equals", "==")
+    );
 
     private final Class<?> payloadClazz;
     private String scriptId;
@@ -190,6 +229,9 @@ public final class ScriptBuilder {
     }
 
     private static FlowNode buildCheckNodeInternal(String variable, String op, Object value) {
+        // 前置校验：strip '!' 前缀后检查操作符合法性
+        validateOperator(op);
+
         ImmutableMap.Builder<String, Object> attrs = ImmutableMap.builder();
         attrs.put("variable", variable);
         attrs.put("op", op);
@@ -549,5 +591,30 @@ public final class ScriptBuilder {
                     String.format("Action '%s' expects %d arguments, but got %d.", actionName, expectedArgs,
                             args.size()));
         }
+    }
+
+    /**
+     * 前置校验操作符合法性。Strip {@code !} 取反前缀后匹配已知操作符白名单，
+     * 若未命中则尝试拼写建议。
+     */
+    private static void validateOperator(String op) {
+        if (op == null || op.isEmpty()) {
+            throw new cn.warriorview.script.core.ScriptCompileException(
+                    "Operator cannot be null or empty.");
+        }
+        String bareOp = op.startsWith("!") ? op.substring(1) : op;
+        if (KNOWN_OPS.contains(bareOp)) {
+            return; // 合法
+        }
+        // 查找拼写建议
+        String suggestion = TYPO_SUGGESTIONS.get(bareOp);
+        if (suggestion != null) {
+            String suggestedFull = op.startsWith("!") ? "!" + suggestion : suggestion;
+            throw new cn.warriorview.script.core.ScriptCompileException(
+                    String.format("Unknown operator '%s'. Did you mean '%s'?", op, suggestedFull));
+        }
+        throw new cn.warriorview.script.core.ScriptCompileException(
+                String.format("Unknown operator '%s'. Supported operators: %s (all support '!' prefix negation).",
+                        op, String.join(", ", KNOWN_OPS)));
     }
 }

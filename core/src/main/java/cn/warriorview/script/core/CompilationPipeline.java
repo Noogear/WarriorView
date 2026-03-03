@@ -66,6 +66,7 @@ public final class CompilationPipeline {
             CompilationContext ctx = buildContext(unit, expectedReturnType);
 
             // 2.5 变量引用与类型完整性检查
+            primeNarrowings(unit, ctx);
             validateVariableReferences(unit, ctx);
             validateActionParameterTypes(unit, ctx);
             validateReturnType(unit, ctx, expectedReturnType);
@@ -113,6 +114,7 @@ public final class CompilationPipeline {
         try {
             CompilationContext ctx = buildContext(unit, expectedInterfaceType);
 
+            primeNarrowings(unit, ctx);
             validateVariableReferences(unit, ctx);
             validateActionParameterTypes(unit, ctx);
             validateReturnType(unit, ctx, expectedReturnType);
@@ -180,7 +182,12 @@ public final class CompilationPipeline {
             Set<String> registeredVars = new HashSet<>();
             for (ScriptIR.VarDecl var : unit.vars()) {
                 registeredVars.add(var.name());
-                builder.addVar(var.name(), var.type());
+                if (var.isPayloadAlias()) {
+                    // 别名直接映射到 slot 1，类型为 payload 具体类
+                    builder.addPayloadAlias(var.name(), ScriptIR.IRType.fromClass(payloadClass));
+                } else {
+                    builder.addVar(var.name(), var.type());
+                }
             }
 
             // 自动为所有会产生局部变量的节点（如 Action, Math 等 VariableProducer）开辟存储槽位，免去显式声明的麻烦
@@ -243,6 +250,29 @@ public final class CompilationPipeline {
     }
 
     /**
+     * 预扫描所有顶层 check 节点，将 instanceof（非取反）产生的窄化提前注册进 CompilationContext，
+     * 使验证阶段（validateActionParameterTypes）可以感知到窄化类型。
+     */
+    private void primeNarrowings(ScriptIR.ScriptUnit unit, CompilationContext ctx) {
+        for (ScriptIR.FlowNode node : unit.flow()) {
+            if (node.type() != ScriptIR.FlowNodeType.CHECK)
+                continue;
+            String op = node.getAttrOrDefault("op", null);
+            if (op == null || op.startsWith("!") || !"instanceof".equals(op))
+                continue;
+            String variable = node.getAttrOrDefault("variable", null);
+            String rawClass = node.getAttrOrDefault("value", null);
+            if (variable == null || rawClass == null)
+                continue;
+            try {
+                ctx.narrowType(variable, Class.forName(rawClass.replace('/', '.')));
+            } catch (ClassNotFoundException e) {
+                // 未找到类时静默忽略，正式编译阶段会再次校验并报错
+            }
+        }
+    }
+
+    /**
      * AOT 变量引用完整性检查。
      * <p>
      * 在优化前扫描所有节点，验证被消费的变量（VariableConsumer、模板字符串）在编译上下文中存在。
@@ -280,8 +310,17 @@ public final class CompilationPipeline {
         try {
             ctx.getSlot(varName);
         } catch (IllegalArgumentException e) {
+            // 如果节点存有 value 文本（如模板字符串），附加到错误信息中方便定位
+            // 例：旧信息 "Undefined variable 'lv:'" 现在会显示为
+            //     "Undefined variable 'lv:' referenced in RETURN node (in: \"lv:{lvl} sc:{score}\")"
+            // 让开发者立刻看出 'lv:' 是字面量被误判，而非真正的变量名
+            Object nodeValue = node.getAttrOrDefault("value", null);
+            String context = (nodeValue instanceof String s && !s.isEmpty())
+                    ? " (in: \"" + s + "\")"
+                    : "";
             throw new ScriptCompileException(
-                    String.format("Undefined variable '%s' referenced in %s node.", varName, node.type()));
+                    String.format("Undefined variable '%s' referenced in %s node%s.",
+                            varName, node.type(), context));
         }
     }
 

@@ -28,6 +28,9 @@ public final class CompilationContext {
     /** 变量名 ↔ 局部变量槽位（双向映射） */
     private final ImmutableBiMap<String, Integer> varSlots;
 
+    /** payload 别名 → slot 1（别名与 payload 共享同一槽位，不能放入 BiMap） */
+    private final ImmutableMap<String, Integer> aliasSlots;
+
     /** 变量名 → IR 类型 */
     private final ImmutableMap<String, ScriptIR.IRType> typeTable;
 
@@ -57,6 +60,15 @@ public final class CompilationContext {
     /** PGO 分支权重数据（可选） */
     private final Map<String, double[]> branchWeights = new HashMap<>();
 
+    /**
+     * emit 阶段维护的变量类型窄化表。
+     * 当某变量通过 {@code check: op: instanceof} 后，编译器在成功路径上将目标类写入此表，
+     * 后续节点 emit 时可利用窄化类型发射更精确的 CHECKCAST 并解析子类属性链。
+     * <p>
+     * 使用 {@link #snapshotNarrowed()} / {@link #restoreNarrowed} 在 any/all 分支边界做快照隔离。
+     */
+    private final Map<String, Class<?>> narrowedClasses = new HashMap<>();
+
     /** 常量提升定义（由 ScriptOptimizer 填充） */
     private ImmutableList<ConstantDef> hoistedConstants = ImmutableList.of();
 
@@ -80,6 +92,7 @@ public final class CompilationContext {
 
     private CompilationContext(Builder builder) {
         this.varSlots = builder.varSlots.build();
+        this.aliasSlots = builder.aliasSlots.build();
         this.typeTable = builder.typeTable.build();
         this.constants = builder.constants.build();
         this.payloadClass = builder.payloadClass;
@@ -93,6 +106,7 @@ public final class CompilationContext {
 
     public int getSlot(String varName) {
         Integer slot = varSlots.get(varName);
+        if (slot == null) slot = aliasSlots.get(varName);
         if (slot == null) {
             throw new IllegalArgumentException("Undefined variable: " + varName);
         }
@@ -167,6 +181,45 @@ public final class CompilationContext {
         return branchWeights.get(switchId);
     }
 
+    // ======================== 类型窄化 ========================
+
+    /**
+     * 注册变量的窄化类型。在 {@code check: instanceof} 成功路径后调用。
+     *
+     * @param varName 变量名
+     * @param clazz   窄化后的目标类
+     */
+    public void narrowType(String varName, Class<?> clazz) {
+        narrowedClasses.put(varName, clazz);
+    }
+
+    /**
+     * 获取变量的窄化类型。若该变量未经过 instanceof 窄化则返回 {@code null}。
+     *
+     * @param varName 变量名
+     * @return 窄化类，或 null
+     */
+    public Class<?> getNarrowedClass(String varName) {
+        return narrowedClasses.get(varName);
+    }
+
+    /**
+     * 返回当前窄化表的副本，供 any/all 分支进入前保存快照。
+     */
+    public Map<String, Class<?>> snapshotNarrowed() {
+        return new HashMap<>(narrowedClasses);
+    }
+
+    /**
+     * 从快照恢复窄化表，用于 any/all 分支退出时还原作用域。
+     *
+     * @param snapshot 由 {@link #snapshotNarrowed()} 返回的副本
+     */
+    public void restoreNarrowed(Map<String, Class<?>> snapshot) {
+        narrowedClasses.clear();
+        narrowedClasses.putAll(snapshot);
+    }
+
     // ======================== 优化器产出 ========================
 
     /** 编译期需提升为 static final 的常量。 */
@@ -202,6 +255,7 @@ public final class CompilationContext {
     public static final class Builder {
         private final Class<?> payloadClass;
         private final ImmutableBiMap.Builder<String, Integer> varSlots = ImmutableBiMap.builder();
+        private final ImmutableMap.Builder<String, Integer> aliasSlots = ImmutableMap.builder();
         private final ImmutableMap.Builder<String, ScriptIR.IRType> typeTable = ImmutableMap.builder();
         private final ImmutableMap.Builder<String, Object> constants = ImmutableMap.builder();
         private int slotCounter = 2; // 0=this, 1=payload
@@ -217,6 +271,16 @@ public final class CompilationContext {
             // 预留 payload 的类型
             typeTable.put("payload", ScriptIR.IRType.OBJECT);
             varSlots.put("payload", 1);
+        }
+
+        /**
+         * 注册 payload 别名：与 slot 1 共享，类型为 payload 的具体类。
+         * 不占用新槽位，不能放入 BiMap（BiMap 要求值唯一）。
+         */
+        public Builder addPayloadAlias(String name, ScriptIR.IRType payloadType) {
+            aliasSlots.put(name, 1);
+            typeTable.put(name, payloadType);
+            return this;
         }
 
         /**

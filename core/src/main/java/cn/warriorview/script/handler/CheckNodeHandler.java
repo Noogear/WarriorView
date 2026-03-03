@@ -152,6 +152,24 @@ public final class CheckNodeHandler
         // 根据方法的实际返回类型决定 return 指令（避免 void RETURN 在 Object 方法中非法）
         emitEarlyReturn(mv, ctx);
         mv.visitLabel(continueLabel);
+
+        // instanceof 成功路径：将变量窄化为目标类型，供后续节点使用。
+        // 只处理面向顺序流的顶层 emit （非复合条件内部）；取反的 !instanceof 不注册。
+        FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
+        if (conditionAction == null) {
+            OpInfo info = parseOp(node);
+            if ("instanceof".equals(info.op()) && !info.negate()) {
+                String variable = node.getRequiredAttr("variable");
+                String rawClass = node.<String>getRequiredAttr("value").replace('/', '.');
+                try {
+                    ctx.narrowType(variable, Class.forName(rawClass));
+                } catch (ClassNotFoundException e) {
+                    // parse 阶段已验证，这里不应到达
+                    throw new cn.warriorview.script.core.ScriptCompileException(
+                            "[instanceof narrow] class not found at emit: " + rawClass);
+                }
+            }
+        }
     }
 
     /**
@@ -193,11 +211,12 @@ public final class CheckNodeHandler
     @Override
     public int emitCondition(FlowNode node, MethodVisitor mv, CompilationContext ctx) {
         FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
+        // op 可能在优化器下沉后仍保留于节点属性中（conditionAction != null 时 variable 被移除，但 op/value 保留）
+        String rawOp = node.getAttrOrDefault("op", null);
         String op = null;
         boolean negate = false;
-
-        if (conditionAction == null) {
-            OpInfo info = parseOp(node);
+        if (rawOp != null) {
+            OpInfo info = parseOp(rawOp);
             op = info.op();
             negate = info.negate();
         }
@@ -265,33 +284,44 @@ public final class CheckNodeHandler
             if (type != IRType.INT && type != IRType.LONG && type != IRType.DOUBLE) {
                 throw new cn.warriorview.script.core.ScriptCompileException(
                         String.format(
-                                "Operator '%s' requires a numeric type (INT/LONG/DOUBLE), but variable '%s' is of type %s.",
+                                "Operator '%s' requires a numeric type (INT/LONG/DOUBLE), but variable '%s' is of type %s. "
+                                        + "Hint: use '==' for equality or 'contains' for collection membership.",
                                 op, variable, type));
             }
         } else if ("starts_with".equals(op) || "ends_with".equals(op) || "matches".equals(op)) {
             if (type != IRType.STRING) {
                 throw new cn.warriorview.script.core.ScriptCompileException(
-                        String.format("Operator '%s' requires a STRING type, but variable '%s' is of type %s.",
+                        String.format(
+                                "Operator '%s' requires a STRING type, but variable '%s' is of type %s. "
+                                        + "Hint: use '==' for non-string equality checks.",
                                 op, variable, type));
             }
         } else if ("contains".equals(op)) {
-            if (type != IRType.STRING && type != IRType.COLLECTION) {
+            if (type != IRType.STRING && type.base() != IRType.COLLECTION.base()) {
                 throw new cn.warriorview.script.core.ScriptCompileException(
                         String.format(
-                                "Operator '%s' requires a STRING or COLLECTION type, but variable '%s' is of type %s.",
+                                "Operator '%s' requires a STRING or COLLECTION type, but variable '%s' is of type %s. "
+                                        + "Hint: for numeric ranges, use 'between'; for set membership, use 'in'.",
                                 op, variable, type));
             }
         } else if ("in".equals(op)) {
-            if (type == IRType.DOUBLE || type == IRType.LONG || type == IRType.BOOLEAN) {
+            // 白名单：仅 STRING、INT、ENUM 支持 in 操作（集合成员判定）
+            if (type != IRType.STRING && type != IRType.INT && type != IRType.ENUM) {
+                String hint = (type == IRType.DOUBLE || type == IRType.LONG)
+                        ? "Hint: use 'between' for numeric range checks, or '==' for exact equality."
+                        : (type == IRType.BOOLEAN)
+                                ? "Hint: boolean variables should use '== true' or '== false' directly."
+                                : "Hint: 'in' only supports STRING/INT/ENUM. Use '==' for equality or 'contains' for collection membership.";
                 throw new cn.warriorview.script.core.ScriptCompileException(
                         String.format(
-                                "Operator 'in' is not supported for type %s on variable '%s'. Use numeric comparison instead.",
-                                type, variable));
+                                "Operator 'in' is not supported for type %s on variable '%s'. %s",
+                                type, variable, hint));
             }
         } else if ("==".equals(op) && type == IRType.COLLECTION) {
-            java.util.logging.Logger.getLogger("WarriorView-Script").warning(
+            throw new cn.warriorview.script.core.ScriptCompileException(
                     String.format(
-                            "Operator '==' on COLLECTION variable '%s' compares by reference. Did you mean 'contains'?",
+                            "Operator '==' on COLLECTION variable '%s' compares by reference, which is almost certainly not what you want. "
+                                    + "Hint: did you mean 'contains' to check membership?",
                             variable));
         }
     }
