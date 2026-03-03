@@ -57,6 +57,15 @@ public final class CheckNodeHandler
         String op = (String) yaml.get("op");
         Object value = yaml.get("value");
 
+        // 缺口3：双重取反规范化——偶数个 ! 前缀抵消，奇数个保留 1 个
+        if (op != null) {
+            int bangCount = 0;
+            while (bangCount < op.length() && op.charAt(bangCount) == '!') bangCount++;
+            if (bangCount >= 2) {
+                op = (bangCount % 2 == 1 ? "!" : "") + op.substring(bangCount);
+            }
+        }
+
         // AOT: 无 conditionAction 时 op 必填
         if (conditionAction == null && op == null) {
             throw new cn.warriorview.script.core.ScriptCompileException(
@@ -90,6 +99,23 @@ public final class CheckNodeHandler
             if (value instanceof String s) {
                 value = ScriptParser.ValueParser.parseNumber(s);
             }
+
+            // 缺口2：若 value 仍为字符串且操作符为数值类，尝试作为数学表达式解析
+            if (value instanceof String mathStr && isNumericOp(op)) {
+                try {
+                    cn.warriorview.script.math.MathNode mathNode = cn.warriorview.script.math.MathParser.parse(mathStr);
+                    if (mathNode instanceof cn.warriorview.script.math.MathNode.LiteralNode lit) {
+                        // 纯常量表达式（如 "5*3+2"）——直接折叠为数值
+                        value = lit.value();
+                    } else {
+                        // 含变量的表达式（如 "{maxHp} * 0.5"）——存储 MathNode 供运行时发射
+                        attrs.put("valueNode", mathNode);
+                    }
+                } catch (IllegalArgumentException ignored) {
+                    // 解析失败则保持原始字符串
+                }
+            }
+
             attrs.put("value", value);
             attrs.put("valueType", ScriptParser.ValueParser.inferType(value));
 
@@ -123,8 +149,37 @@ public final class CheckNodeHandler
         // 分支失败处理：执行所有的 on_fail 动作
         emitOnFail(node, mv, ctx);
 
-        mv.visitInsn(Opcodes.RETURN);
+        // 根据方法的实际返回类型决定 return 指令（避免 void RETURN 在 Object 方法中非法）
+        emitEarlyReturn(mv, ctx);
         mv.visitLabel(continueLabel);
+    }
+
+    /**
+     * 根据上下文目标返回类型发射早退 return 指令。
+     * <p>
+     * void 方法发 RETURN；Object/Array 方法先 ACONST_NULL 再 ARETURN；原生类型方法发对应零值。
+     */
+    static void emitEarlyReturn(MethodVisitor mv, CompilationContext ctx) {
+        org.objectweb.asm.Type ret = ctx.targetReturnType();
+        if (ret.getSort() == org.objectweb.asm.Type.VOID) {
+            mv.visitInsn(Opcodes.RETURN);
+        } else if (ret.getSort() == org.objectweb.asm.Type.OBJECT
+                || ret.getSort() == org.objectweb.asm.Type.ARRAY) {
+            mv.visitInsn(Opcodes.ACONST_NULL);
+            mv.visitInsn(Opcodes.ARETURN);
+        } else if (ret.getSort() == org.objectweb.asm.Type.DOUBLE) {
+            mv.visitInsn(Opcodes.DCONST_0);
+            mv.visitInsn(Opcodes.DRETURN);
+        } else if (ret.getSort() == org.objectweb.asm.Type.LONG) {
+            mv.visitInsn(Opcodes.LCONST_0);
+            mv.visitInsn(Opcodes.LRETURN);
+        } else if (ret.getSort() == org.objectweb.asm.Type.FLOAT) {
+            mv.visitInsn(Opcodes.FCONST_0);
+            mv.visitInsn(Opcodes.FRETURN);
+        } else {
+            mv.visitInsn(Opcodes.ICONST_0);
+            mv.visitInsn(Opcodes.IRETURN);
+        }
     }
 
     // ======================== 可复用条件原语 ========================
@@ -142,9 +197,9 @@ public final class CheckNodeHandler
         boolean negate = false;
 
         if (conditionAction == null) {
-            String rawOp = node.getRequiredAttr("op");
-            negate = rawOp.startsWith("!");
-            op = negate ? rawOp.substring(1) : rawOp;
+            OpInfo info = parseOp(node);
+            op = info.op();
+            negate = info.negate();
         }
 
         int jumpOp;
@@ -165,10 +220,14 @@ public final class CheckNodeHandler
                 int storeOp = cn.warriorview.script.codegen.ASMUtils.storeOpcode(exactType);
                 mv.visitVarInsn(storeOp, tempSlot);
 
-                jumpOp = emitSinkingCheck(mv, op, tempSlot, exactType, node);
+                jumpOp = emitSinkingCheck(mv, op, tempSlot, exactType, node, ctx);
             } else {
                 conditionAction.type().handler().emit(conditionAction, mv, ctx);
-                jumpOp = Opcodes.IFNE;
+                if (conditionAction.type() == FlowNodeType.MATH) {
+                    jumpOp = emitDoubleComparisonOnStack(mv, node, op != null ? op : "==", ctx);
+                } else {
+                    jumpOp = Opcodes.IFNE;
+                }
             }
         } else {
             String variable = node.getRequiredAttr("variable");
@@ -177,7 +236,7 @@ public final class CheckNodeHandler
 
             validateOpType(op, variable, type);
 
-            jumpOp = emitSinkingCheck(mv, op, slot, type, node);
+            jumpOp = emitSinkingCheck(mv, op, slot, type, node, ctx);
         }
 
         if (negate)
@@ -239,7 +298,8 @@ public final class CheckNodeHandler
 
     // ======================== null ========================
 
-    private int emitSinkingCheck(MethodVisitor mv, String op, int slot, IRType type, FlowNode node) {
+    private int emitSinkingCheck(MethodVisitor mv, String op, int slot, IRType type, FlowNode node,
+            CompilationContext ctx) {
         return switch (op) {
             case "null" -> emitNullCheck(mv, slot);
             case "instanceof" -> emitInstanceof(mv, slot, node);
@@ -249,7 +309,7 @@ public final class CheckNodeHandler
             case "matches" -> emitMatches(mv, slot, node);
             case "in" -> emitIn(mv, slot, node, type);
             case "between" -> emitBetween(mv, slot, node, type);
-            default -> emitComparison(mv, slot, type, op, node);
+            default -> emitComparison(mv, slot, type, op, node, ctx);
         };
     }
 
@@ -528,11 +588,12 @@ public final class CheckNodeHandler
 
     // ======================== 数值/相等比较（智能分发） ========================
 
-    private int emitComparison(MethodVisitor mv, int slot, IRType type, String op, FlowNode node) {
+    private int emitComparison(MethodVisitor mv, int slot, IRType type, String op, FlowNode node,
+            CompilationContext ctx) {
         if (type == IRType.BOOLEAN) {
             return emitBooleanComparison(mv, slot, node, op);
         } else if (type == IRType.DOUBLE) {
-            return emitDoubleComparison(mv, slot, node, op);
+            return emitDoubleComparison(mv, slot, node, op, ctx);
         } else if (type == IRType.INT) {
             return emitIntComparison(mv, slot, node, op);
         } else if (type == IRType.LONG) {
@@ -558,32 +619,30 @@ public final class CheckNodeHandler
     }
 
     /** double 零装箱比较 */
-    private int emitDoubleComparison(MethodVisitor mv, int slot, FlowNode node, String op) {
+    private int emitDoubleComparison(MethodVisitor mv, int slot, FlowNode node, String op,
+            CompilationContext ctx) {
         mv.visitVarInsn(Opcodes.DLOAD, slot);
-        ASMUtils.emitDoubleConst(mv, node.numericValue());
+        return emitDoubleComparisonOnStack(mv, node, op, ctx);
+    }
+
+    private int emitDoubleComparisonOnStack(MethodVisitor mv, FlowNode node, String op,
+            CompilationContext ctx) {
+        // 缺口2：若有 valueNode（含变量的数学表达式），发射其字节码而非常量
+        cn.warriorview.script.math.MathNode valueNode = node.getAttrOrDefault("valueNode", null);
+        if (valueNode != null) {
+            MathNodeHandler.emitMathNode(valueNode, mv, ctx);
+        } else {
+            cn.warriorview.script.codegen.ASMUtils.emitDoubleConst(mv, node.numericValue());
+        }
         mv.visitInsn(Opcodes.DCMPG);
-        return switch (op) {
-            case ">" -> Opcodes.IFGT;
-            case ">=" -> Opcodes.IFGE;
-            case "<" -> Opcodes.IFLT;
-            case "<=" -> Opcodes.IFLE;
-            case "==" -> Opcodes.IFEQ;
-            default -> throw new IllegalArgumentException("Unsupported op for double: " + op);
-        };
+        return cmpJump(op);
     }
 
     /** int 零装箱比较 */
     private int emitIntComparison(MethodVisitor mv, int slot, FlowNode node, String op) {
         mv.visitVarInsn(Opcodes.ILOAD, slot);
         ASMUtils.emitIntConst(mv, (int) node.numericValue());
-        return switch (op) {
-            case ">" -> Opcodes.IF_ICMPGT;
-            case ">=" -> Opcodes.IF_ICMPGE;
-            case "<" -> Opcodes.IF_ICMPLT;
-            case "<=" -> Opcodes.IF_ICMPLE;
-            case "==" -> Opcodes.IF_ICMPEQ;
-            default -> throw new IllegalArgumentException("Unsupported op for int: " + op);
-        };
+        return intCmpJump(op);
     }
 
     /** long 比较 */
@@ -591,14 +650,7 @@ public final class CheckNodeHandler
         mv.visitVarInsn(Opcodes.LLOAD, slot);
         ASMUtils.emitLongConst(mv, (long) node.numericValue());
         mv.visitInsn(Opcodes.LCMP);
-        return switch (op) {
-            case ">" -> Opcodes.IFGT;
-            case ">=" -> Opcodes.IFGE;
-            case "<" -> Opcodes.IFLT;
-            case "<=" -> Opcodes.IFLE;
-            case "==" -> Opcodes.IFEQ;
-            default -> throw new IllegalArgumentException("Unsupported op for long: " + op);
-        };
+        return cmpJump(op);
     }
 
     /** 枚举引用比较（IF_ACMPEQ，单例安全） */
@@ -648,7 +700,7 @@ public final class CheckNodeHandler
         String rawOp = node.getAttrOrDefault("op", null);
         if (rawOp == null)
             return node;
-        String op = rawOp.startsWith("!") ? rawOp.substring(1) : rawOp;
+        String op = parseOp(rawOp).op();
         String fieldName = null;
 
         if ("matches".equals(op)) {
@@ -753,12 +805,9 @@ public final class CheckNodeHandler
             }
             return range.canFoldExact(op, value);
         }
-        if (range.nonNull()) {
-            if ("null".equals(op))
-                return Boolean.FALSE;
-            if ("!null".equals(op))
-                return Boolean.TRUE;
-        }
+        // op 已由 parseOp 剥离 ! 前缀，"null" 是唯一可能到达此处的值
+        if ("null".equals(op) && range.nonNull())
+            return Boolean.FALSE;
         return null;
     }
 
@@ -783,9 +832,56 @@ public final class CheckNodeHandler
     private record OpInfo(String op, boolean negate) {
     }
 
-    private OpInfo parseOp(ScriptIR.FlowNode node) {
-        String rawOp = node.getAttrOrDefault("op", null);
+    private static OpInfo parseOp(String rawOp) {
         boolean negate = rawOp.startsWith("!");
         return new OpInfo(negate ? rawOp.substring(1) : rawOp, negate);
+    }
+
+    private static OpInfo parseOp(FlowNode node) {
+        return parseOp(node.<String>getRequiredAttr("op"));
+    }
+
+    /** DCMPG/LCMP 后的单值比较跳转 opcode（double/long 共用）。 */
+    private static int cmpJump(String op) {
+        return switch (op) {
+            case ">" -> Opcodes.IFGT;
+            case ">=" -> Opcodes.IFGE;
+            case "<" -> Opcodes.IFLT;
+            case "<=" -> Opcodes.IFLE;
+            case "==" -> Opcodes.IFEQ;
+            default -> throw new IllegalArgumentException("Unsupported comparison op: " + op);
+        };
+    }
+
+    /** 双栈值 int 比较跳转 opcode。 */
+    private static int intCmpJump(String op) {
+        return switch (op) {
+            case ">" -> Opcodes.IF_ICMPGT;
+            case ">=" -> Opcodes.IF_ICMPGE;
+            case "<" -> Opcodes.IF_ICMPLT;
+            case "<=" -> Opcodes.IF_ICMPLE;
+            case "==" -> Opcodes.IF_ICMPEQ;
+            default -> throw new IllegalArgumentException("Unsupported comparison op for int: " + op);
+        };
+    }
+
+    /** 操作符是否为数值类比较（决定 value 字段是否可尝试作为数学表达式解析）。 */
+    private static boolean isNumericOp(String op) {
+        if (op == null) return false;
+        return switch (parseOp(op).op()) {
+            case ">", ">=", "<", "<=", "==", "between" -> true;
+            default -> false;
+        };
+    }
+
+    /** 覆写以包含 valueNode 中引用的变量（活跃变量分析需要）。 */
+    @Override
+    public java.util.List<String> getAllConsumedVariables(FlowNode node) {
+        java.util.List<String> vars = new ArrayList<>();
+        String main = getConsumedVariable(node);
+        if (main != null) vars.add(main);
+        cn.warriorview.script.math.MathNode valueNode = node.getAttrOrDefault("valueNode", null);
+        if (valueNode != null) vars.addAll(cn.warriorview.script.math.MathNode.collectVarNames(valueNode));
+        return vars;
     }
 }

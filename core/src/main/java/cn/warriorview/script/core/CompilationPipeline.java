@@ -183,16 +183,25 @@ public final class CompilationPipeline {
                 builder.addVar(var.name(), var.type());
             }
 
-            // 自动为带有 store 属性的 Action 开辟存储槽位，免去显式声明的麻烦
+            // 自动为所有会产生局部变量的节点（如 Action, Math 等 VariableProducer）开辟存储槽位，免去显式声明的麻烦
             for (ScriptIR.FlowNode node : unit.flow()) {
-                if (node.type() == ScriptIR.FlowNodeType.ACTION) {
-                    String store = node.getAttrOrDefault("store", null);
+                ScriptIR.FlowNodeHandler handler = node.type().handler();
+                if (handler instanceof ScriptIR.VariableProducer producer) {
+                    String store = producer.getProducedVariable(node);
                     if (store != null) {
                         if (!registeredVars.add(store)) {
                             throw new ScriptCompileException(
                                     "Duplicate store variable name: '" + store + "'");
                         }
-                        ScriptIR.IRType type = node.getRequiredAttr("returnType");
+                        ScriptIR.IRType type;
+                        if (node.type() == cn.warriorview.script.core.ScriptIR.FlowNodeType.ACTION) {
+                            type = node.getRequiredAttr("returnType");
+                        } else if (node.type() == cn.warriorview.script.core.ScriptIR.FlowNodeType.MATH) {
+                            type = cn.warriorview.script.core.ScriptIR.IRType.DOUBLE;
+                        } else {
+                            type = node.getAttrOrDefault("returnType",
+                                    cn.warriorview.script.core.ScriptIR.IRType.OBJECT);
+                        }
                         builder.addVar(store, type);
                     }
                 }

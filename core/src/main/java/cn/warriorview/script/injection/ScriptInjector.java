@@ -6,6 +6,7 @@ import cn.warriorview.script.handler.ActionNodeHandler;
 import cn.warriorview.script.handler.CheckNodeHandler;
 import cn.warriorview.script.handler.ReturnNodeHandler;
 import cn.warriorview.script.handler.SwitchNodeHandler;
+import cn.warriorview.script.handler.MathNodeHandler;
 import com.google.common.base.Preconditions;
 
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ public final class ScriptInjector {
         SwitchNodeHandler.init();
         ReturnNodeHandler.init();
         ActionNodeHandler.init();
+        MathNodeHandler.init();
     }
 
     public ScriptInjector(ScriptHost host) {

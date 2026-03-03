@@ -360,7 +360,8 @@ public final class ScriptIR {
         RETURN,
         ACTION,
         ANY,
-        ALL;
+        ALL,
+        MATH;
 
         private static final EnumMap<FlowNodeType, Supplier<FlowNodeHandler>> FACTORIES = new EnumMap<>(
                 FlowNodeType.class);
@@ -387,6 +388,7 @@ public final class ScriptIR {
                 case "action" -> ACTION;
                 case "any" -> ANY;
                 case "all" -> ALL;
+                case "math" -> MATH;
                 default -> throw new IllegalArgumentException("Unknown flow node type: " + type);
             };
         }
@@ -512,5 +514,11 @@ public final class ScriptIR {
 
         /** 剥离节点中的“产出变量”标记，返回纯执行节点。由具体 handler 处理自己的 attr 布局。 */
         FlowNode stripProducedVariable(FlowNode node);
-    }
+        /**
+         * 若该节点产出一个编译期已知的常量值，返回该值；否则返回 {@code null}。
+         * <p>
+         * 用于 {@link cn.warriorview.script.optimizer.ScriptOptimizer} 值域传播：
+         * 常量 MATH 产出可直接注入后续 CHECK 的约束，使其折叠为恒真/恒假。
+         */
+        default Object getProducedConstantValue(FlowNode node) { return null; }    }
 }

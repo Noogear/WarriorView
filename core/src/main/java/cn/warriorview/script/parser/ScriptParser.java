@@ -101,6 +101,13 @@ public final class ScriptParser {
                 type = FlowNodeType.ANY;
             } else if (yaml.containsKey("all")) {
                 type = FlowNodeType.ALL;
+            } else if (yaml.containsKey("math")) {
+                type = FlowNodeType.MATH;
+                Map<String, Object> rebuilt = new java.util.HashMap<>(yaml);
+                Object expr = rebuilt.remove("math");
+                if (expr != null)
+                    rebuilt.put("expr", expr);
+                yaml = rebuilt;
             } else {
                 // 启用动态推断：寻找第一个非保留字段作为 Action 名字
                 String inferredAction = null;

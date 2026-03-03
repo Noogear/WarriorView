@@ -178,25 +178,26 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
             Class<?> reqType = pTypes[methodParamIndex];
 
             if (i == sinkArgIndex && conditionAction != null) {
-                // Sunk property argument
-                String sinkingProp = conditionAction.getRequiredAttr("_sinking_property");
-                IRType returnType = conditionAction.getRequiredAttr("returnType");
-
-                BytecodeCompiler.emitSunkPropertyLoad(mv, ctx, sinkingProp);
-
-                Class<?> unwrappedType = com.google.common.primitives.Primitives.unwrap(reqType);
-                if (unwrappedType.isPrimitive()) {
-                    if (!returnType.isPrimitive()) {
-                        // Expecting primitive but returnType is Object (e.g map property), rare but
-                        // possible, needs unbox if we had it, but sinking properties are usually
-                        // strictly typed in VarDecl.
-                        // If it's strictly typed from VarDecl, PropertyResolver has already emitted the
-                        // primitive.
-                        // Do nothing, assuming PropertyResolver returns the right primitive type for
-                        // primitive fields.
+                String sinkingProp = conditionAction.getAttrOrDefault("_sinking_property", null);
+                if (sinkingProp != null) {
+                    // 属性下沉（虚拟 VarDecl Producer）路径
+                    IRType returnType = conditionAction.getRequiredAttr("returnType");
+                    BytecodeCompiler.emitSunkPropertyLoad(mv, ctx, sinkingProp);
+                    Class<?> unwrappedType = com.google.common.primitives.Primitives.unwrap(reqType);
+                    if (!unwrappedType.isPrimitive() && returnType.isPrimitive()) {
+                        ASMUtils.emitBox(mv, returnType);
                     }
-                } else if (returnType.isPrimitive()) {
-                    ASMUtils.emitBox(mv, returnType);
+                } else {
+                    // 真实节点内联（如 MATH）路径：直接 emit 到操作数栈，再按需处理类型
+                    conditionAction.type().handler().emit(conditionAction, mv, ctx);
+                    Class<?> unwrappedType = com.google.common.primitives.Primitives.unwrap(reqType);
+                    if (!unwrappedType.isPrimitive()) {
+                        // 方法要求引用类型，但 MATH 发射的是 double → 需装箱
+                        if (conditionAction.type() == ScriptIR.FlowNodeType.MATH) {
+                            ASMUtils.emitBox(mv, IRType.DOUBLE);
+                        }
+                    }
+                    // 方法要求原始类型，且 MATH emit 已留下 double → 直接使用（无需额外处理）
                 }
 
             } else if (ScriptIR.isSingleVar(arg) && reqType != String.class) {

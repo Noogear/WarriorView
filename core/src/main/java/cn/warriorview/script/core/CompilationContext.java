@@ -75,7 +75,7 @@ public final class CompilationContext {
     /** 目标接口的返回类型 (ASM) */
     private final Type targetReturnType;
 
-    /** 下一个可用的局部变量槽位 */
+    /** 下一个可用的局部变量槽位（正确计算了 double/long 各占 2 个 slot） */
     private final int nextSlot;
 
     private CompilationContext(Builder builder) {
@@ -87,8 +87,8 @@ public final class CompilationContext {
         this.targetMethodName = builder.targetMethodName;
         this.targetMethodDescriptor = builder.targetMethodDescriptor;
         this.targetReturnType = builder.targetReturnType;
-        // slot 0 = this, slot 1 = payload 参数
-        this.nextSlot = 2 + this.varSlots.size();
+        // 使用 Builder 中精确维护的 slotCounter，确保 double/long 各占 2 个 slot 的情况被正确计算。
+        this.nextSlot = builder.slotCounter;
     }
 
     public int getSlot(String varName) {

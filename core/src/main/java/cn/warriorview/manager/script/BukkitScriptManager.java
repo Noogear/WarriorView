@@ -105,13 +105,6 @@ public class BukkitScriptManager implements ScriptHost {
      */
     private Object parseYamlNode(Node node) {
         if (node instanceof ScalarNode scalar) {
-            // 这里简单处理：YAML 库在装配好后可以直接提供原始字面量。
-            // 最佳实践：SnakeYAML 提供隐式转换（如将 "42" 转作整数）。为简化处理，这里默认依赖 Bukkit 的 snakeyaml 自带的构造器，
-            // 但如果处于 compose 层面，我们只能拿到 String Value。我们依赖后续 ScriptBuilder / ScriptParser
-            // 自己做数值推断。
-
-            // 重要：如果你在其他地方对 Boolean/Number 比较依赖原生的 YamlConfiguration（因为它会自动转布尔等），
-            // 你可以通过 StandardConstructor 构建，这里采取简单的隐式推导或依赖 ScriptParser 自己强大的 inferType 能力。
             String value = scalar.getValue();
             // Boolean 快捷转换
             if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value))

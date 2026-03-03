@@ -157,6 +157,15 @@ public final class ScriptOptimizer {
         ImmutableList.Builder<FlowNode> optimized = ImmutableList.builder();
 
         for (FlowNode node : unit.flow()) {
+            // 常量 MATH 产出 → 向后续 CHECK 注入精确值域约束
+            if (node.type().handler() instanceof ScriptIR.VariableProducer producer) {
+                String var = producer.getProducedVariable(node);
+                Object constVal = producer.getProducedConstantValue(node);
+                if (var != null && constVal != null) {
+                    double d = constVal instanceof Number n ? n.doubleValue() : 0;
+                    ranges.put(var, new ValueRange(d, d, constVal, true));
+                }
+            }
             if (node.type().handler() instanceof ScriptIR.RangePropagator propagator) {
                 String var = propagator.getConstrainedVariable(node);
                 if (var != null) {
@@ -289,9 +298,10 @@ public final class ScriptOptimizer {
 
     private void collectLiveVars(FlowNode node, Multiset<String> refs) {
         if (node.type().handler() instanceof ScriptIR.VariableConsumer consumer) {
-            String var = consumer.getConsumedVariable(node);
-            if (var != null) {
-                refs.add(var);
+            for (String var : consumer.getAllConsumedVariables(node)) {
+                if (var != null) {
+                    refs.add(var);
+                }
             }
         }
 
