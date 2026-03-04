@@ -257,8 +257,11 @@ public final class CompilationPipeline {
         for (ScriptIR.FlowNode node : unit.flow()) {
             if (node.type() != ScriptIR.FlowNodeType.CHECK)
                 continue;
-            String op = node.getAttrOrDefault("op", null);
-            if (op == null || op.startsWith("!") || !"instanceof".equals(op))
+            String rawOp = node.getAttrOrDefault("op", null);
+            if (rawOp == null)
+                continue;
+            CheckOp.Resolved resolved = CheckOp.resolve(rawOp);
+            if (resolved.op() != CheckOp.INSTANCEOF || resolved.negate())
                 continue;
             String variable = node.getAttrOrDefault("variable", null);
             String rawClass = node.getAttrOrDefault("value", null);

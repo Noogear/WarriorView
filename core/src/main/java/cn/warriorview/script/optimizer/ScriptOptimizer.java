@@ -1,5 +1,6 @@
 package cn.warriorview.script.optimizer;
 
+import cn.warriorview.script.core.CheckOp;
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.CompilationContext.ConstantDef;
 import cn.warriorview.script.core.ScriptIR;
@@ -77,28 +78,13 @@ public final class ScriptOptimizer {
          *
          * @return Boolean.TRUE=恒真, Boolean.FALSE=恒假, null=不确定
          */
-        public Boolean canFold(String op, double cmpValue) {
-            return switch (op) {
-                case ">" -> min > cmpValue ? Boolean.TRUE : max <= cmpValue ? Boolean.FALSE : null;
-                case ">=" -> min >= cmpValue ? Boolean.TRUE : max < cmpValue ? Boolean.FALSE : null;
-                case "<" -> max < cmpValue ? Boolean.TRUE : min >= cmpValue ? Boolean.FALSE : null;
-                case "<=" -> max <= cmpValue ? Boolean.TRUE : min > cmpValue ? Boolean.FALSE : null;
-                case "==" -> {
-                    if (exactValue != null) {
-                        yield exactValue.equals(cmpValue) || (exactValue instanceof Number n
-                                && n.doubleValue() == cmpValue)
-                                        ? Boolean.TRUE
-                                        : Boolean.FALSE;
-                    }
-                    yield min == max && min == cmpValue ? Boolean.TRUE : null;
-                }
-                default -> null;
-            };
+        public Boolean canFold(CheckOp op, double cmpValue) {
+            return op.foldRange(min, max, cmpValue, exactValue);
         }
 
         /** 用 String exactValue 判断互斥（枚举/字符串 ==） */
-        public Boolean canFoldExact(String op, Object cmpValue) {
-            if ("==".equals(op) && exactValue != null) {
+        public Boolean canFoldExact(CheckOp op, Object cmpValue) {
+            if (op == CheckOp.EQ && exactValue != null) {
                 return exactValue.equals(cmpValue) ? Boolean.TRUE : Boolean.FALSE;
             }
             return null;

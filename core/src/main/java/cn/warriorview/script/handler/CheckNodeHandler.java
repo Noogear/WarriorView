@@ -1,7 +1,8 @@
 package cn.warriorview.script.handler;
 
 import cn.warriorview.script.codegen.ASMUtils;
-
+import cn.warriorview.script.codegen.CheckOpEmitters;
+import cn.warriorview.script.core.CheckOp;
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
@@ -57,23 +58,20 @@ public final class CheckNodeHandler
         String op = (String) yaml.get("op");
         Object value = yaml.get("value");
 
-        // 缺口3：双重取反规范化——偶数个 ! 前缀抵消，奇数个保留 1 个
-        if (op != null) {
-            int bangCount = 0;
-            while (bangCount < op.length() && op.charAt(bangCount) == '!') bangCount++;
-            if (bangCount >= 2) {
-                op = (bangCount % 2 == 1 ? "!" : "") + op.substring(bangCount);
-            }
-        }
-
-        // AOT: 无 conditionAction 时 op 必填
+        // AOT: 无 conditionAction 时 op 必填；同时进行 resolve 验证合法性 & 规范化多重 ! 前缀
         if (conditionAction == null && op == null) {
             throw new cn.warriorview.script.core.ScriptCompileException(
                     "CHECK node requires an 'op' field when not using inline conditionAction.");
         }
+        if (op != null) {
+            CheckOp.Resolved resolved = CheckOp.resolve(op);
+            // 规范化后回写（!! → 空, !!! → !）
+            op = resolved.toSymbol();
+        }
 
         // AOT: instanceof 类名编译期验证
-        if ("instanceof".equals(op) && value instanceof String className) {
+        if (op != null && CheckOp.fromSymbol(op.startsWith("!") ? op.substring(1) : op) == CheckOp.INSTANCEOF
+                && value instanceof String className) {
             try {
                 Class.forName(className.replace('/', '.'));
             } catch (ClassNotFoundException e) {
@@ -101,7 +99,7 @@ public final class CheckNodeHandler
             }
 
             // 缺口2：若 value 仍为字符串且操作符为数值类，尝试作为数学表达式解析
-            if (value instanceof String mathStr && isNumericOp(op)) {
+            if (value instanceof String mathStr && op != null && isNumericOp(op)) {
                 try {
                     cn.warriorview.script.math.MathNode mathNode = cn.warriorview.script.math.MathParser.parse(mathStr);
                     if (mathNode instanceof cn.warriorview.script.math.MathNode.LiteralNode lit) {
@@ -157,8 +155,8 @@ public final class CheckNodeHandler
         // 只处理面向顺序流的顶层 emit （非复合条件内部）；取反的 !instanceof 不注册。
         FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
         if (conditionAction == null) {
-            OpInfo info = parseOp(node);
-            if ("instanceof".equals(info.op()) && !info.negate()) {
+            CheckOp.Resolved info = resolveOp(node);
+            if (info.op() == CheckOp.INSTANCEOF && !info.negate()) {
                 String variable = node.getRequiredAttr("variable");
                 String rawClass = node.<String>getRequiredAttr("value").replace('/', '.');
                 try {
@@ -213,10 +211,10 @@ public final class CheckNodeHandler
         FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
         // op 可能在优化器下沉后仍保留于节点属性中（conditionAction != null 时 variable 被移除，但 op/value 保留）
         String rawOp = node.getAttrOrDefault("op", null);
-        String op = null;
+        CheckOp op = null;
         boolean negate = false;
         if (rawOp != null) {
-            OpInfo info = parseOp(rawOp);
+            CheckOp.Resolved info = CheckOp.resolve(rawOp);
             op = info.op();
             negate = info.negate();
         }
@@ -236,14 +234,14 @@ public final class CheckNodeHandler
                 }
 
                 IRType exactType = conditionAction.getRequiredAttr("returnType");
-                int storeOp = cn.warriorview.script.codegen.ASMUtils.storeOpcode(exactType);
+                int storeOp = ASMUtils.storeOpcode(exactType);
                 mv.visitVarInsn(storeOp, tempSlot);
 
                 jumpOp = emitSinkingCheck(mv, op, tempSlot, exactType, node, ctx);
             } else {
                 conditionAction.type().handler().emit(conditionAction, mv, ctx);
                 if (conditionAction.type() == FlowNodeType.MATH) {
-                    jumpOp = emitDoubleComparisonOnStack(mv, node, op != null ? op : "==", ctx);
+                    jumpOp = CheckOpEmitters.emitDoubleComparisonOnStack(mv, node, op != null ? op : CheckOp.EQ, ctx);
                 } else {
                     jumpOp = Opcodes.IFNE;
                 }
@@ -253,13 +251,13 @@ public final class CheckNodeHandler
             int slot = ctx.getSlot(variable);
             IRType type = ctx.getType(variable);
 
-            validateOpType(op, variable, type);
+            op.validateType(variable, type);
 
             jumpOp = emitSinkingCheck(mv, op, slot, type, node, ctx);
         }
 
         if (negate)
-            jumpOp = cn.warriorview.script.codegen.ASMUtils.invertJump(jumpOp);
+            jumpOp = ASMUtils.invertJump(jumpOp);
 
         return jumpOp;
     }
@@ -276,434 +274,11 @@ public final class CheckNodeHandler
         }
     }
 
-    /**
-     * AOT 语义验证：操作符与变量类型的兼容性检查。
-     */
-    private void validateOpType(String op, String variable, IRType type) {
-        if (">".equals(op) || ">=".equals(op) || "<".equals(op) || "<=".equals(op) || "between".equals(op)) {
-            if (type != IRType.INT && type != IRType.LONG && type != IRType.DOUBLE) {
-                throw new cn.warriorview.script.core.ScriptCompileException(
-                        String.format(
-                                "Operator '%s' requires a numeric type (INT/LONG/DOUBLE), but variable '%s' is of type %s. "
-                                        + "Hint: use '==' for equality or 'contains' for collection membership.",
-                                op, variable, type));
-            }
-        } else if ("starts_with".equals(op) || "ends_with".equals(op) || "matches".equals(op)) {
-            if (type != IRType.STRING) {
-                throw new cn.warriorview.script.core.ScriptCompileException(
-                        String.format(
-                                "Operator '%s' requires a STRING type, but variable '%s' is of type %s. "
-                                        + "Hint: use '==' for non-string equality checks.",
-                                op, variable, type));
-            }
-        } else if ("contains".equals(op)) {
-            if (type != IRType.STRING && type.base() != IRType.COLLECTION.base()) {
-                throw new cn.warriorview.script.core.ScriptCompileException(
-                        String.format(
-                                "Operator '%s' requires a STRING or COLLECTION type, but variable '%s' is of type %s. "
-                                        + "Hint: for numeric ranges, use 'between'; for set membership, use 'in'.",
-                                op, variable, type));
-            }
-        } else if ("in".equals(op)) {
-            // 白名单：仅 STRING、INT、ENUM 支持 in 操作（集合成员判定）
-            if (type != IRType.STRING && type != IRType.INT && type != IRType.ENUM) {
-                String hint = (type == IRType.DOUBLE || type == IRType.LONG)
-                        ? "Hint: use 'between' for numeric range checks, or '==' for exact equality."
-                        : (type == IRType.BOOLEAN)
-                                ? "Hint: boolean variables should use '== true' or '== false' directly."
-                                : "Hint: 'in' only supports STRING/INT/ENUM. Use '==' for equality or 'contains' for collection membership.";
-                throw new cn.warriorview.script.core.ScriptCompileException(
-                        String.format(
-                                "Operator 'in' is not supported for type %s on variable '%s'. %s",
-                                type, variable, hint));
-            }
-        } else if ("==".equals(op) && type == IRType.COLLECTION) {
-            throw new cn.warriorview.script.core.ScriptCompileException(
-                    String.format(
-                            "Operator '==' on COLLECTION variable '%s' compares by reference, which is almost certainly not what you want. "
-                                    + "Hint: did you mean 'contains' to check membership?",
-                            variable));
-        }
-    }
+    // ======================== 字节码发射委托 ========================
 
-    // ======================== null ========================
-
-    private int emitSinkingCheck(MethodVisitor mv, String op, int slot, IRType type, FlowNode node,
+    private int emitSinkingCheck(MethodVisitor mv, CheckOp op, int slot, IRType type, FlowNode node,
             CompilationContext ctx) {
-        return switch (op) {
-            case "null" -> emitNullCheck(mv, slot);
-            case "instanceof" -> emitInstanceof(mv, slot, node);
-            case "contains" -> emitContains(mv, slot, node, type);
-            case "starts_with" -> emitStringOp(mv, "startsWith", slot, node);
-            case "ends_with" -> emitStringOp(mv, "endsWith", slot, node);
-            case "matches" -> emitMatches(mv, slot, node);
-            case "in" -> emitIn(mv, slot, node, type);
-            case "between" -> emitBetween(mv, slot, node, type);
-            default -> emitComparison(mv, slot, type, op, node, ctx);
-        };
-    }
-
-    private int emitNullCheck(MethodVisitor mv, int slot) {
-        mv.visitVarInsn(Opcodes.ALOAD, slot);
-        return Opcodes.IFNONNULL; // 非 null 时继续
-    }
-
-    // ======================== instanceof ========================
-
-    private int emitInstanceof(MethodVisitor mv, int slot, FlowNode node) {
-        String className = node.<String>getRequiredAttr("value").replace('.', '/');
-        mv.visitVarInsn(Opcodes.ALOAD, slot);
-        mv.visitTypeInsn(Opcodes.INSTANCEOF, className);
-        return Opcodes.IFNE; // instanceof 为 true 时继续
-    }
-
-    // ======================== contains（智能分发） ========================
-
-    private int emitContains(MethodVisitor mv, int slot, FlowNode node, IRType type) {
-        mv.visitVarInsn(Opcodes.ALOAD, slot);
-        Object value = node.getRequiredAttr("value");
-
-        if (type == IRType.STRING) {
-            // String.contains(CharSequence)
-            mv.visitLdcInsn((String) value);
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "contains",
-                    "(Ljava/lang/CharSequence;)Z", false);
-        } else if (type == IRType.COLLECTION) {
-            // Collection.contains(Object)
-            if (value instanceof String s)
-                mv.visitLdcInsn(s);
-            mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/Collection", "contains",
-                    "(Ljava/lang/Object;)Z", true);
-        } else {
-            // fallback: toString().contains()
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Object", "toString",
-                    "()Ljava/lang/String;", false);
-            mv.visitLdcInsn((String) value);
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "contains",
-                    "(Ljava/lang/CharSequence;)Z", false);
-        }
-        return Opcodes.IFNE; // contains 为 true 时继续
-    }
-
-    // ======================== 字符串操作 ========================
-
-    private int emitStringOp(MethodVisitor mv, String methodName, int slot, FlowNode node) {
-        String value = node.getRequiredAttr("value");
-        mv.visitVarInsn(Opcodes.ALOAD, slot);
-
-        // 单字符优化：startsWith("x") → charAt(0) == 'x'
-        if (value.length() == 1 && ("startsWith".equals(methodName) || "endsWith".equals(methodName))) {
-            if ("startsWith".equals(methodName)) {
-                ASMUtils.emitIntConst(mv, 0);
-            } else {
-                // endsWith → length()-1
-                mv.visitInsn(Opcodes.DUP);
-                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "length", "()I", false);
-                ASMUtils.emitIntConst(mv, 1);
-                mv.visitInsn(Opcodes.ISUB);
-            }
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "charAt", "(I)C", false);
-            ASMUtils.emitIntConst(mv, value.charAt(0));
-            return Opcodes.IF_ICMPEQ; // charAt == target 时继续
-        }
-
-        // 通用路径
-        mv.visitLdcInsn(value);
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", methodName,
-                "(Ljava/lang/String;)Z", false);
-        return Opcodes.IFNE;
-    }
-
-    // ======================== matches（正则预编译） ========================
-
-    private int emitMatches(MethodVisitor mv, int slot, FlowNode node) {
-        String hoistedField = node.getAttrOrDefault("_hoistedField", null);
-        if (hoistedField != null) {
-            // 预编译 Pattern 优化路径
-            // pattern.matcher(var).matches()
-            mv.visitFieldInsn(Opcodes.GETSTATIC, node.getRequiredAttr("_className"), hoistedField,
-                    "Ljava/util/regex/Pattern;");
-            mv.visitVarInsn(Opcodes.ALOAD, slot);
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/util/regex/Pattern", "matcher",
-                    "(Ljava/lang/CharSequence;)Ljava/util/regex/Matcher;", false);
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/util/regex/Matcher", "matches", "()Z", false);
-            return Opcodes.IFNE;
-        }
-
-        // 退化路径：String.matches()
-        String pattern = node.getRequiredAttr("value");
-        mv.visitVarInsn(Opcodes.ALOAD, slot);
-        mv.visitLdcInsn(pattern);
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "matches",
-                "(Ljava/lang/String;)Z", false);
-        return Opcodes.IFNE;
-    }
-
-    // ======================== in（智能分发） ========================
-
-    @SuppressWarnings("unchecked")
-    private int emitIn(MethodVisitor mv, int slot, FlowNode node, IRType type) {
-        ImmutableList<?> valueList = node.getAttrOrDefault("valueList", null);
-        if (valueList == null)
-            valueList = node.getRequiredAttr("value");
-
-        if (valueList.size() <= 3) {
-            // ≤3 项 → 展开为多路比较（避免集合开销）
-            return emitInExpanded(mv, slot, (ImmutableList<Object>) valueList, type);
-        }
-
-        // >3 项 → Set.of(...).contains(var)
-        return emitInSet(mv, slot, (ImmutableList<Object>) valueList, type, node);
-    }
-
-    /**
-     * 展开式 in：var==v1 || var==v2 || var==v3
-     */
-    private int emitInExpanded(MethodVisitor mv, int slot,
-            ImmutableList<Object> values, IRType type) {
-        Label trueLabel = new Label();
-        Label endLabel = new Label();
-
-        for (int i = 0; i < values.size(); i++) {
-            Object val = values.get(i);
-            if (type == IRType.INT) {
-                mv.visitVarInsn(Opcodes.ILOAD, slot);
-                ASMUtils.emitIntConst(mv, ((Number) val).intValue());
-                mv.visitJumpInsn(Opcodes.IF_ICMPEQ, trueLabel);
-            } else if (type == IRType.ENUM) {
-                mv.visitVarInsn(Opcodes.ALOAD, slot);
-                mv.visitLdcInsn(val.toString());
-                mv.visitVarInsn(Opcodes.ALOAD, slot);
-                ASMUtils.emitEnumName(mv);
-                mv.visitLdcInsn(val.toString());
-                ASMUtils.emitEquals(mv);
-                mv.visitJumpInsn(Opcodes.IFNE, trueLabel);
-            } else {
-                mv.visitVarInsn(Opcodes.ALOAD, slot);
-                if (val instanceof String s)
-                    mv.visitLdcInsn(s);
-                ASMUtils.emitEquals(mv);
-                mv.visitJumpInsn(Opcodes.IFNE, trueLabel);
-            }
-        }
-
-        // 全部不匹配
-        ASMUtils.emitIntConst(mv, 0);
-        mv.visitJumpInsn(Opcodes.GOTO, endLabel);
-
-        mv.visitLabel(trueLabel);
-        ASMUtils.emitIntConst(mv, 1);
-
-        mv.visitLabel(endLabel);
-        return Opcodes.IFNE; // in 结果为 true 时继续
-    }
-
-    /**
-     * Set.of() 方式 in：生成不可变集合 + contains。
-     */
-    private int emitInSet(MethodVisitor mv, int slot,
-            ImmutableList<Object> values, IRType type, FlowNode node) {
-        String hoistedField = node.getAttrOrDefault("_hoistedField", null);
-
-        if (hoistedField != null) {
-            // 取 clinit 初始化好的 Set 常量
-            mv.visitFieldInsn(Opcodes.GETSTATIC, node.getRequiredAttr("_className"), hoistedField, "Ljava/util/Set;");
-        } else {
-            // 退化路径：动态创建 Set.of()
-            int count = values.size();
-            ASMUtils.emitIntConst(mv, count);
-            mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
-            for (int i = 0; i < count; i++) {
-                mv.visitInsn(Opcodes.DUP);
-                ASMUtils.emitIntConst(mv, i);
-                Object val = values.get(i);
-                if (val instanceof String s) {
-                    mv.visitLdcInsn(s);
-                } else if (val instanceof Number n) {
-                    mv.visitLdcInsn(n.intValue());
-                    mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Integer", "valueOf",
-                            "(I)Ljava/lang/Integer;", false);
-                }
-                mv.visitInsn(Opcodes.AASTORE);
-            }
-            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/util/Set", "of",
-                    "([Ljava/lang/Object;)Ljava/util/Set;", true);
-        }
-
-        // set.contains(var)
-        if (type.isPrimitive()) {
-            mv.visitVarInsn(Opcodes.ILOAD, slot);
-            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Integer", "valueOf",
-                    "(I)Ljava/lang/Integer;", false);
-        } else {
-            mv.visitVarInsn(Opcodes.ALOAD, slot);
-        }
-        mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/Set", "contains",
-                "(Ljava/lang/Object;)Z", true);
-
-        return Opcodes.IFNE;
-    }
-
-    // ======================== between ========================
-
-    private int emitBetween(MethodVisitor mv, int slot, FlowNode node, IRType type) {
-        String hoistedField = node.getAttrOrDefault("_hoistedField", null);
-        boolean useArray = hoistedField != null && type == IRType.DOUBLE;
-
-        double low = 0, high = 0;
-        if (!useArray) {
-            ImmutableList<?> range = node.getAttrOrDefault("valueList", null);
-            if (range == null)
-                range = node.getRequiredAttr("value");
-            low = ((Number) range.get(0)).doubleValue();
-            high = ((Number) range.get(1)).doubleValue();
-        }
-
-        Label failLabel = new Label();
-        Label endLabel = new Label();
-
-        if (type == IRType.INT) {
-            int iLow = (int) low, iHigh = (int) high;
-            // var >= low
-            mv.visitVarInsn(Opcodes.ILOAD, slot);
-            ASMUtils.emitIntConst(mv, iLow);
-            mv.visitJumpInsn(Opcodes.IF_ICMPLT, failLabel);
-            // var <= high
-            mv.visitVarInsn(Opcodes.ILOAD, slot);
-            ASMUtils.emitIntConst(mv, iHigh);
-            mv.visitJumpInsn(Opcodes.IF_ICMPGT, failLabel);
-        } else {
-            // double
-            if (useArray) {
-                // 从 RANGE_x 数组中获取边界值
-                // var >= arr[0]
-                mv.visitVarInsn(Opcodes.DLOAD, slot);
-                mv.visitFieldInsn(Opcodes.GETSTATIC, node.getRequiredAttr("_className"), hoistedField, "[D");
-                ASMUtils.emitIntConst(mv, 0);
-                mv.visitInsn(Opcodes.DALOAD);
-                mv.visitInsn(Opcodes.DCMPG);
-                mv.visitJumpInsn(Opcodes.IFLT, failLabel);
-
-                // var <= arr[1]
-                mv.visitVarInsn(Opcodes.DLOAD, slot);
-                mv.visitFieldInsn(Opcodes.GETSTATIC, node.getRequiredAttr("_className"), hoistedField, "[D");
-                ASMUtils.emitIntConst(mv, 1);
-                mv.visitInsn(Opcodes.DALOAD);
-                mv.visitInsn(Opcodes.DCMPL);
-                mv.visitJumpInsn(Opcodes.IFGT, failLabel);
-            } else {
-                // 退化路径：常量拼接
-                mv.visitVarInsn(Opcodes.DLOAD, slot);
-                ASMUtils.emitDoubleConst(mv, low);
-                mv.visitInsn(Opcodes.DCMPG);
-                mv.visitJumpInsn(Opcodes.IFLT, failLabel);
-
-                mv.visitVarInsn(Opcodes.DLOAD, slot);
-                ASMUtils.emitDoubleConst(mv, high);
-                mv.visitInsn(Opcodes.DCMPL);
-                mv.visitJumpInsn(Opcodes.IFGT, failLabel);
-            }
-        }
-
-        // 在范围内
-        ASMUtils.emitIntConst(mv, 1);
-        mv.visitJumpInsn(Opcodes.GOTO, endLabel);
-
-        mv.visitLabel(failLabel);
-        ASMUtils.emitIntConst(mv, 0);
-
-        mv.visitLabel(endLabel);
-        return Opcodes.IFNE; // between 满足时继续
-    }
-
-    // ======================== 数值/相等比较（智能分发） ========================
-
-    private int emitComparison(MethodVisitor mv, int slot, IRType type, String op, FlowNode node,
-            CompilationContext ctx) {
-        if (type == IRType.BOOLEAN) {
-            return emitBooleanComparison(mv, slot, node, op);
-        } else if (type == IRType.DOUBLE) {
-            return emitDoubleComparison(mv, slot, node, op, ctx);
-        } else if (type == IRType.INT) {
-            return emitIntComparison(mv, slot, node, op);
-        } else if (type == IRType.LONG) {
-            return emitLongComparison(mv, slot, node, op);
-        } else if (type == IRType.ENUM && "==".equals(op)) {
-            return emitEnumEquals(mv, slot, node);
-        } else {
-            return emitObjectComparison(mv, slot, node, op);
-        }
-    }
-
-    /** boolean：无 value → 直接检测；有 value → 调整 */
-    private int emitBooleanComparison(MethodVisitor mv, int slot, FlowNode node, String op) {
-        mv.visitVarInsn(Opcodes.ILOAD, slot);
-        Object value = node.getAttrOrDefault("value", null);
-        if (value == null || Boolean.TRUE.equals(value)) {
-            // is_true: IFNE 继续
-            return Opcodes.IFNE;
-        } else {
-            // is_false: IFEQ 继续
-            return Opcodes.IFEQ;
-        }
-    }
-
-    /** double 零装箱比较 */
-    private int emitDoubleComparison(MethodVisitor mv, int slot, FlowNode node, String op,
-            CompilationContext ctx) {
-        mv.visitVarInsn(Opcodes.DLOAD, slot);
-        return emitDoubleComparisonOnStack(mv, node, op, ctx);
-    }
-
-    private int emitDoubleComparisonOnStack(MethodVisitor mv, FlowNode node, String op,
-            CompilationContext ctx) {
-        // 缺口2：若有 valueNode（含变量的数学表达式），发射其字节码而非常量
-        cn.warriorview.script.math.MathNode valueNode = node.getAttrOrDefault("valueNode", null);
-        if (valueNode != null) {
-            MathNodeHandler.emitMathNode(valueNode, mv, ctx);
-        } else {
-            cn.warriorview.script.codegen.ASMUtils.emitDoubleConst(mv, node.numericValue());
-        }
-        mv.visitInsn(Opcodes.DCMPG);
-        return cmpJump(op);
-    }
-
-    /** int 零装箱比较 */
-    private int emitIntComparison(MethodVisitor mv, int slot, FlowNode node, String op) {
-        mv.visitVarInsn(Opcodes.ILOAD, slot);
-        ASMUtils.emitIntConst(mv, (int) node.numericValue());
-        return intCmpJump(op);
-    }
-
-    /** long 比较 */
-    private int emitLongComparison(MethodVisitor mv, int slot, FlowNode node, String op) {
-        mv.visitVarInsn(Opcodes.LLOAD, slot);
-        ASMUtils.emitLongConst(mv, (long) node.numericValue());
-        mv.visitInsn(Opcodes.LCMP);
-        return cmpJump(op);
-    }
-
-    /** 枚举引用比较（IF_ACMPEQ，单例安全） */
-    private int emitEnumEquals(MethodVisitor mv, int slot, FlowNode node) {
-        mv.visitVarInsn(Opcodes.ALOAD, slot);
-        String enumValue = node.getRequiredAttr("value").toString();
-        mv.visitLdcInsn(enumValue);
-        mv.visitVarInsn(Opcodes.ALOAD, slot);
-        ASMUtils.emitEnumName(mv);
-        mv.visitInsn(Opcodes.SWAP);
-        ASMUtils.emitEquals(mv);
-        return Opcodes.IFNE;
-    }
-
-    /** 对象 equals 比较 */
-    private int emitObjectComparison(MethodVisitor mv, int slot, FlowNode node, String op) {
-        mv.visitVarInsn(Opcodes.ALOAD, slot);
-        Object value = node.getAttrOrDefault("value", null);
-        if (value instanceof String s) {
-            mv.visitLdcInsn(s);
-        }
-        ASMUtils.emitEquals(mv);
-        return "==".equals(op) ? Opcodes.IFNE : Opcodes.IFEQ;
+        return CheckOpEmitters.forOp(op).emit(mv, op, slot, type, node, ctx);
     }
 
     @Override
@@ -730,40 +305,50 @@ public final class CheckNodeHandler
         String rawOp = node.getAttrOrDefault("op", null);
         if (rawOp == null)
             return node;
-        String op = parseOp(rawOp).op();
+        CheckOp op = CheckOp.resolve(rawOp).op();
         String fieldName = null;
+        CompilationContext.ConstantKind kind = null;
+        Object payload = null;
 
-        if ("matches".equals(op)) {
-            String pattern = node.getAttrOrDefault("value", null);
-            if (pattern != null) {
-                fieldName = "PATTERN_" + counter[0]++;
-                defs.add(new CompilationContext.ConstantDef(fieldName, CompilationContext.ConstantKind.PATTERN,
-                        pattern));
+        switch (op.hoistKind()) {
+            case PATTERN -> {
+                String pattern = node.getAttrOrDefault("value", null);
+                if (pattern != null) {
+                    fieldName = op.hoistFieldPrefix() + counter[0]++;
+                    kind = CompilationContext.ConstantKind.PATTERN;
+                    payload = pattern;
+                }
             }
-        } else if ("in".equals(op)) {
-            ImmutableList<?> list = node.getAttrOrDefault("valueList", null);
-            if (list == null)
-                list = node.getAttrOrDefault("value", null);
-            if (list instanceof ImmutableList<?> vals && vals.size() > 3) {
-                fieldName = "SET_" + counter[0]++;
-                defs.add(new CompilationContext.ConstantDef(fieldName, CompilationContext.ConstantKind.STRING_SET,
-                        vals));
+            case IN_SET -> {
+                ImmutableList<?> list = node.getAttrOrDefault("valueList", null);
+                if (list == null) list = node.getAttrOrDefault("value", null);
+                if (list instanceof ImmutableList<?> vals && vals.size() > CheckOp.IN_SET_THRESHOLD) {
+                    fieldName = op.hoistFieldPrefix() + counter[0]++;
+                    kind = CompilationContext.ConstantKind.STRING_SET;
+                    payload = vals;
+                }
             }
-        } else if ("between".equals(op)) {
-            ImmutableList<?> range = node.getAttrOrDefault("valueList", null);
-            if (range == null)
-                range = node.getAttrOrDefault("value", null);
-            if (range instanceof ImmutableList<?> vals && vals.size() == 2) {
-                double[] arr = {
-                        ((Number) vals.get(0)).doubleValue(),
-                        ((Number) vals.get(1)).doubleValue()
-                };
-                fieldName = "RANGE_" + counter[0]++;
-                defs.add(new CompilationContext.ConstantDef(fieldName, CompilationContext.ConstantKind.DOUBLE_ARRAY,
-                        arr));
+            case RANGE_ARRAY -> {
+                ImmutableList<?> range = node.getAttrOrDefault("valueList", null);
+                if (range == null) range = node.getAttrOrDefault("value", null);
+                if (range instanceof ImmutableList<?> vals && vals.size() == 2) {
+                    double[] arr = {
+                            ((Number) vals.get(0)).doubleValue(),
+                            ((Number) vals.get(1)).doubleValue()
+                    };
+                    fieldName = op.hoistFieldPrefix() + counter[0]++;
+                    kind = CompilationContext.ConstantKind.DOUBLE_ARRAY;
+                    payload = arr;
+                }
             }
+            case NONE -> {}
         }
-        return fieldName != null ? node.withAttr("_hoistedField", fieldName) : node;
+
+        if (fieldName != null) {
+            defs.add(new CompilationContext.ConstantDef(fieldName, kind, payload));
+            return node.withAttr("_hoistedField", fieldName);
+        }
+        return node;
     }
 
     // ======================== 实现脱离优化接口 ========================
@@ -774,7 +359,7 @@ public final class CheckNodeHandler
         if (varName == null || !ctx.isConstant(varName))
             return null;
 
-        OpInfo info = parseOp(node);
+        CheckOp.Resolved info = resolveOp(node);
 
         Object varValue = ctx.getConstant(varName);
         Boolean result = evaluateBaseOp(info.op(), varValue, node);
@@ -783,41 +368,28 @@ public final class CheckNodeHandler
         return result;
     }
 
-    private Boolean evaluateBaseOp(String op, Object varValue, ScriptIR.FlowNode node) {
-        if ("null".equals(op))
+    private Boolean evaluateBaseOp(CheckOp op, Object varValue, ScriptIR.FlowNode node) {
+        if (op == CheckOp.NULL)
             return varValue == null;
         if (varValue == null)
             return null;
 
         Object cmpValue = node.getAttrOrDefault("value", null);
-        if (cmpValue == null && "==".equals(op) && varValue instanceof Boolean b) {
+        if (cmpValue == null && op == CheckOp.EQ && varValue instanceof Boolean b) {
             return b;
         }
         if (cmpValue == null)
             return null;
 
         if (varValue instanceof Number v && cmpValue instanceof Number c) {
-            double vd = v.doubleValue(), cd = c.doubleValue();
-            return switch (op) {
-                case ">" -> vd > cd;
-                case ">=" -> vd >= cd;
-                case "<" -> vd < cd;
-                case "<=" -> vd <= cd;
-                case "==" -> vd == cd;
-                default -> null;
-            };
+            return op.foldNumeric(v.doubleValue(), c.doubleValue());
         }
-
-        if ("==".equals(op))
-            return varValue.equals(cmpValue);
-        if ("contains".equals(op) && varValue instanceof String s && cmpValue instanceof String sub)
-            return s.contains(sub);
-        return null;
+        return op.foldObject(varValue, cmpValue);
     }
 
     @Override
     public Boolean tryFoldWithRange(ScriptIR.FlowNode node, ScriptOptimizer.ValueRange range) {
-        OpInfo info = parseOp(node);
+        CheckOp.Resolved info = resolveOp(node);
 
         Boolean foldResult = tryFoldWithRangeOp(range, info.op(), node);
         if (foldResult != null && info.negate()) {
@@ -826,82 +398,48 @@ public final class CheckNodeHandler
         return foldResult;
     }
 
-    private Boolean tryFoldWithRangeOp(ScriptOptimizer.ValueRange range, String op,
+    private Boolean tryFoldWithRangeOp(ScriptOptimizer.ValueRange range, CheckOp op,
             ScriptIR.FlowNode node) {
-        if (">".equals(op) || ">=".equals(op) || "<".equals(op) || "<=".equals(op) || "==".equals(op)) {
+        if (op.isRangeFoldable()) {
             Object value = node.getAttrOrDefault("value", null);
             if (value instanceof Number n) {
                 return range.canFold(op, n.doubleValue());
             }
             return range.canFoldExact(op, value);
         }
-        // op 已由 parseOp 剥离 ! 前缀，"null" 是唯一可能到达此处的值
-        if ("null".equals(op) && range.nonNull())
+        if (op == CheckOp.NULL && range.nonNull())
             return Boolean.FALSE;
         return null;
     }
 
     @Override
     public ScriptOptimizer.ValueRange updateRange(ScriptIR.FlowNode node, ScriptOptimizer.ValueRange range) {
-        OpInfo info = parseOp(node);
+        CheckOp.Resolved info = resolveOp(node);
 
         Object value = node.getAttrOrDefault("value", null);
         double d = value instanceof Number n ? n.doubleValue() : 0;
 
         return switch (info.op()) {
-            case ">" -> range.withMin(d + Double.MIN_VALUE);
-            case ">=" -> range.withMin(d);
-            case "<" -> range.withMax(d - Double.MIN_VALUE);
-            case "<=" -> range.withMax(d);
-            case "==" -> value != null ? range.withExact(value) : range;
-            case "null" -> info.negate() ? range.withNonNull() : range;
+            case GT -> range.withMin(d + Double.MIN_VALUE);
+            case GTE -> range.withMin(d);
+            case LT -> range.withMax(d - Double.MIN_VALUE);
+            case LTE -> range.withMax(d);
+            case EQ -> value != null ? range.withExact(value) : range;
+            case NULL -> info.negate() ? range.withNonNull() : range;
             default -> range;
         };
     }
 
-    private record OpInfo(String op, boolean negate) {
-    }
-
-    private static OpInfo parseOp(String rawOp) {
-        boolean negate = rawOp.startsWith("!");
-        return new OpInfo(negate ? rawOp.substring(1) : rawOp, negate);
-    }
-
-    private static OpInfo parseOp(FlowNode node) {
-        return parseOp(node.<String>getRequiredAttr("op"));
-    }
-
-    /** DCMPG/LCMP 后的单值比较跳转 opcode（double/long 共用）。 */
-    private static int cmpJump(String op) {
-        return switch (op) {
-            case ">" -> Opcodes.IFGT;
-            case ">=" -> Opcodes.IFGE;
-            case "<" -> Opcodes.IFLT;
-            case "<=" -> Opcodes.IFLE;
-            case "==" -> Opcodes.IFEQ;
-            default -> throw new IllegalArgumentException("Unsupported comparison op: " + op);
-        };
-    }
-
-    /** 双栈值 int 比较跳转 opcode。 */
-    private static int intCmpJump(String op) {
-        return switch (op) {
-            case ">" -> Opcodes.IF_ICMPGT;
-            case ">=" -> Opcodes.IF_ICMPGE;
-            case "<" -> Opcodes.IF_ICMPLT;
-            case "<=" -> Opcodes.IF_ICMPLE;
-            case "==" -> Opcodes.IF_ICMPEQ;
-            default -> throw new IllegalArgumentException("Unsupported comparison op for int: " + op);
-        };
+    /** 从 FlowNode 'op' 属性解析 CheckOp.Resolved 的便利方法。 */
+    private static CheckOp.Resolved resolveOp(FlowNode node) {
+        return CheckOp.resolve(node.<String>getRequiredAttr("op"));
     }
 
     /** 操作符是否为数值类比较（决定 value 字段是否可尝试作为数学表达式解析）。 */
-    private static boolean isNumericOp(String op) {
-        if (op == null) return false;
-        return switch (parseOp(op).op()) {
-            case ">", ">=", "<", "<=", "==", "between" -> true;
-            default -> false;
-        };
+    private static boolean isNumericOp(String rawOp) {
+        if (rawOp == null) return false;
+        CheckOp op = CheckOp.resolve(rawOp).op();
+        return op.isNumeric();
     }
 
     /** 覆写以包含 valueNode 中引用的变量（活跃变量分析需要）。 */

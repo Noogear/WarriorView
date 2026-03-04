@@ -4,7 +4,6 @@ import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
 import cn.warriorview.script.core.ScriptIR.FlowNodeType;
-import cn.warriorview.script.core.ScriptIR.IRType;
 import cn.warriorview.script.core.ScriptIR.NodeCapability;
 import cn.warriorview.script.math.MathNode;
 import cn.warriorview.script.math.MathNodeEmitter;

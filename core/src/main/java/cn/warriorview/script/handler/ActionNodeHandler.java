@@ -55,22 +55,28 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
         // 验证动作存在
         ActionRegistry.ActionDef def = REGISTRY.lookup(action);
 
-        // 前端校验：参数个数（目标方法如果有实体/Event等附带参数，第一位往往由系统传入，YAML参数为其后内容）
-        // 假定：所有的 @ScriptAction 方法，第一个参数都是 Payload/Event/Entity（上下文自动推断），后续的则是 YAML 提供
-        int expectedArgs = def.paramCount() - 1;
-        if (expectedArgs < 0)
-            expectedArgs = 0; // 无参方法？（虽然很少，但兼容）
+        // 参数个数校验：consumesPayload=true 时第一位由引擎自动注入，YAML args 对应第二位起；
+        // consumesPayload=false 时为纯工具方法，所有参数由 YAML args 提供
+        int expectedArgs = def.consumesPayload()
+                ? Math.max(0, def.paramCount() - 1)
+                : def.paramCount();
 
         if (args.size() != expectedArgs) {
             throw new cn.warriorview.script.core.ScriptCompileException(
-                    String.format("Action '%s' expects %d arguments, but got %d.", action, expectedArgs, args.size()));
+                    String.format("Action '%s' expects %d %s, but got %d.",
+                            action, expectedArgs,
+                            def.consumesPayload()
+                                    ? "user argument(s) (payload is auto-injected as first param)"
+                                    : "argument(s)",
+                            args.size()));
         }
 
         // 类型静态校验（简单推测验证：数字型强转）
         Class<?>[] pTypes = def.paramTypes();
+        int paramOffset = def.consumesPayload() ? 1 : 0;
         for (int i = 0; i < args.size(); i++) {
             String argStr = args.get(i);
-            int methodParamIndex = i + 1;
+            int methodParamIndex = i + paramOffset;
 
             // 跳过包含模板变量的参数（因为在运行时拼接，暂时无法纯静态检查）
             if (ScriptIR.isTemplate(argStr)) {
@@ -190,10 +196,20 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
      */
     void emitActionCall(MethodVisitor mv, ActionRegistry.ActionDef def,
             ImmutableList<String> args, CompilationContext ctx, FlowNode node) {
-        // 加载 event 参数（slot 1）作为第一个方法参数
-        mv.visitVarInsn(Opcodes.ALOAD, 1);
+        // 根据 consumesPayload 决定是否自动注入 payload（slot 1）作为第一个方法参数
+        if (def.consumesPayload()) {
+            mv.visitVarInsn(Opcodes.ALOAD, 1);
+            // NARROWED 场景：方法要求 payload 子类但脚本 payload 是父类
+            // （此时 validateTypes 已确认 instanceof 窄化存在）→ 追加 CHECKCAST
+            Class<?> firstParamType = def.paramTypes()[0];
+            if (!firstParamType.isAssignableFrom(ctx.payloadClass())) {
+                mv.visitTypeInsn(Opcodes.CHECKCAST,
+                        org.objectweb.asm.Type.getInternalName(firstParamType));
+            }
+        }
 
         Class<?>[] pTypes = def.paramTypes();
+        int paramOffset = def.consumesPayload() ? 1 : 0;
 
         // Load arguments
         FlowNode conditionAction = node.getAttrOrDefault("conditionAction", null);
@@ -201,7 +217,7 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
 
         for (int i = 0; i < args.size(); i++) {
             String arg = args.get(i);
-            int methodParamIndex = i + 1;
+            int methodParamIndex = i + paramOffset;
             Class<?> reqType = pTypes[methodParamIndex];
 
             if (i == sinkArgIndex && conditionAction != null) {
@@ -215,8 +231,19 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
                         ASMUtils.emitBox(mv, returnType);
                     }
                 } else {
-                    // 真实节点内联（如 MATH）路径：直接 emit 到操作数栈，再按需处理类型
-                    conditionAction.type().handler().emit(conditionAction, mv, ctx);
+                    // 真实节点内联路径：将 conditionAction 的计算结果留在操作数栈顶，供当前参数槽消费。
+                    // ACTION 类型必须走 emitActionCallLeaveOnStack，而非完整的 emit()；
+                    // 后者会对 store=null 的节点 POP 返回值，导致栈状态不合法。
+                    // MATH 等其他类型的 emit() 本身不含 STORE/POP 逻辑，可以直接调用。
+                    if (conditionAction.type() == ScriptIR.FlowNodeType.ACTION) {
+                        ActionRegistry.ActionDef condDef = conditionAction.getRequiredAttr("def");
+                        ImmutableList<String> condArgs = conditionAction.getAttrOrDefault("args",
+                                ImmutableList.of());
+                        // 使用 leave-on-stack 版本：正确处理 consumesPayload，且不执行任何 STORE/POP
+                        emitActionCallLeaveOnStack(mv, condDef, condArgs, ctx, conditionAction);
+                    } else {
+                        conditionAction.type().handler().emit(conditionAction, mv, ctx);
+                    }
                     Class<?> unwrappedType = com.google.common.primitives.Primitives.unwrap(reqType);
                     if (!unwrappedType.isPrimitive()) {
                         // 方法要求引用类型，但 MATH 发射的是 double → 需装箱
@@ -408,8 +435,38 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
         ImmutableList<String> args = node.getAttrOrDefault("args", ImmutableList.of());
         com.google.common.reflect.TypeToken<?>[] genericPTypes = def.genericParamTypes();
 
+        // 校验 payload 参数类型兼容性（consumesPayload=true 且方法至少有一个参数时）
+        if (def.consumesPayload() && def.paramCount() > 0) {
+            Class<?> firstParamType = def.paramTypes()[0];
+            Class<?> payloadClass = ctx.payloadClass();
+            if (!firstParamType.isAssignableFrom(payloadClass)) {
+                if (!payloadClass.isAssignableFrom(firstParamType)) {
+                    // 完全无继承关系 → 直接幹错
+                    throw cn.warriorview.script.core.ScriptCompileException.create(node, String.format(
+                            "Action '%s' requires payload type '%s', but script payload is '%s'. "
+                                    + "These types are unrelated \u2014 this action cannot be called from this script.",
+                            actionName, firstParamType.getSimpleName(), payloadClass.getSimpleName()));
+                }
+                // NARROWED 场景：payload 是 firstParamType 的父类，需要前置 instanceof 检查
+                Class<?> narrowed = ctx.getNarrowedClass("payload");
+                // 同时检查 slot-1 上注册的别名（如 $self）
+                if (narrowed == null) {
+                    String slot1Var = ctx.getVarName(1);
+                    if (slot1Var != null) narrowed = ctx.getNarrowedClass(slot1Var);
+                }
+                if (narrowed == null || !firstParamType.isAssignableFrom(narrowed)) {
+                    throw cn.warriorview.script.core.ScriptCompileException.create(node, String.format(
+                            "Action '%s' requires payload subtype '%s', but current payload is '%s'. "
+                                    + "Add a 'check: instanceof: %s' guard before this action to narrow the type.",
+                            actionName, firstParamType.getSimpleName(), payloadClass.getSimpleName(),
+                            firstParamType.getName()));
+                }
+            }
+        }
+
+        int paramOffset = def.consumesPayload() ? 1 : 0;
         for (int i = 0; i < args.size(); i++) {
-            int paramIndex = i + 1; // 0 是隐式 Payload/Event
+            int paramIndex = i + paramOffset;
             com.google.common.reflect.TypeToken<?> expectedToken = genericPTypes[paramIndex];
             IRType expectedIR = IRType.fromToken(expectedToken);
             String argStr = args.get(i);
