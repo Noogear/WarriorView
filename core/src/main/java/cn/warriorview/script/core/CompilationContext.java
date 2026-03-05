@@ -222,8 +222,8 @@ public final class CompilationContext {
 
     // ======================== 优化器产出 ========================
 
-    /** 编译期需提升为 static final 的常量。 */
-    public record ConstantDef(String fieldName, ConstantKind kind, Object value) {
+    /** 编译期需提升到外置常量池的常量。 */
+    public record ConstantDef(String key, ConstantKind kind, Object value) {
     }
 
     public enum ConstantKind {

@@ -306,7 +306,7 @@ public final class CheckNodeHandler
         if (rawOp == null)
             return node;
         CheckOp op = CheckOp.resolve(rawOp).op();
-        String fieldName = null;
+        String key = null;
         CompilationContext.ConstantKind kind = null;
         Object payload = null;
 
@@ -314,7 +314,8 @@ public final class CheckNodeHandler
             case PATTERN -> {
                 String pattern = node.getAttrOrDefault("value", null);
                 if (pattern != null) {
-                    fieldName = op.hoistFieldPrefix() + counter[0]++;
+                    // 内容哈希键：相同 pattern 跨脚本共享同一 CallSite
+                    key = "P/" + pattern;
                     kind = CompilationContext.ConstantKind.PATTERN;
                     payload = pattern;
                 }
@@ -323,7 +324,10 @@ public final class CheckNodeHandler
                 ImmutableList<?> list = node.getAttrOrDefault("valueList", null);
                 if (list == null) list = node.getAttrOrDefault("value", null);
                 if (list instanceof ImmutableList<?> vals && vals.size() > CheckOp.IN_SET_THRESHOLD) {
-                    fieldName = op.hoistFieldPrefix() + counter[0]++;
+                    // 排序后 join，使顺序无关的相同集合得到同一 key
+                    String sorted = vals.stream().map(Object::toString)
+                            .sorted().collect(java.util.stream.Collectors.joining(","));
+                    key = "S/" + sorted;
                     kind = CompilationContext.ConstantKind.STRING_SET;
                     payload = vals;
                 }
@@ -332,11 +336,10 @@ public final class CheckNodeHandler
                 ImmutableList<?> range = node.getAttrOrDefault("valueList", null);
                 if (range == null) range = node.getAttrOrDefault("value", null);
                 if (range instanceof ImmutableList<?> vals && vals.size() == 2) {
-                    double[] arr = {
-                            ((Number) vals.get(0)).doubleValue(),
-                            ((Number) vals.get(1)).doubleValue()
-                    };
-                    fieldName = op.hoistFieldPrefix() + counter[0]++;
+                    double lo = ((Number) vals.get(0)).doubleValue();
+                    double hi = ((Number) vals.get(1)).doubleValue();
+                    double[] arr = { lo, hi };
+                    key = "D/" + Double.toHexString(lo) + "/" + Double.toHexString(hi);
                     kind = CompilationContext.ConstantKind.DOUBLE_ARRAY;
                     payload = arr;
                 }
@@ -344,9 +347,9 @@ public final class CheckNodeHandler
             case NONE -> {}
         }
 
-        if (fieldName != null) {
-            defs.add(new CompilationContext.ConstantDef(fieldName, kind, payload));
-            return node.withAttr("_hoistedField", fieldName);
+        if (key != null) {
+            defs.add(new CompilationContext.ConstantDef(key, kind, payload));
+            return node.withAttr("_hoistedField", key);
         }
         return node;
     }

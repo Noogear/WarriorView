@@ -19,20 +19,44 @@ import java.util.EnumMap;
  * 从 {@code CheckNodeHandler} 中提取的纯字节码生成逻辑，消除 Handler 对具体发射细节的耦合。
  * 新增操作符只需在 {@link #STRATEGIES} 注册对应函数引用，无需修改 Handler 的控制流。
  *
- * @see CheckOpStrategy
  * @see CheckOp
  */
 public final class CheckOpEmitters {
 
     private CheckOpEmitters() {}
 
+    // ======================== 策略接口 ========================
+
+    /**
+     * CHECK 操作符的字节码发射策略。
+     * <p>
+     * 每个 {@link CheckOp} 枚举值对应一个策略实现，负责将该操作符的语义转换为 JVM 字节码。
+     * 新增操作符时只需：1）在 {@link CheckOp} 添加枚举值；2）在 {@link CheckOpEmitters} 注册策略。
+     */
+    @FunctionalInterface
+    public interface Strategy {
+
+        /**
+         * 发射操作符的条件检查字节码。
+         *
+         * @param mv   当前方法的 MethodVisitor
+         * @param op   操作符枚举值
+         * @param slot 被检查变量的本地变量槽位
+         * @param type 变量的 IR 类型
+         * @param node CHECK FlowNode（含 value、valueList 等属性）
+         * @param ctx  编译上下文
+         * @return "条件成立时应跳转"的 JVM 条件跳转 opcode
+         */
+        int emit(MethodVisitor mv, CheckOp op, int slot, IRType type, FlowNode node, CompilationContext ctx);
+    }
+
     // ======================== 策略注册表 ========================
 
-    private static final EnumMap<CheckOp, CheckOpStrategy> STRATEGIES = new EnumMap<>(CheckOp.class);
+    private static final EnumMap<CheckOp, Strategy> STRATEGIES = new EnumMap<>(CheckOp.class);
 
     // 共享策略实例（避免方法引用每次创建不同 lambda，便于身份比较和调试）
-    private static final CheckOpStrategy STRING_OP_STRATEGY = CheckOpEmitters::emitStringOp;
-    private static final CheckOpStrategy COMPARISON_STRATEGY = CheckOpEmitters::emitComparison;
+    private static final Strategy STRING_OP_STRATEGY = CheckOpEmitters::emitStringOp;
+    private static final Strategy COMPARISON_STRATEGY = CheckOpEmitters::emitComparison;
 
     static {
         STRATEGIES.put(CheckOp.NULL,        (mv, op, slot, type, node, ctx) -> emitNullCheck(mv, slot));
@@ -54,8 +78,8 @@ public final class CheckOpEmitters {
      *
      * @throws IllegalStateException 若操作符无注册策略
      */
-    public static CheckOpStrategy forOp(CheckOp op) {
-        CheckOpStrategy s = STRATEGIES.get(op);
+    public static Strategy forOp(CheckOp op) {
+        Strategy s = STRATEGIES.get(op);
         if (s == null) {
             throw new IllegalStateException("No emission strategy registered for: " + op);
         }
@@ -143,9 +167,9 @@ public final class CheckOpEmitters {
     private static int emitMatches(MethodVisitor mv, int slot, FlowNode node) {
         String hoistedField = node.getAttrOrDefault("_hoistedField", null);
         if (hoistedField != null) {
-            // 预编译 Pattern 优化路径：pattern.matcher(var).matches()
-            mv.visitFieldInsn(Opcodes.GETSTATIC, node.getRequiredAttr("_className"), hoistedField,
-                    "Ljava/util/regex/Pattern;");
+            // 外置常量池路径：invokedynamic → ConstantCallSite，JIT 折叠为常量
+            mv.visitInvokeDynamicInsn(hoistedField, "()Ljava/util/regex/Pattern;",
+                    BytecodeCompiler.CONST_BOOTSTRAP_HANDLE, hoistedField);
             mv.visitVarInsn(Opcodes.ALOAD, slot);
             mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/util/regex/Pattern", "matcher",
                     "(Ljava/lang/CharSequence;)Ljava/util/regex/Matcher;", false);
@@ -228,8 +252,9 @@ public final class CheckOpEmitters {
         String hoistedField = node.getAttrOrDefault("_hoistedField", null);
 
         if (hoistedField != null) {
-            // 取 clinit 初始化好的 Set 常量
-            mv.visitFieldInsn(Opcodes.GETSTATIC, node.getRequiredAttr("_className"), hoistedField, "Ljava/util/Set;");
+            // 外置常量池路径：invokedynamic → ConstantCallSite
+            mv.visitInvokeDynamicInsn(hoistedField, "()Ljava/util/Set;",
+                    BytecodeCompiler.CONST_BOOTSTRAP_HANDLE, hoistedField);
         } else {
             // 退化路径：动态创建 Set.of()
             int count = values.size();
@@ -301,7 +326,8 @@ public final class CheckOpEmitters {
                 // 从 RANGE_x 数组中获取边界值
                 // var >= arr[0]
                 mv.visitVarInsn(Opcodes.DLOAD, slot);
-                mv.visitFieldInsn(Opcodes.GETSTATIC, node.getRequiredAttr("_className"), hoistedField, "[D");
+                mv.visitInvokeDynamicInsn(hoistedField, "()[D",
+                        BytecodeCompiler.CONST_BOOTSTRAP_HANDLE, hoistedField);
                 ASMUtils.emitIntConst(mv, 0);
                 mv.visitInsn(Opcodes.DALOAD);
                 mv.visitInsn(Opcodes.DCMPG);
@@ -309,7 +335,8 @@ public final class CheckOpEmitters {
 
                 // var <= arr[1]
                 mv.visitVarInsn(Opcodes.DLOAD, slot);
-                mv.visitFieldInsn(Opcodes.GETSTATIC, node.getRequiredAttr("_className"), hoistedField, "[D");
+                mv.visitInvokeDynamicInsn(hoistedField, "()[D",
+                        BytecodeCompiler.CONST_BOOTSTRAP_HANDLE, hoistedField);
                 ASMUtils.emitIntConst(mv, 1);
                 mv.visitInsn(Opcodes.DALOAD);
                 mv.visitInsn(Opcodes.DCMPL);

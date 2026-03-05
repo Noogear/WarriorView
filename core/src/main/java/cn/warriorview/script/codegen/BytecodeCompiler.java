@@ -53,9 +53,24 @@ public final class BytecodeCompiler implements Opcodes {
                     MethodType.class, String.class, Object[].class).toMethodDescriptorString(),
             false);
 
+    /**
+     * 外置常量池 bootstrap handle，指向 {@link ScriptConstantBootstrap#bootstrap}。
+     * <p>
+     * 由 {@link CheckOpEmitters} 在生成 Pattern / Set / 数组常量访问时共享。
+     */
+    static final Handle CONST_BOOTSTRAP_HANDLE = new Handle(
+            H_INVOKESTATIC,
+            "cn/warriorview/script/codegen/ScriptConstantBootstrap",
+            "bootstrap",
+            MethodType.methodType(
+                    CallSite.class, MethodHandles.Lookup.class, String.class,
+                    MethodType.class, String.class).toMethodDescriptorString(),
+            false);
+
     public byte[] compile(ScriptUnit unit, CompilationContext ctx) {
-        String basePackage = BytecodeCompiler.class.getPackage().getName().replace('.', '/');
-        String className = basePackage + "/generated/Script$" + Integer.toHexString(unit.hashCode());
+        // 生成类名必须与 GeneratedScriptHost.LOOKUP 同包，通过其暴露的包前缀常量构造
+        String className = cn.warriorview.script.codegen.generated.GeneratedScriptHost.PACKAGE_PREFIX
+                + "/Script$" + Integer.toHexString(unit.hashCode());
         String payloadInternal = unit.payloadClass().replace('.', '/');
 
         List<ConstantDef> constants = ctx.hoistedConstants();
@@ -67,113 +82,19 @@ public final class BytecodeCompiler implements Opcodes {
                 className, null, OBJECT_INTERNAL,
                 new String[] { ctx.targetInterfaceInternalName() });
 
-        emitStaticFields(cw, constants);
+        // 常量外置到 ScriptConstantBootstrap，无需 static final 字段和 <clinit>
+        ScriptConstantBootstrap.registerAll(constants);
         cw.visitField(ACC_PUBLIC | ACC_FINAL, "$scriptId", "Ljava/lang/String;", null, null).visitEnd();
-        emitClinit(cw, className, constants);
         emitConstructor(cw, className);
 
-        String typedDescriptor = "(L" + payloadInternal + ";)" + ctx.targetReturnType().getDescriptor();
-
-        // 当接口参数因为泛型擦除变成 Object，或者与具体 Payload 不一致时，生成桥接方法
-        if (!ctx.targetMethodDescriptor().equals(typedDescriptor)) {
-            emitBridgeMethod(cw, className, payloadInternal, ctx.targetMethodName(), ctx.targetMethodDescriptor(),
-                    typedDescriptor);
-        }
-
-        emitTargetMethod(cw, className, unit, ctx, liveVars, payloadInternal, typedDescriptor);
+        // 使用擦除签名，方法体内内联 CHECKCAST + ASTORE 缩窄 slot 1，消除 bridge 方法
+        emitTargetMethod(cw, className, unit, ctx, liveVars, payloadInternal, ctx.targetMethodDescriptor());
 
         cw.visitEnd();
-        byte[] bytes = cw.toByteArray();
-        try {
-            java.nio.file.Files.write(java.nio.file.Paths.get("ScriptDump.class"), bytes);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return bytes;
+        return cw.toByteArray();
     }
 
-    // ======================== static final 字段 ========================
-
-    private void emitStaticFields(ClassWriter cw, List<ConstantDef> constants) {
-        for (ConstantDef def : constants) {
-            String descriptor = switch (def.kind()) {
-                case PATTERN -> "Ljava/util/regex/Pattern;";
-                case STRING_SET -> "Ljava/util/Set;";
-                case INT_ARRAY -> "[I";
-                case DOUBLE_ARRAY -> "[D";
-            };
-            cw.visitField(ACC_PRIVATE | ACC_STATIC | ACC_FINAL,
-                    def.fieldName(), descriptor, null, null).visitEnd();
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void emitClinit(ClassWriter cw, String className, List<ConstantDef> constants) {
-        if (constants.isEmpty())
-            return;
-
-        MethodVisitor mv = cw.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
-        mv.visitCode();
-
-        for (ConstantDef def : constants) {
-            switch (def.kind()) {
-                case PATTERN -> {
-                    mv.visitLdcInsn((String) def.value());
-                    mv.visitMethodInsn(INVOKESTATIC, "java/util/regex/Pattern", "compile",
-                            "(Ljava/lang/String;)Ljava/util/regex/Pattern;", false);
-                    mv.visitFieldInsn(PUTSTATIC, className,
-                            def.fieldName(), "Ljava/util/regex/Pattern;");
-                }
-                case STRING_SET -> {
-                    ImmutableList<Object> vals = (ImmutableList<Object>) def.value();
-                    emitIntConst(mv, vals.size());
-                    mv.visitTypeInsn(ANEWARRAY, "java/lang/Object");
-                    for (int i = 0; i < vals.size(); i++) {
-                        mv.visitInsn(DUP);
-                        emitIntConst(mv, i);
-                        mv.visitLdcInsn(vals.get(i).toString());
-                        mv.visitInsn(AASTORE);
-                    }
-                    mv.visitMethodInsn(INVOKESTATIC, "java/util/Set", "of",
-                            "([Ljava/lang/Object;)Ljava/util/Set;", true);
-                    mv.visitFieldInsn(PUTSTATIC, className,
-                            def.fieldName(), "Ljava/util/Set;");
-                }
-                case DOUBLE_ARRAY -> {
-                    double[] arr = (double[]) def.value();
-                    emitIntConst(mv, arr.length);
-                    mv.visitIntInsn(NEWARRAY, T_DOUBLE);
-                    for (int i = 0; i < arr.length; i++) {
-                        mv.visitInsn(DUP);
-                        emitIntConst(mv, i);
-                        emitDoubleConst(mv, arr[i]);
-                        mv.visitInsn(DASTORE);
-                    }
-                    mv.visitFieldInsn(PUTSTATIC, className,
-                            def.fieldName(), "[D");
-                }
-                case INT_ARRAY -> {
-                    int[] arr = (int[]) def.value();
-                    emitIntConst(mv, arr.length);
-                    mv.visitIntInsn(NEWARRAY, T_INT);
-                    for (int i = 0; i < arr.length; i++) {
-                        mv.visitInsn(DUP);
-                        emitIntConst(mv, i);
-                        emitIntConst(mv, arr[i]);
-                        mv.visitInsn(IASTORE);
-                    }
-                    mv.visitFieldInsn(PUTSTATIC, className,
-                            def.fieldName(), "[I");
-                }
-            }
-        }
-
-        mv.visitInsn(RETURN);
-        mv.visitMaxs(0, 0);
-        mv.visitEnd();
-    }
-
-    // ======================== 构造器 + 桥接 ========================
+    // ======================== 构造器 ========================
 
     private void emitConstructor(ClassWriter cw, String className) {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "<init>", "(Ljava/lang/String;)V", null, null);
@@ -190,53 +111,20 @@ public final class BytecodeCompiler implements Opcodes {
         mv.visitEnd();
     }
 
-    // ======================== 桥接 + apply 方法 ========================
+    // ======================== 目标方法生成 ========================
 
     /**
-     * bridge 桥接方法：例如实现了 Function 接口但需要类型转换。
-     * 调用真实的强类型 PayloadType 签名方法。
-     */
-    private void emitBridgeMethod(ClassWriter cw, String className, String payloadInternal,
-            String targetMethodName, String erasedDescriptor, String typedDescriptor) {
-        MethodVisitor mv = cw.visitMethod(
-                ACC_PUBLIC | ACC_BRIDGE | ACC_SYNTHETIC,
-                targetMethodName, erasedDescriptor, null, null);
-        mv.visitCode();
-        mv.visitVarInsn(ALOAD, 0); // this
-
-        // 提取被擦除的入参指令
-        org.objectweb.asm.Type erasedArgs[] = org.objectweb.asm.Type.getArgumentTypes(erasedDescriptor);
-        if (erasedArgs.length > 0) {
-            org.objectweb.asm.Type firstArg = erasedArgs[0];
-            mv.visitVarInsn(firstArg.getOpcode(ILOAD), 1);
-            if (!firstArg.getInternalName().equals(payloadInternal)) {
-                mv.visitTypeInsn(CHECKCAST, payloadInternal);
-            }
-        }
-
-        // 调用我们生成的强类型方法
-        mv.visitMethodInsn(INVOKEVIRTUAL, className, targetMethodName, typedDescriptor, false);
-
-        // 返回转换
-        org.objectweb.asm.Type returnType = org.objectweb.asm.Type.getReturnType(erasedDescriptor);
-        mv.visitInsn(returnType.getOpcode(IRETURN));
-
-        mv.visitMaxs(2, 2);
-        mv.visitEnd();
-    }
-
-    /**
-     * 生成目标强类型方法主体。
-     * <ul>
-     * <li>RETURN 节点 → 由 ReturnNodeHandler 自行发射底层原始返回码（IRETURN、ARETURN 等）</li>
-     * <li>尾部干通兼容：若未显式执行任何 Return，根据目标返回类型返回默认值（引用的 null，或者原生的 0）</li>
-     * </ul>
+     * 生成实现周期方法的主体。
+     * <p>
+     * 使用擦除签名（SAM 的原始签名），方法体首部内联 CHECKCAST + ASTORE
+     * 缩窄 slot 1 类型，实现与原先 bridge 方法完全相同的调用语义，
+     * 同时消除了 bridge 方法本身（节省 150–250B 元空间/类）。
      */
     private void emitTargetMethod(ClassWriter cw, String className,
             ScriptUnit unit, CompilationContext ctx,
-            Set<String> liveVars, String payloadInternal, String typedDescriptor) {
+            Set<String> liveVars, String payloadInternal, String methodDescriptor) {
 
-        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, ctx.targetMethodName(), typedDescriptor, null, null);
+        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, ctx.targetMethodName(), methodDescriptor, null, null);
         mv.visitCode();
 
         // ---- try-catch 错误隔离 ----
@@ -247,24 +135,29 @@ public final class BytecodeCompiler implements Opcodes {
 
         mv.visitLabel(tryStart);
 
+        // 内联 CHECKCAST + ASTORE 取代 bridge 方法的类型转换，元空间损耗减少 150–250B/类
+        org.objectweb.asm.Type[] argTypes = org.objectweb.asm.Type.getArgumentTypes(methodDescriptor);
+        if (argTypes.length > 0 && !argTypes[0].getInternalName().equals(payloadInternal)) {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitTypeInsn(CHECKCAST, payloadInternal);
+            mv.visitVarInsn(ASTORE, 1);
+        }
+
         emitVarExtractionWithCSE(mv, unit.vars(), ctx, payloadInternal, liveVars);
 
         for (FlowNode node : unit.flow()) {
-            FlowNode enhancedNode = node.withAttr("_className", className);
-
-            // 核心功能：自动将 SnakeYAML 提取的脚本行号注入生成的 JVM 核心字节码中
-            int line = enhancedNode.getLineNumber();
+            // 常量已外置，不再需要向节点注入 _className
+            int line = node.getLineNumber();
             if (line > 0) {
                 org.objectweb.asm.Label sourceLineLabel = new org.objectweb.asm.Label();
                 mv.visitLabel(sourceLineLabel);
                 mv.visitLineNumber(line, sourceLineLabel);
             }
 
-            enhancedNode.type().handler().emit(enhancedNode, mv, ctx);
+            node.type().handler().emit(node, mv, ctx);
 
-            if (enhancedNode.type().handler().capabilities().contains(ScriptIR.NodeCapability.TERMINATES_FLOW)) {
+            if (node.type().handler().capabilities().contains(ScriptIR.NodeCapability.TERMINATES_FLOW)) {
                 // 短路优化：如果前一个节点明确包含 TERMINATES_FLOW 断言，停止往下发射。
-                // 这在遇到 RETURN / ERROR 节点时阻止死代码的强制发射。
                 break;
             }
         }

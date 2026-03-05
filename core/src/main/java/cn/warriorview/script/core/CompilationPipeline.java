@@ -3,9 +3,13 @@ package cn.warriorview.script.core;
 import cn.warriorview.script.codegen.BytecodeCompiler;
 import cn.warriorview.script.optimizer.ScriptOptimizer;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -27,8 +31,21 @@ import java.util.function.Function;
  */
 public final class CompilationPipeline {
 
-    /** 编译缓存：ScriptUnit 深度 hash → 已编译结果 */
-    private static final ConcurrentHashMap<Integer, CompiledScript> CACHE = new ConcurrentHashMap<>();
+    /**
+     * 编译缓存：ScriptUnit 深度 hash → 已编译结果（弱引用）。
+     * <p>
+     * 使用 {@link WeakReference} 确保：当所有由该脚本产生的处理器实例均不可达时，
+     * Hidden Class 可被 JVM 从元空间 GC 卸载，无需手动 clearCache。
+     */
+    private static final ConcurrentHashMap<Integer, WeakReference<CompiledScript>> CACHE = new ConcurrentHashMap<>();
+
+    /**
+     * 结构模板缓存：structural hash → 已优化的 IR 模板。
+     * <p>
+     * 结构相同但常量值不同的脚本共享同一优化结果，
+     * 仅需替换常量后重新运行 BytecodeCompiler（跳过全部验证和优化 Pass）。
+     */
+    private static final ConcurrentHashMap<Integer, TemplateRecord> TEMPLATE_CACHE = new ConcurrentHashMap<>();
 
     private final ScriptOptimizer optimizer;
     private final BytecodeCompiler compiler;
@@ -54,36 +71,41 @@ public final class CompilationPipeline {
     public CompiledScript compile(ScriptIR.ScriptUnit unit, Class<?> expectedReturnType) {
         Preconditions.checkNotNull(unit, "unit");
 
-        int key = deepHash(unit) * 31 + expectedReturnType.hashCode(); // 加入返回类型以隔离缓存
-        CompiledScript cached = CACHE.get(key);
+        int key = deepHash(unit) * 31 + expectedReturnType.hashCode();
+        WeakReference<CompiledScript> ref = CACHE.get(key);
+        CompiledScript cached = (ref != null) ? ref.get() : null;
         if (cached != null) {
-            return new CompiledScript(unit, cached.handlerClass(), cached.loader());
+            return new CompiledScript(unit, cached.handlerClass());
         }
 
         try {
-            // 2. 构建编译上下文
-            // 当 expectedReturnType 不是接口时，代表默认的 ScriptUnit / 返回值校验模式，不改变字节码目标接口
+            // ===== 快速路径：结构模板命中 =====
+            int structKey = structuralHash(unit) * 31 + expectedReturnType.hashCode();
+            TemplateRecord template = TEMPLATE_CACHE.get(structKey);
+            if (template != null) {
+                return compileFromTemplate(unit, template, key);
+            }
+
+            // ===== 完整路径：首次编译 =====
             CompilationContext ctx = buildContext(unit, expectedReturnType);
 
-            // 2.5 变量引用与类型完整性检查
             primeNarrowings(unit, ctx);
             validateVariableReferences(unit, ctx);
             validateActionParameterTypes(unit, ctx);
             validateReturnType(unit, ctx, expectedReturnType);
 
-            // 3. 优化 IR
             ScriptIR.ScriptUnit optimized = optimizer.optimize(unit, ctx);
 
-            // 4. 生成字节码
             byte[] bytecode = compiler.compile(optimized, ctx);
 
-            // 5. 加载类
-            // 直接传递 null 代表委托给底层 JVM 从字节码里自发解析内部全限定类名，安全且防报错。
-            ScriptClassLoader loader = new ScriptClassLoader(getClass().getClassLoader());
-            Class<?> clazz = loader.define(null, bytecode);
+            Class<?> clazz = defineHidden(bytecode);
 
-            CompiledScript result = new CompiledScript(optimized, clazz, loader);
-            CACHE.put(key, result);
+            CompiledScript result = new CompiledScript(optimized, clazz);
+            CACHE.put(key, new WeakReference<>(result));
+
+            // 注册结构模板（首次编译后缓存优化结果供后续快速路径复用）
+            TEMPLATE_CACHE.putIfAbsent(structKey, new TemplateRecord(unit, optimized, ctx, expectedReturnType));
+
             return result;
         } catch (Exception e) {
             String msg = e.getMessage();
@@ -106,7 +128,8 @@ public final class CompilationPipeline {
         Class<?> expectedReturnType = sam.getReturnType();
 
         int key = deepHash(unit) * 31 + expectedInterfaceType.hashCode();
-        CompiledScript cached = CACHE.get(key);
+        WeakReference<CompiledScript> ref = CACHE.get(key);
+        CompiledScript cached = (ref != null) ? ref.get() : null;
         if (cached != null) {
             return cached.newInstance(unit.id());
         }
@@ -121,11 +144,10 @@ public final class CompilationPipeline {
 
             ScriptIR.ScriptUnit optimized = optimizer.optimize(unit, ctx);
             byte[] bytecode = compiler.compile(optimized, ctx);
-            ScriptClassLoader loader = new ScriptClassLoader(getClass().getClassLoader());
-            Class<?> clazz = loader.define(null, bytecode);
+            Class<?> clazz = defineHidden(bytecode);
 
-            CompiledScript result = new CompiledScript(optimized, clazz, loader);
-            CACHE.put(key, result);
+            CompiledScript result = new CompiledScript(optimized, clazz);
+            CACHE.put(key, new WeakReference<>(result));
 
             return result.newInstance(unit.id());
         } catch (Exception e) {
@@ -149,6 +171,7 @@ public final class CompilationPipeline {
      */
     public static void clearCache() {
         CACHE.clear();
+        TEMPLATE_CACHE.clear();
     }
 
     /**
@@ -158,11 +181,213 @@ public final class CompilationPipeline {
         return CACHE.size();
     }
 
+    /**
+     * 返回结构模板缓存条目数（调试用）。
+     */
+    public static int templateCacheSize() {
+        return TEMPLATE_CACHE.size();
+    }
+
     private static int deepHash(ScriptIR.ScriptUnit unit) {
         int h = unit.payloadClass().hashCode();
         h = 31 * h + unit.vars().hashCode();
         h = 31 * h + unit.flow().hashCode();
         return h;
+    }
+
+    // ======================== 结构模板快速路径 ========================
+
+    /**
+     * 结构模板记录。
+     * <p>
+     * 存储首次完整编译的优化后 IR 和上下文，供后续结构相同的脚本快速复用。
+     */
+    private record TemplateRecord(
+            ScriptIR.ScriptUnit originalUnit,
+            ScriptIR.ScriptUnit optimizedUnit,
+            CompilationContext ctx,
+            Class<?> expectedReturnType) {
+    }
+
+    /**
+     * 计算脚本的"结构哈希"——只哈希节点类型、变量名、操作符等结构信息，
+     * 忽略字面量值（numericValue、attrs 中的 value/args）。
+     * <p>
+     * 结构哈希相同的脚本可以通过常量替换复用已优化的 IR。
+     */
+    static int structuralHash(ScriptIR.ScriptUnit unit) {
+        int h = unit.payloadClass().hashCode();
+        // vars 的结构部分：名字 + 属性链 + 类型
+        for (ScriptIR.VarDecl v : unit.vars()) {
+            h = 31 * h + v.name().hashCode();
+            h = 31 * h + v.property().hashCode();
+            h = 31 * h + v.type().hashCode();
+        }
+        // flow 的结构部分
+        for (ScriptIR.FlowNode node : unit.flow()) {
+            h = 31 * h + structuralHashNode(node);
+        }
+        return h;
+    }
+
+    /**
+     * 递归计算单个节点的结构哈希。
+     * 忽略: numericValue, attrs["value"], attrs["args"], attrs["valueList"],
+     * attrs["__line__"]
+     */
+    private static int structuralHashNode(ScriptIR.FlowNode node) {
+        int h = node.type().hashCode();
+        for (Map.Entry<String, Object> entry : node.attrs().entrySet()) {
+            String key = entry.getKey();
+            // 跳过字面量值和行号——这些不影响结构
+            if ("value".equals(key) || "args".equals(key) || "valueList".equals(key)
+                    || "__line__".equals(key) || "valueType".equals(key)) {
+                continue;
+            }
+            h = 31 * h + key.hashCode();
+            Object val = entry.getValue();
+            // 递归处理子节点列表（如 onFailNodes, children, cases）
+            if (val instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof ScriptIR.FlowNode) {
+                for (Object item : list) {
+                    h = 31 * h + structuralHashNode((ScriptIR.FlowNode) item);
+                }
+            } else if (val instanceof ScriptIR.FlowNode childNode) {
+                h = 31 * h + structuralHashNode(childNode);
+            } else if (val != null) {
+                h = 31 * h + val.hashCode();
+            }
+        }
+        return h;
+    }
+
+    /**
+     * 从模板快速编译：用新脚本的常量值替换模板 IR 中的常量，跳过全部验证和优化。
+     */
+    private CompiledScript compileFromTemplate(ScriptIR.ScriptUnit newUnit, TemplateRecord template, int cacheKey) {
+        try {
+            // 1. 将新脚本的常量值替换进已优化的 IR
+            ScriptIR.ScriptUnit substituted = substituteConstants(template.optimizedUnit(), template.originalUnit(),
+                    newUnit);
+
+            // 2. 重建编译上下文（使用与模板相同的 expectedReturnType）
+            CompilationContext freshCtx = buildContext(newUnit, template.expectedReturnType());
+            // 复制分析 Pass 结果
+            freshCtx.setHoistedConstants(template.ctx().hoistedConstants());
+            freshCtx.setLiveVars(template.ctx().liveVars());
+
+            // 3. 直接生成字节码（跳过 8 个优化 Pass + 全部验证）
+            byte[] bytecode = compiler.compile(substituted, freshCtx);
+
+            // 4. 加载
+            Class<?> clazz = defineHidden(bytecode);
+
+            CompiledScript result = new CompiledScript(substituted, clazz);
+            CACHE.put(cacheKey, new WeakReference<>(result));
+            return result;
+        } catch (Exception e) {
+            // 模板路径出错时安全回退到完整编译
+            TEMPLATE_CACHE.remove(structuralHash(newUnit) * 31
+                    + (template.expectedReturnType() != null ? template.expectedReturnType().hashCode() : 0));
+            return compileFull(newUnit,
+                    template.expectedReturnType() != null ? template.expectedReturnType() : Object.class);
+        }
+    }
+
+    /**
+     * 完整编译路径（用于模板回退）。
+     */
+    private CompiledScript compileFull(ScriptIR.ScriptUnit unit, Class<?> expectedReturnType) {
+        CompilationContext ctx = buildContext(unit, expectedReturnType);
+        primeNarrowings(unit, ctx);
+        validateVariableReferences(unit, ctx);
+        validateActionParameterTypes(unit, ctx);
+        validateReturnType(unit, ctx, expectedReturnType);
+        ScriptIR.ScriptUnit optimized = optimizer.optimize(unit, ctx);
+        byte[] bytecode = compiler.compile(optimized, ctx);
+        Class<?> clazz = defineHidden(bytecode);
+        return new CompiledScript(optimized, clazz);
+    }
+
+    /**
+     * 将 newUnit 的常量值替换进 templateOptimized 的对应位置。
+     * <p>
+     * 使用值映射策略（old value → new value）而非节点键匹配，
+     * 使得替换不受优化器变换（variableInlining 移除 variable 属性等）的影响。
+     */
+    private static ScriptIR.ScriptUnit substituteConstants(
+            ScriptIR.ScriptUnit templateOptimized,
+            ScriptIR.ScriptUnit templateOriginal,
+            ScriptIR.ScriptUnit newUnit) {
+
+        ImmutableList<ScriptIR.FlowNode> origFlow = templateOriginal.flow();
+        ImmutableList<ScriptIR.FlowNode> newFlow = newUnit.flow();
+        ImmutableList<ScriptIR.FlowNode> optFlow = templateOptimized.flow();
+
+        if (origFlow.size() != newFlow.size()) {
+            throw new IllegalStateException("Structural mismatch: flow size differs");
+        }
+
+        // 1. 构建值映射：oldValue → newValue
+        Map<Double, Double> numericSubs = new java.util.LinkedHashMap<>();
+        // key: attrKey, value: oldVal→newVal
+        Map<String, Map<Object, Object>> attrSubs = new java.util.HashMap<>();
+
+        for (int i = 0; i < origFlow.size(); i++) {
+            ScriptIR.FlowNode orig = origFlow.get(i);
+            ScriptIR.FlowNode repl = newFlow.get(i);
+
+            // 数值映射
+            if (Double.compare(orig.numericValue(), repl.numericValue()) != 0
+                    && orig.numericValue() != 0.0) { // 跳过默认0值，避免误替换
+                numericSubs.put(orig.numericValue(), repl.numericValue());
+            }
+
+            // 属性值映射
+            for (String key : new String[] { "value", "args", "valueList" }) {
+                Object origVal = orig.attrs().get(key);
+                Object newVal = repl.attrs().get(key);
+                if (origVal != null && newVal != null && !newVal.equals(origVal)) {
+                    attrSubs.computeIfAbsent(key, k -> new java.util.LinkedHashMap<>())
+                            .put(origVal, newVal);
+                }
+            }
+        }
+
+        if (numericSubs.isEmpty() && attrSubs.isEmpty()) {
+            return templateOptimized;
+        }
+
+        // 2. 对优化后 IR 的每个节点应用值映射
+        ImmutableList.Builder<ScriptIR.FlowNode> builder = ImmutableList.builder();
+        for (ScriptIR.FlowNode node : optFlow) {
+            if (node.hasFlag(ScriptIR.FlowNode.FLAG_OPTIMIZER_INJECTED)
+                    || node.hasFlag(ScriptIR.FlowNode.FLAG_FOLDED)) {
+                builder.add(node);
+                continue;
+            }
+
+            // 替换 numericValue
+            Double newNum = numericSubs.get(node.numericValue());
+            if (newNum != null) {
+                node = node.withNumericValue(newNum);
+            }
+
+            // 替换属性值
+            for (Map.Entry<String, Map<Object, Object>> sub : attrSubs.entrySet()) {
+                String attrKey = sub.getKey();
+                Object currentVal = node.attrs().get(attrKey);
+                if (currentVal != null) {
+                    Object replacement = sub.getValue().get(currentVal);
+                    if (replacement != null) {
+                        node = node.withAttr(attrKey, replacement);
+                    }
+                }
+            }
+
+            builder.add(node);
+        }
+
+        return templateOptimized.withFlow(builder.build());
     }
 
     private CompilationContext buildContext(ScriptIR.ScriptUnit unit, Class<?> expectedInterfaceType) {
@@ -315,7 +540,8 @@ public final class CompilationPipeline {
         } catch (IllegalArgumentException e) {
             // 如果节点存有 value 文本（如模板字符串），附加到错误信息中方便定位
             // 例：旧信息 "Undefined variable 'lv:'" 现在会显示为
-            //     "Undefined variable 'lv:' referenced in RETURN node (in: \"lv:{lvl} sc:{score}\")"
+            // "Undefined variable 'lv:' referenced in RETURN node (in: \"lv:{lvl}
+            // sc:{score}\")"
             // 让开发者立刻看出 'lv:' 是字面量被误判，而非真正的变量名
             Object nodeValue = node.getAttrOrDefault("value", null);
             String context = (nodeValue instanceof String s && !s.isEmpty())
@@ -406,8 +632,7 @@ public final class CompilationPipeline {
      */
     public record CompiledScript(
             ScriptIR.ScriptUnit ir,
-            Class<?> handlerClass,
-            ScriptClassLoader loader) {
+            Class<?> handlerClass) {
 
         /**
          * 创建 Consumer「副作用型」处理器实例。
@@ -439,22 +664,13 @@ public final class CompilationPipeline {
         }
     }
 
-    // ======================== 类加载器 ========================
+    // ======================== Hidden Class 定义 ========================
 
     /**
-     * 脚本专用类加载器，支持动态定义和卸载。
+     * 委托 {@link cn.warriorview.script.codegen.generated.GeneratedScriptHost#defineHidden}
+     * 在 {@code codegen.generated} 包内定义隐藏类。
      */
-    static final class ScriptClassLoader extends ClassLoader {
-
-        ScriptClassLoader(ClassLoader parent) {
-            super(parent);
-        }
-
-        /**
-         * 定义一个编译后的类。
-         */
-        Class<?> define(String name, byte[] bytecode) {
-            return defineClass(name, bytecode, 0, bytecode.length);
-        }
+    private static Class<?> defineHidden(byte[] bytecode) {
+        return cn.warriorview.script.codegen.generated.GeneratedScriptHost.defineHidden(bytecode);
     }
 }
