@@ -81,7 +81,7 @@ public enum CheckOp {
      */
     public static Resolved resolve(String rawOp) {
         if (rawOp == null || rawOp.isEmpty()) {
-            throw new ScriptCompileException("Operator cannot be null or empty.");
+            throw ScriptCompileException.parse("Operator cannot be null or empty.");
         }
 
         // 优先精确匹配（处理 "!=" 等自带 ! 的 symbol）
@@ -106,11 +106,11 @@ public enum CheckOp {
         String suggestion = TYPO_MAP.get(bare);
         if (suggestion != null) {
             String suggestedFull = negate ? "!" + suggestion : suggestion;
-            throw new ScriptCompileException(
+            throw ScriptCompileException.parse(
                     String.format("Unknown operator '%s'. Did you mean '%s'?", rawOp, suggestedFull));
         }
 
-        throw new ScriptCompileException(
+        throw ScriptCompileException.parse(
                 String.format("Unknown operator '%s'. Supported operators: %s (all support '!' prefix negation).",
                         rawOp, ALL_SYMBOLS));
     }
@@ -162,7 +162,7 @@ public enum CheckOp {
 
         // 特例：== 用于 COLLECTION 虽然不在 supportedTypes 中，但给出更精确的提示
         if (this == EQ && type.base() == BaseType.COLLECTION) {
-            throw new ScriptCompileException(
+            throw ScriptCompileException.type(null,
                     String.format(
                             "Operator '==' on COLLECTION variable '%s' compares by reference, which is almost certainly not what you want. "
                                     + "Hint: did you mean 'contains' to check membership?",
@@ -170,7 +170,7 @@ public enum CheckOp {
         }
 
         String hint = buildTypeHint(type);
-        throw new ScriptCompileException(
+        throw ScriptCompileException.type(null,
                 String.format("Operator '%s' requires %s, but variable '%s' is of type %s. %s",
                         symbol, describeExpectedTypes(), variable, type, hint));
     }

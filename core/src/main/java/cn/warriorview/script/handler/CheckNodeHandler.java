@@ -3,6 +3,7 @@ package cn.warriorview.script.handler;
 import cn.warriorview.script.codegen.ASMUtils;
 import cn.warriorview.script.codegen.CheckOpEmitters;
 import cn.warriorview.script.core.CheckOp;
+import cn.warriorview.script.core.ParseContext;
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
@@ -44,24 +45,23 @@ public final class CheckNodeHandler
 
     @Override
     @SuppressWarnings("unchecked")
-    public FlowNode parse(Map<String, Object> yaml) {
-        Object variableObj = yaml.get("variable");
+    public FlowNode parse(ParseContext ctx) {
+        Object variableObj = ctx.get("variable");
         String variable = null;
         FlowNode conditionAction = null;
 
         if (variableObj instanceof Map) {
-            conditionAction = ScriptParser.parseFlowNode((Map<String, Object>) variableObj);
+            conditionAction = ScriptParser.parseFlowNode(ctx.withAttrs((Map<String, Object>) variableObj));
         } else if (variableObj != null) {
             variable = variableObj.toString();
         }
 
-        String op = (String) yaml.get("op");
-        Object value = yaml.get("value");
+        String op = ctx.get("op");
+        Object value = ctx.get("value");
 
         // AOT: 无 conditionAction 时 op 必填；同时进行 resolve 验证合法性 & 规范化多重 ! 前缀
         if (conditionAction == null && op == null) {
-            throw new cn.warriorview.script.core.ScriptCompileException(
-                    "CHECK node requires an 'op' field when not using inline conditionAction.");
+            throw ctx.error("CHECK node requires an 'op' field when not using inline conditionAction.");
         }
         if (op != null) {
             CheckOp.Resolved resolved = CheckOp.resolve(op);
@@ -75,20 +75,19 @@ public final class CheckNodeHandler
             try {
                 Class.forName(className.replace('/', '.'));
             } catch (ClassNotFoundException e) {
-                throw new cn.warriorview.script.core.ScriptCompileException(
-                        "instanceof check references unknown class: " + className);
+                throw ctx.error("instanceof check references unknown class: " + className);
             }
         }
 
-        ImmutableMap.Builder<String, Object> attrs = ImmutableMap.builder();
+        ImmutableMap.Builder<String, Object> nodeAttrs = ImmutableMap.builder();
         if (variable != null) {
-            attrs.put("variable", variable);
+            nodeAttrs.put("variable", variable);
         }
         if (conditionAction != null) {
-            attrs.put("conditionAction", conditionAction);
+            nodeAttrs.put("conditionAction", conditionAction);
         }
         if (op != null) {
-            attrs.put("op", op);
+            nodeAttrs.put("op", op);
         }
 
         double numericValue = 0.0;
@@ -107,15 +106,15 @@ public final class CheckNodeHandler
                         value = lit.value();
                     } else {
                         // 含变量的表达式（如 "{maxHp} * 0.5"）——存储 MathNode 供运行时发射
-                        attrs.put("valueNode", mathNode);
+                        nodeAttrs.put("valueNode", mathNode);
                     }
                 } catch (IllegalArgumentException ignored) {
                     // 解析失败则保持原始字符串
                 }
             }
 
-            attrs.put("value", value);
-            attrs.put("valueType", ScriptParser.ValueParser.inferType(value));
+            nodeAttrs.put("value", value);
+            nodeAttrs.put("valueType", ScriptParser.ValueParser.inferType(value));
 
             // 数值存入 numericValue 字段（零装箱路径）
             if (value instanceof Number n) {
@@ -125,16 +124,16 @@ public final class CheckNodeHandler
 
         // in 操作符的值列表
         if (value instanceof List<?> list) {
-            attrs.put("valueList", ImmutableList.copyOf(list));
+            nodeAttrs.put("valueList", ImmutableList.copyOf(list));
         }
 
         // 解析 on_fail 列表
-        List<?> onFailRaw = (List<?>) yaml.get("on_fail");
+        List<?> onFailRaw = ctx.get("on_fail");
         if (onFailRaw != null) {
-            attrs.put("onFailNodes", ScriptParser.parseFlow(onFailRaw));
+            nodeAttrs.put("onFailNodes", ScriptParser.parseFlow(onFailRaw));
         }
 
-        return new FlowNode(FlowNodeType.CHECK, attrs.build(), numericValue, 0);
+        return new FlowNode(FlowNodeType.CHECK, nodeAttrs.build(), numericValue, 0);
     }
 
     @Override
@@ -163,7 +162,7 @@ public final class CheckNodeHandler
                     ctx.narrowType(variable, Class.forName(rawClass));
                 } catch (ClassNotFoundException e) {
                     // parse 阶段已验证，这里不应到达
-                    throw new cn.warriorview.script.core.ScriptCompileException(
+                    throw cn.warriorview.script.core.ScriptCompileException.create(node,
                             "[instanceof narrow] class not found at emit: " + rawClass);
                 }
             }

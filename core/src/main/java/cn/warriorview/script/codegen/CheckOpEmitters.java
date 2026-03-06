@@ -419,7 +419,7 @@ public final class CheckOpEmitters {
                                                   CompilationContext ctx) {
         MathNode valueNode = node.getAttrOrDefault("valueNode", null);
         if (valueNode != null) {
-            MathNodeEmitter.emitWithContext(valueNode, mv, ctx);
+            MathNodeEmitter.emit(valueNode, mv, ctx.toVariableEmitter());
         } else {
             ASMUtils.emitDoubleConst(mv, node.numericValue());
         }

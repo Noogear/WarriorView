@@ -4,6 +4,7 @@ import cn.warriorview.script.action.ActionRegistry;
 import cn.warriorview.script.codegen.ASMUtils;
 import cn.warriorview.script.codegen.BytecodeCompiler;
 import com.google.common.collect.ImmutableList;
+import cn.warriorview.script.core.ParseContext;
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
@@ -15,7 +16,6 @@ import org.objectweb.asm.Opcodes;
 
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 
 /**
  * RETURN / RETURN_VALUE 统一节点处理器。
@@ -57,15 +57,15 @@ public final class ReturnNodeHandler implements cn.warriorview.script.core.Scrip
     }
 
     @Override
-    public FlowNode parse(Map<String, Object> yaml) {
+    public FlowNode parse(ParseContext ctx) {
         // 短语法：- return: xxx
-        Object shortValue = yaml.get("return");
+        Object shortValue = ctx.get("return");
         if (shortValue != null) {
             return new FlowNode(FlowNodeType.RETURN, ImmutableMap.of("value", shortValue));
         }
 
-        Object standardValue = yaml.get("value");
-        Object variable = yaml.get("variable");
+        Object standardValue = ctx.get("value");
+        Object variable = ctx.get("variable");
 
         if (standardValue != null && variable != null) {
             // 如果同时提供了 value 和 variable，包装为集合 ["{variable}", value]

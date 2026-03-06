@@ -15,7 +15,11 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
+import cn.warriorview.script.math.MathNode;
+import cn.warriorview.script.math.VariableEmitter;
 
 /**
  * 编译上下文，管理变量槽位分配、类型信息传播、常量池和反射缓存。
@@ -24,6 +28,9 @@ import org.objectweb.asm.Type;
  */
 @SuppressWarnings("null")
 public final class CompilationContext {
+
+    /** 脚本标识（如文件名），用于诊断信息定位 */
+    private final String scriptId;
 
     /** 变量名 ↔ 局部变量槽位（双向映射） */
     private final ImmutableBiMap<String, Integer> varSlots;
@@ -91,6 +98,7 @@ public final class CompilationContext {
     private final int nextSlot;
 
     private CompilationContext(Builder builder) {
+        this.scriptId = builder.scriptId;
         this.varSlots = builder.varSlots.build();
         this.aliasSlots = builder.aliasSlots.build();
         this.typeTable = builder.typeTable.build();
@@ -104,11 +112,17 @@ public final class CompilationContext {
         this.nextSlot = builder.slotCounter;
     }
 
+    public String scriptId() {
+        return scriptId;
+    }
+
     public int getSlot(String varName) {
         Integer slot = varSlots.get(varName);
         if (slot == null) slot = aliasSlots.get(varName);
         if (slot == null) {
-            throw new IllegalArgumentException("Undefined variable: " + varName);
+            throw ScriptCompileException.create(scriptId, null,
+                    cn.warriorview.script.diagnostic.DiagnosticCategory.SEMANTIC,
+                    "Undefined variable: " + varName);
         }
         return slot;
     }
@@ -119,6 +133,32 @@ public final class CompilationContext {
 
     public ScriptIR.IRType getType(String varName) {
         return typeTable.getOrDefault(varName, ScriptIR.IRType.OBJECT);
+    }
+
+    /**
+     * 将当前编译上下文包装为 {@link VariableEmitter}。
+     *
+     * <p>根据变量类型自动插入 int/long → double 提升指令，
+     * 供 {@link cn.warriorview.script.math.MathNodeEmitter#emit} 使用。
+     */
+    public VariableEmitter toVariableEmitter() {
+        return (MathNode.VariableNode var, MethodVisitor mv) -> {
+            int slot = getSlot(var.name());
+            ScriptIR.IRType type = getType(var.name());
+            switch (type.base()) {
+                case INT -> {
+                    mv.visitVarInsn(Opcodes.ILOAD, slot);
+                    mv.visitInsn(Opcodes.I2D);
+                }
+                case LONG -> {
+                    mv.visitVarInsn(Opcodes.LLOAD, slot);
+                    mv.visitInsn(Opcodes.L2D);
+                }
+                case DOUBLE -> mv.visitVarInsn(Opcodes.DLOAD, slot);
+                default -> throw ScriptCompileException.parse(
+                        "Math engine cannot handle non-numeric variable: " + var.name());
+            }
+        };
     }
 
     public boolean isConstant(String varName) {
@@ -254,6 +294,7 @@ public final class CompilationContext {
 
     public static final class Builder {
         private final Class<?> payloadClass;
+        private String scriptId;
         private final ImmutableBiMap.Builder<String, Integer> varSlots = ImmutableBiMap.builder();
         private final ImmutableMap.Builder<String, Integer> aliasSlots = ImmutableMap.builder();
         private final ImmutableMap.Builder<String, ScriptIR.IRType> typeTable = ImmutableMap.builder();
@@ -271,6 +312,11 @@ public final class CompilationContext {
             // 预留 payload 的类型
             typeTable.put("payload", ScriptIR.IRType.OBJECT);
             varSlots.put("payload", 1);
+        }
+
+        public Builder scriptId(String id) {
+            this.scriptId = id;
+            return this;
         }
 
         /**

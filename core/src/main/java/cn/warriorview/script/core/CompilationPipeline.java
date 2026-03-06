@@ -1,6 +1,7 @@
 package cn.warriorview.script.core;
 
 import cn.warriorview.script.codegen.BytecodeCompiler;
+import cn.warriorview.script.diagnostic.DiagnosticCategory;
 import cn.warriorview.script.optimizer.ScriptOptimizer;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -107,12 +108,13 @@ public final class CompilationPipeline {
             TEMPLATE_CACHE.putIfAbsent(structKey, new TemplateRecord(unit, optimized, ctx, expectedReturnType));
 
             return result;
+        } catch (ScriptCompileException e) {
+            throw e;
+        } catch (cn.warriorview.script.diagnostic.DiagnosticException e) {
+            throw new ScriptCompileException(e.diagnostic(), e);
         } catch (Exception e) {
-            String msg = e.getMessage();
-            if (e instanceof ScriptCompileException && msg != null && msg.startsWith("Error compiling script")) {
-                throw (ScriptCompileException) e;
-            }
-            throw new ScriptCompileException("Error compiling script [" + unit.id() + "]: " + msg, e);
+            throw ScriptCompileException.create(unit.id(), null,
+                    "Error compiling script [" + unit.id() + "]: " + e.getMessage());
         }
     }
 
@@ -150,12 +152,13 @@ public final class CompilationPipeline {
             CACHE.put(key, new WeakReference<>(result));
 
             return result.newInstance(unit.id());
+        } catch (ScriptCompileException e) {
+            throw e;
+        } catch (cn.warriorview.script.diagnostic.DiagnosticException e) {
+            throw new ScriptCompileException(e.diagnostic(), e);
         } catch (Exception e) {
-            String msg = e.getMessage();
-            if (e instanceof ScriptCompileException && msg != null && msg.startsWith("Error compiling script")) {
-                throw (ScriptCompileException) e;
-            }
-            throw new ScriptCompileException("Error compiling script [" + unit.id() + "]: " + msg, e);
+            throw ScriptCompileException.create(unit.id(), null,
+                    "Error compiling script [" + unit.id() + "]: " + e.getMessage());
         }
     }
 
@@ -393,7 +396,8 @@ public final class CompilationPipeline {
     private CompilationContext buildContext(ScriptIR.ScriptUnit unit, Class<?> expectedInterfaceType) {
         try {
             Class<?> payloadClass = Class.forName(unit.payloadClass());
-            CompilationContext.Builder builder = CompilationContext.builder(payloadClass);
+            CompilationContext.Builder builder = CompilationContext.builder(payloadClass)
+                    .scriptId(unit.id());
 
             if (expectedInterfaceType != null && expectedInterfaceType.isInterface()) {
                 Method sam = findSAM(expectedInterfaceType);
@@ -422,7 +426,7 @@ public final class CompilationPipeline {
                     String store = producer.getProducedVariable(node);
                     if (store != null) {
                         if (!registeredVars.add(store)) {
-                            throw new ScriptCompileException(
+                            throw ScriptCompileException.create(unit.id(), node,
                                     "Duplicate store variable name: '" + store + "'");
                         }
                         ScriptIR.IRType type;
@@ -441,7 +445,7 @@ public final class CompilationPipeline {
 
             return builder.build();
         } catch (ClassNotFoundException e) {
-            throw new IllegalArgumentException("Payload class not found: " + unit.payloadClass(), e);
+            throw ScriptCompileException.parse("Payload class not found: " + unit.payloadClass());
         }
     }
 
@@ -452,14 +456,14 @@ public final class CompilationPipeline {
                     && !m.isDefault()
                     && !isObjectMethod(m)) {
                 if (sam != null) {
-                    throw new IllegalArgumentException("Target interface " + interfaceClass.getName()
+                    throw ScriptCompileException.parse("Target interface " + interfaceClass.getName()
                             + " is not a single abstract method (SAM) interface.");
                 }
                 sam = m;
             }
         }
         if (sam == null) {
-            throw new IllegalArgumentException(
+            throw ScriptCompileException.parse(
                     "Target interface " + interfaceClass.getName() + " has no abstract method.");
         }
         return sam;
@@ -507,24 +511,24 @@ public final class CompilationPipeline {
      */
     private void validateVariableReferences(ScriptIR.ScriptUnit unit, CompilationContext ctx) {
         for (ScriptIR.FlowNode node : unit.flow()) {
-            validateNodeVarRefs(node, ctx);
+            validateNodeVarRefs(node, ctx, unit.id());
         }
     }
 
-    private void validateNodeVarRefs(ScriptIR.FlowNode node, CompilationContext ctx) {
+    private void validateNodeVarRefs(ScriptIR.FlowNode node, CompilationContext ctx, String scriptId) {
         ScriptIR.FlowNodeHandler handler = node.type().handler();
 
         // 1. 统一处理所有节点汇报的消费变量引用
         if (handler instanceof ScriptIR.VariableConsumer consumer) {
             for (String var : consumer.getAllConsumedVariables(node)) {
-                assertVarExists(var, node, ctx);
+                assertVarExists(var, node, ctx, scriptId);
             }
         }
 
         // 2. 递归检查子节点
         if (handler instanceof ScriptIR.NodeTraverser traverser) {
             for (ScriptIR.FlowNode child : traverser.traverseChildren(node)) {
-                validateNodeVarRefs(child, ctx);
+                validateNodeVarRefs(child, ctx, scriptId);
             }
         }
     }
@@ -532,22 +536,18 @@ public final class CompilationPipeline {
     /**
      * 断言变量在编译上下文中存在，否则抛出友好的编译异常。
      */
-    private static void assertVarExists(String varName, ScriptIR.FlowNode node, CompilationContext ctx) {
+    private static void assertVarExists(String varName, ScriptIR.FlowNode node,
+                                         CompilationContext ctx, String scriptId) {
         if ("payload".equals(varName))
             return;
         try {
             ctx.getSlot(varName);
-        } catch (IllegalArgumentException e) {
-            // 如果节点存有 value 文本（如模板字符串），附加到错误信息中方便定位
-            // 例：旧信息 "Undefined variable 'lv:'" 现在会显示为
-            // "Undefined variable 'lv:' referenced in RETURN node (in: \"lv:{lvl}
-            // sc:{score}\")"
-            // 让开发者立刻看出 'lv:' 是字面量被误判，而非真正的变量名
+        } catch (cn.warriorview.script.diagnostic.DiagnosticException e) {
             Object nodeValue = node.getAttrOrDefault("value", null);
             String context = (nodeValue instanceof String s && !s.isEmpty())
                     ? " (in: \"" + s + "\")"
                     : "";
-            throw new ScriptCompileException(
+            throw ScriptCompileException.create(scriptId, node,
                     String.format("Undefined variable '%s' referenced in %s node%s.",
                             varName, node.type(), context));
         }
@@ -589,18 +589,19 @@ public final class CompilationPipeline {
         boolean hasReturn = false;
 
         for (ScriptIR.FlowNode node : unit.flow()) {
-            hasReturn |= checkReturnNodesRecursive(node, ctx, expectedIR, expectedJavaType);
+            hasReturn |= checkReturnNodesRecursive(node, ctx, expectedIR, expectedJavaType, unit.id());
         }
 
         if (!hasReturn) {
-            throw new ScriptCompileException(String.format(
+            throw ScriptCompileException.create(unit.id(), null, DiagnosticCategory.SEMANTIC,
+                    String.format(
                     "Script intends to return a strongly-typed %s, but no explicit RETURN node was found.",
                     expectedJavaType.getSimpleName()));
         }
     }
 
     private boolean checkReturnNodesRecursive(ScriptIR.FlowNode node, CompilationContext ctx,
-            ScriptIR.IRType expectedIR, Class<?> expectedJavaType) {
+            ScriptIR.IRType expectedIR, Class<?> expectedJavaType, String scriptId) {
         boolean found = false;
 
         if (node.type() == ScriptIR.FlowNodeType.RETURN) {
@@ -610,7 +611,8 @@ public final class CompilationPipeline {
 
             // 如果节点指定了返回变量，并且该变量的类型不兼容
             if (varName != null && !expectedIR.isAssignableFrom(actualIR)) {
-                throw new ScriptCompileException(String.format(
+                throw ScriptCompileException.create(scriptId, node,
+                        cn.warriorview.script.diagnostic.DiagnosticCategory.TYPE, String.format(
                         "Script compiled for strict return type %s, but RETURN node provides variable '{%s}' of type %s.",
                         expectedJavaType.getSimpleName(), varName, actualIR));
             }
@@ -619,7 +621,7 @@ public final class CompilationPipeline {
         ScriptIR.FlowNodeHandler handler = node.type().handler();
         if (handler instanceof ScriptIR.NodeTraverser traverser) {
             for (ScriptIR.FlowNode child : traverser.traverseChildren(node)) {
-                found |= checkReturnNodesRecursive(child, ctx, expectedIR, expectedJavaType);
+                found |= checkReturnNodesRecursive(child, ctx, expectedIR, expectedJavaType, scriptId);
             }
         }
         return found;

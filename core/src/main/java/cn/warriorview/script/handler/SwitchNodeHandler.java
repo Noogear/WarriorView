@@ -1,5 +1,6 @@
 package cn.warriorview.script.handler;
 
+import cn.warriorview.script.core.ParseContext;
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
@@ -38,17 +39,15 @@ public final class SwitchNodeHandler
 
     @Override
     @SuppressWarnings("unchecked")
-    public FlowNode parse(Map<String, Object> yaml) {
-        String variable = (String) yaml.get("variable");
+    public FlowNode parse(ParseContext ctx) {
+        String variable = ctx.get("variable");
         if (variable == null) {
-            throw new cn.warriorview.script.core.ScriptCompileException(
-                    "SWITCH node requires a 'variable' field.");
+            throw ctx.error("SWITCH node requires a 'variable' field.");
         }
 
-        Map<String, Object> casesRaw = (Map<String, Object>) yaml.get("cases");
+        Map<String, Object> casesRaw = ctx.get("cases");
         if (casesRaw == null || casesRaw.isEmpty()) {
-            throw new cn.warriorview.script.core.ScriptCompileException(
-                    "SWITCH node requires at least one case in 'cases'.");
+            throw ctx.error("SWITCH node requires at least one case in 'cases'.");
         }
 
         ImmutableMap.Builder<String, ImmutableList<FlowNode>> cases = ImmutableMap.builder();
@@ -57,7 +56,7 @@ public final class SwitchNodeHandler
             List<Map<String, Object>> actions = (List<Map<String, Object>>) entry.getValue();
             ImmutableList.Builder<FlowNode> actionNodes = ImmutableList.builder();
             for (Map<String, Object> actionYaml : actions) {
-                actionNodes.add(FlowNodeType.ACTION.handler().parse(actionYaml));
+                actionNodes.add(FlowNodeType.ACTION.handler().parse(ctx.withAttrs(actionYaml)));
             }
             cases.put(key, actionNodes.build());
         }

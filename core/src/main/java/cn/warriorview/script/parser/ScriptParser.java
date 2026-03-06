@@ -1,11 +1,17 @@
 package cn.warriorview.script.parser;
 
+import cn.warriorview.script.core.ParseContext;
+import cn.warriorview.script.core.ScriptCompileException;
 import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
 import cn.warriorview.script.core.ScriptIR.FlowNodeType;
 import cn.warriorview.script.core.ScriptIR.IRType;
 import cn.warriorview.script.core.ScriptIR.ScriptUnit;
 import cn.warriorview.script.core.ScriptIR.VarDecl;
+import cn.warriorview.script.diagnostic.Diagnostic;
+import cn.warriorview.script.diagnostic.DiagnosticCategory;
+import cn.warriorview.script.diagnostic.DiagnosticException;
+import cn.warriorview.script.diagnostic.SourceLocation;
 import cn.warriorview.script.parser.accessor.PropertyAccessor;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Splitter;
@@ -48,7 +54,9 @@ public final class ScriptParser {
         try {
             payloadClazz = Class.forName(payloadClassStr);
         } catch (ClassNotFoundException e) {
-            throw new IllegalArgumentException("Payload class not found: " + payloadClassStr, e);
+            throw new DiagnosticException(
+                    Diagnostic.simple(new SourceLocation(idStr, 0, 0), DiagnosticCategory.SEMANTIC,
+                            "Payload class not found: " + payloadClassStr), e);
         }
 
         ImmutableList.Builder<VarDecl> vars = ImmutableList.builder();
@@ -59,7 +67,7 @@ public final class ScriptParser {
                 // payload 别名：跳过属性解析，类型在 buildContext 中用 payload 实际类填充
                 vars.add(new VarDecl(name, "$self", ScriptIR.IRType.OBJECT));
             } else {
-                IRType type = PropertyResolver.resolveType(payloadClazz, property);
+                IRType type = PropertyResolver.resolveType(payloadClazz, property, idStr);
                 vars.add(new VarDecl(name, property, type));
             }
         }
@@ -67,7 +75,7 @@ public final class ScriptParser {
         // 流程列表
         List<Map<String, Object>> flowList = (List<Map<String, Object>>) root.getOrDefault("flow", List.of());
 
-        return new ScriptUnit(idStr, payloadClassStr, priority, vars.build(), parseFlowNodes(flowList));
+        return new ScriptUnit(idStr, payloadClassStr, priority, vars.build(), parseFlowNodes(flowList, idStr));
     }
 
     /**
@@ -79,55 +87,59 @@ public final class ScriptParser {
      * <li>有 {@code return} 字段 → RETURN_VALUE（即 {@code - return: 42}）</li>
      * </ul>
      */
-    public static FlowNode parseFlowNode(Map<String, Object> yaml) {
-        String typeStr = (String) yaml.get("type");
+    /**
+     * 向后兼容入口：不携带脚本来源信息，等价于 {@code parseFlowNode(new ParseContext(attrs, null))}。
+     */
+    public static FlowNode parseFlowNode(Map<String, Object> attrs) {
+        return parseFlowNode(new ParseContext(attrs, null));
+    }
+
+    /**
+     * 携带完整解析上下文的主实现。
+     * <p>
+     * 节点类型通过 {@link FlowNodeType#fromShorthand(String)} 泛型分发，
+     * 新增节点类型只需在 {@link FlowNodeType} 枚举中声明 shorthand 元数据即可，无需修改本方法。
+     * <p>
+     * {@link ParseContext} 同时承担属性访问与诊断定位：handler 调用 {@link ParseContext#error}
+     * 时可直接获得带有文件名与行号的 {@link ScriptCompileException}，无需外层 try-catch。
+     */
+    public static FlowNode parseFlowNode(ParseContext ctx) {
+        Map<String, Object> attrs = ctx.attrs();
+        String typeStr = (String) attrs.get("type");
         FlowNodeType type = null;
 
         if (typeStr == null) {
-            if (yaml.containsKey("action")) {
-                type = FlowNodeType.ACTION;
-            } else if (yaml.containsKey("return")) {
-                type = FlowNodeType.RETURN;
-            } else if (yaml.containsKey("check")) {
-                type = FlowNodeType.CHECK;
-                Map<String, Object> rebuilt = new java.util.HashMap<>(yaml);
-                Object variable = rebuilt.remove("check");
-                if (variable != null)
-                    rebuilt.put("variable", variable);
-                yaml = rebuilt;
-            } else if (yaml.containsKey("switch")) {
-                type = FlowNodeType.SWITCH;
-                Map<String, Object> rebuilt = new java.util.HashMap<>(yaml);
-                Object variable = rebuilt.remove("switch");
-                if (variable != null)
-                    rebuilt.put("variable", variable);
-                yaml = rebuilt;
-            } else if (yaml.containsKey("any")) {
-                type = FlowNodeType.ANY;
-            } else if (yaml.containsKey("all")) {
-                type = FlowNodeType.ALL;
-            } else if (yaml.containsKey("math")) {
-                type = FlowNodeType.MATH;
-                Map<String, Object> rebuilt = new java.util.HashMap<>(yaml);
-                Object expr = rebuilt.remove("math");
-                if (expr != null)
-                    rebuilt.put("expr", expr);
-                yaml = rebuilt;
-            } else {
-                // 启用动态推断：寻找第一个非保留字段作为 Action 名字
+            // 遍历 shorthand 注册表，泛型检测触发键（枚举声明顺序即优先级）
+            for (String key : FlowNodeType.reservedKeys()) {
+                if (attrs.containsKey(key)) {
+                    type = FlowNodeType.fromShorthand(key);
+                    String alias = type.shorthandAlias();
+                    if (alias != null) {
+                        Map<String, Object> rebuilt = new java.util.HashMap<>(attrs);
+                        Object val = rebuilt.remove(key);
+                        if (val != null) rebuilt.put(alias, val);
+                        ctx = ctx.withAttrs(rebuilt);
+                    }
+                    break;
+                }
+            }
+
+            // 动态 Action 推断：取第一个非保留字段作为 action 名
+            if (type == null) {
                 String inferredAction = null;
                 Object inferredArgs = null;
-                for (Map.Entry<String, Object> entry : yaml.entrySet()) {
+                for (Map.Entry<String, Object> entry : attrs.entrySet()) {
                     String k = entry.getKey();
-                    if (!k.equals("store") && !k.equals("args") && !k.equals("type") && !k.equals("return")) {
+                    if (!FlowNodeType.reservedKeys().contains(k)
+                            && !k.equals("store") && !k.equals("args")
+                            && !k.equals("type") && !k.equals("__line__")) {
                         inferredAction = k;
                         inferredArgs = entry.getValue();
                         break;
                     }
                 }
-
                 if (inferredAction != null) {
-                    Map<String, Object> rebuilt = new java.util.HashMap<>(yaml);
+                    Map<String, Object> rebuilt = new java.util.HashMap<>(attrs);
                     rebuilt.remove(inferredAction);
                     rebuilt.put("action", inferredAction);
                     if (inferredArgs instanceof List) {
@@ -135,7 +147,7 @@ public final class ScriptParser {
                     } else if (inferredArgs != null) {
                         rebuilt.put("args", List.of(inferredArgs));
                     }
-                    yaml = rebuilt;
+                    ctx = ctx.withAttrs(rebuilt);
                     type = FlowNodeType.ACTION;
                 }
             }
@@ -144,7 +156,16 @@ public final class ScriptParser {
         if (type == null) {
             type = FlowNodeType.fromYaml(typeStr);
         }
-        return type.handler().parse(yaml);
+        return type.handler().parse(ctx);
+    }
+
+    /**
+     * 内部快捷入口：携带 scriptId 封装为 {@link ParseContext} 后调用主实现。
+     * ParseContext 会在 handler 调用 {@link ParseContext#error} 时自动注入文件名与行号，
+     * 不再需要外层 try-catch 补充位置信息。
+     */
+    private static FlowNode parseFlowNode(Map<String, Object> attrs, String scriptId) {
+        return parseFlowNode(new ParseContext(attrs, scriptId));
     }
 
     /**
@@ -155,16 +176,18 @@ public final class ScriptParser {
         if (flowList == null) {
             return ImmutableList.of();
         }
-        return parseFlowNodes(flowList);
+        return parseFlowNodes(flowList, null);
     }
 
     /**
      * 将 YAML 中反序列化出来的节点列表转换为强类型的 AST 节点列表。
      * <p>
      * 支持 {@code - return} 纯字符串简写（SnakeYAML 将其解析为 String）。
+     *
+     * @param scriptId 脚本来源标识（文件名等），可为 {@code null}
      */
     @SuppressWarnings("unchecked")
-    private static ImmutableList<FlowNode> parseFlowNodes(List<?> flowList) {
+    private static ImmutableList<FlowNode> parseFlowNodes(List<?> flowList, String scriptId) {
         if (flowList == null || flowList.isEmpty()) {
             return ImmutableList.of();
         }
@@ -173,15 +196,19 @@ public final class ScriptParser {
             if (item instanceof String s) {
                 if (s.equalsIgnoreCase("return")) {
                     // 对应 YAML 中的 "- return"（空返回）
-                    flow.add(FlowNodeType.RETURN.handler().parse(Map.of()));
+                    flow.add(FlowNodeType.RETURN.handler().parse(new ParseContext(Map.of(), scriptId)));
                 } else {
                     // 新增：自动包装纯字符串动作 (例如 "- healAllPlayers")
-                    flow.add(parseFlowNode(Map.of("action", s)));
+                    flow.add(parseFlowNode(Map.of("action", s), scriptId));
                 }
             } else if (item instanceof Map<?, ?> rawMap) {
-                flow.add(parseFlowNode((Map<String, Object>) rawMap));
+                flow.add(parseFlowNode((Map<String, Object>) rawMap, scriptId));
             } else {
-                throw new IllegalArgumentException("Unexpected flow node type: " + item);
+                throw new DiagnosticException(
+                        Diagnostic.simple(
+                                scriptId != null ? new SourceLocation(scriptId, 0, 0) : SourceLocation.UNKNOWN,
+                                DiagnosticCategory.PARSE,
+                                "Unexpected flow node type: " + item));
             }
         }
         return flow.build();
@@ -288,8 +315,15 @@ public final class ScriptParser {
          * 解析属性的 IR 类型。支持链式属性（以 {@code .} 分隔）和集合/Map索引（如 list[0] 或 map[key]）。
          */
         public static IRType resolveType(Class<?> payloadClass, String property) {
+            return resolveType(payloadClass, property, null);
+        }
+
+        /**
+         * 解析属性的 IR 类型，携带脚本来源标识用于错误定位。
+         */
+        public static IRType resolveType(Class<?> payloadClass, String property, String scriptId) {
             TypeToken<?> currentType = TypeToken.of(payloadClass);
-            List<PropertyAccessor> accessors = resolveAccessors(currentType, property);
+            List<PropertyAccessor> accessors = resolveAccessors(currentType, property, scriptId);
             if (accessors.isEmpty()) {
                 return ScriptIR.IRType.fromClass(payloadClass);
             }
@@ -300,6 +334,13 @@ public final class ScriptParser {
          * 解析属性为一系列的 PropertyAccessor 指令集，保留了全泛型分析链。
          */
         public static List<PropertyAccessor> resolveAccessors(TypeToken<?> ownerType, String property) {
+            return resolveAccessors(ownerType, property, null);
+        }
+
+        /**
+         * 解析属性为一系列的 PropertyAccessor 指令集，携带脚本来源标识用于错误定位。
+         */
+        public static List<PropertyAccessor> resolveAccessors(TypeToken<?> ownerType, String property, String scriptId) {
             List<PropertyAccessor> result = new ArrayList<>();
             Iterable<String> parts = Splitter.on('.').split(property);
             TypeToken<?> currentType = ownerType;
@@ -312,7 +353,7 @@ public final class ScriptParser {
                     String indexStr = matcher.group(2);
 
                     // 1. 先解析基础属性
-                    Method baseGetter = resolveGetter(currentType.getRawType(), baseProp);
+                    Method baseGetter = resolveGetter(currentType.getRawType(), baseProp, scriptId);
                     TypeToken<?> baseType = currentType.resolveType(baseGetter.getGenericReturnType());
                     result.add(new cn.warriorview.script.parser.accessor.MethodAccessor(baseGetter, baseType));
                     currentType = baseType;
@@ -339,12 +380,15 @@ public final class ScriptParser {
                         result.add(new cn.warriorview.script.parser.accessor.MapAccessor(key, valueType));
                         currentType = valueType;
                     } else {
-                        throw new IllegalArgumentException(
-                                "Type " + currentType + " is not a supported collection for indexing: " + part);
+                        throw new DiagnosticException(
+                                Diagnostic.simple(
+                                        scriptId != null ? new SourceLocation(scriptId, 0, 0) : SourceLocation.UNKNOWN,
+                                        DiagnosticCategory.TYPE,
+                                        "Type " + currentType + " is not a supported collection for indexing: " + part));
                     }
                 } else {
                     // 普通属性
-                    Method getter = resolveGetter(currentType.getRawType(), part);
+                    Method getter = resolveGetter(currentType.getRawType(), part, scriptId);
                     currentType = currentType.resolveType(getter.getGenericReturnType());
                     result.add(new cn.warriorview.script.parser.accessor.MethodAccessor(getter, currentType));
                 }
@@ -384,6 +428,13 @@ public final class ScriptParser {
          * 解析 getter 方法。
          */
         public static Method resolveGetter(Class<?> clazz, String property) {
+            return resolveGetter(clazz, property, null);
+        }
+
+        /**
+         * 解析 getter 方法，携带脚本来源标识用于错误定位。
+         */
+        public static Method resolveGetter(Class<?> clazz, String property, String scriptId) {
             String getterName = getGetterName(property);
             try {
                 return clazz.getMethod(getterName);
@@ -411,7 +462,11 @@ public final class ScriptParser {
             } catch (NoSuchMethodException ignored) {
             }
 
-            throw new IllegalArgumentException("No getter found for '" + property + "' on " + clazz.getName());
+            throw new DiagnosticException(
+                    Diagnostic.simple(
+                            scriptId != null ? new SourceLocation(scriptId, 0, 0) : SourceLocation.UNKNOWN,
+                            DiagnosticCategory.SEMANTIC,
+                            "No getter found for '" + property + "' on " + clazz.getName()));
         }
 
     }

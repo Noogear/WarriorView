@@ -21,7 +21,9 @@ public sealed interface MathNode permits
         MathNode.VariableNode,
         MathNode.BinaryNode,
         MathNode.UnaryNode,
-        MathNode.FunctionNode {
+        MathNode.FunctionNode,
+        MathNode.TernaryNode,
+        MathNode.CustomFunctionNode {
 
     record LiteralNode(double value) implements MathNode {
     }
@@ -29,14 +31,25 @@ public sealed interface MathNode permits
     /**
      * 变量节点。
      *
-     * @param name  变量名（脚本内模式使用，index==-1 时有效）
-     * @param index 数组下标（独立 API 使用）；{@code -1} 表示使用名称解析
+     * @param name       变量名（脚本内模式使用，index==-1 时有效）
+     * @param index      数组下标（独立 API 使用）；{@code -1} 表示使用名称解析
+     * @param defaultVal 默认值；{@code Double.NaN} 表示无默认值
      */
-    record VariableNode(String name, int index) implements MathNode {
-        /** 脚本内模式：仅按名称解析 */
+    record VariableNode(String name, int index, double defaultVal) implements MathNode {
+        /** 脚本内模式：仅按名称解析，无默认值 */
         public VariableNode(String name) {
-            this(name, -1);
+            this(name, -1, Double.NaN);
         }
+        /** 脚本内模式：按名称解析，带默认值 */
+        public VariableNode(String name, double defaultVal) {
+            this(name, -1, defaultVal);
+        }
+        /** 独立 API 模式：按下标解析 */
+        public VariableNode(String name, int index) {
+            this(name, index, Double.NaN);
+        }
+        /** 是否有默认值 */
+        public boolean hasDefault() { return !Double.isNaN(defaultVal); }
     }
 
     record BinaryNode(MathNode left, MathNode right, Operator op) implements MathNode {
@@ -46,6 +59,25 @@ public sealed interface MathNode permits
     }
 
     record FunctionNode(MathFunction function, List<MathNode> arguments) implements MathNode {
+    }
+
+    /**
+     * 三元条件节点：{@code condition ? trueExpr : falseExpr}。
+     *
+     * <p>语义：{@code condition != 0.0} 时返回 {@code trueExpr}，否则返回 {@code falseExpr}。
+     * 字节码发射使用条件跳转，仅评估选中的分支（短路语义）。
+     */
+    record TernaryNode(MathNode condition, MathNode trueExpr, MathNode falseExpr) implements MathNode {
+    }
+
+    /**
+     * 自定义函数节点：运行时通过 {@link MathFunction} 注册表调用。
+     *
+     * @param name      函数名（小写）
+     * @param arguments 参数列表
+     * @param foldable  是否允许编译期常量折叠
+     */
+    record CustomFunctionNode(String name, List<MathNode> arguments, boolean foldable) implements MathNode {
     }
 
     // ======================== 静态工具方法 ========================
@@ -71,6 +103,14 @@ public sealed interface MathNode permits
             }
             case FunctionNode f -> {
                 for (MathNode arg : f.arguments()) collectVarNamesInto(arg, list);
+            }
+            case TernaryNode t -> {
+                collectVarNamesInto(t.condition(), list);
+                collectVarNamesInto(t.trueExpr(), list);
+                collectVarNamesInto(t.falseExpr(), list);
+            }
+            case CustomFunctionNode cf -> {
+                for (MathNode arg : cf.arguments()) collectVarNamesInto(arg, list);
             }
         }
     }
@@ -98,6 +138,14 @@ public sealed interface MathNode permits
             }
             case FunctionNode f -> {
                 for (MathNode arg : f.arguments()) countUsagesInto(arg, counts);
+            }
+            case TernaryNode t -> {
+                countUsagesInto(t.condition(), counts);
+                countUsagesInto(t.trueExpr(), counts);
+                countUsagesInto(t.falseExpr(), counts);
+            }
+            case CustomFunctionNode cf -> {
+                for (MathNode arg : cf.arguments()) countUsagesInto(arg, counts);
             }
         }
     }

@@ -52,7 +52,8 @@ public final class ScriptInjector {
         try {
             payloadClass = Class.forName(compiled.ir().payloadClass());
         } catch (ClassNotFoundException e) {
-            throw new IllegalArgumentException("Payload class not found: " + compiled.ir().payloadClass(), e);
+            throw cn.warriorview.script.core.ScriptCompileException.parse(
+                    "Payload class not found: " + compiled.ir().payloadClass());
         }
 
         Consumer<Object> handler = (Consumer<Object>) compiled.newHandler();

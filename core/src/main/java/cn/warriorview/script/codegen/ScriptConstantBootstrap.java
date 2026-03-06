@@ -93,4 +93,35 @@ public final class ScriptConstantBootstrap {
     static void clearForTest() {
         REGISTRY.clear();
     }
+
+    // ======================== 生命周期管理（公开 API） ========================
+
+    /**
+     * 返回当前注册表中的常量条目数。
+     * <p>
+     * 可用于运行时监控和诊断，检查常量池增长趋势，
+     * 判断是否需要在插件 reload 时调用 {@link #purge()} 回收旧常量。
+     *
+     * @return 注册表条目数
+     */
+    public static int registrySize() {
+        return REGISTRY.size();
+    }
+
+    /**
+     * 清除注册表中的所有常量条目。
+     * <p>
+     * 适用于：
+     * <ul>
+     *   <li>插件 reload 时释放旧版脚本的常量（旧 Hidden Class 已被 GC）</li>
+     *   <li>服务器关闭时主动释放内存</li>
+     * </ul>
+     * <p>
+     * <strong>线程安全</strong>：操作基于 {@link java.util.concurrent.ConcurrentHashMap#clear()}。
+     * 正在运行的脚本已通过 {@link java.lang.invoke.ConstantCallSite} 锁住引用，
+     * 不受清理影响。仅影响后续新编译脚本的首次 bootstrap 链接。
+     */
+    public static void purge() {
+        REGISTRY.clear();
+    }
 }

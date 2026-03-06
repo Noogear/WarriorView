@@ -12,8 +12,8 @@ import org.objectweb.asm.Opcodes;
  * 之间的重复树遍历逻辑。调用方通过 {@link VariableEmitter} 策略接口注入变量加载方式：
  * <ul>
  * <li>{@link #slotBased(int[])} — MathEngine 路径：从 double 参数槽或 double[] 数组加载</li>
- * <li>{@link #contextBased(cn.warriorview.script.core.CompilationContext)} — 脚本 IR 路径：
- *     通过 {@link cn.warriorview.script.core.CompilationContext} 按名称解析，支持 int/long→double 提升</li>
+ * <li>{@link VariableEmitter} 实现由 script 模块的 {@code CompilationContext#toVariableEmitter()} 提供 —
+ *     按名称解析槽位，支持 int/long→double 提升</li>
  * </ul>
  */
 public final class MathNodeEmitter {
@@ -43,41 +43,6 @@ public final class MathNodeEmitter {
         };
     }
 
-    /**
-     * 脚本 IR 专用策略：通过 {@link cn.warriorview.script.core.CompilationContext}
-     * 按变量名解析槽位和类型，自动插入 int/long → double 的提升指令。
-     */
-    static VariableEmitter contextBased(cn.warriorview.script.core.CompilationContext ctx) {
-        return (var, mv) -> {
-            int slot = ctx.getSlot(var.name());
-            cn.warriorview.script.core.ScriptIR.IRType type = ctx.getType(var.name());
-            switch (type.base()) {
-                case INT -> {
-                    mv.visitVarInsn(Opcodes.ILOAD, slot);
-                    mv.visitInsn(Opcodes.I2D);
-                }
-                case LONG -> {
-                    mv.visitVarInsn(Opcodes.LLOAD, slot);
-                    mv.visitInsn(Opcodes.L2D);
-                }
-                case DOUBLE -> mv.visitVarInsn(Opcodes.DLOAD, slot);
-                default -> throw new cn.warriorview.script.core.ScriptCompileException(
-                        "Math engine cannot handle non-numeric variable: " + var.name());
-            }
-        };
-    }
-
-    // ======================== 公共便捷入口（跨包用） ========================
-
-    /**
-     * 脚本 IR 路径便捷入口：直接传入 {@link cn.warriorview.script.core.CompilationContext}。
-     * 供 {@code handler} 包等跨包调用者使用，无需直接接触 {@link VariableEmitter}。
-     */
-    public static void emitWithContext(MathNode node, MethodVisitor mv,
-            cn.warriorview.script.core.CompilationContext ctx) {
-        emit(node, mv, contextBased(ctx));
-    }
-
     // ======================== 统一树遍历 ========================
 
     /**
@@ -95,7 +60,7 @@ public final class MathNodeEmitter {
      * @param mv         目标 MethodVisitor
      * @param varEmitter 变量加载策略（由调用方注入）
      */
-    static void emit(MathNode node, MethodVisitor mv, VariableEmitter varEmitter) {
+    public static void emit(MathNode node, MethodVisitor mv, VariableEmitter varEmitter) {
         switch (node) {
             case MathNode.LiteralNode lit ->
                     // 使用 ASMUtils 确保 0.0/1.0 走 DCONST_0/DCONST_1，其余用 LDC
@@ -113,6 +78,43 @@ public final class MathNodeEmitter {
             case MathNode.FunctionNode f -> {
                 for (MathNode arg : f.arguments()) emit(arg, mv, varEmitter);
                 f.function().emit(mv, f.arguments().size());
+            }
+
+            case MathNode.TernaryNode t -> {
+                // condition ? trueExpr : falseExpr
+                // 短路语义：仅评估选中的分支
+                Label falseLabel = new Label();
+                Label endLabel = new Label();
+                emit(t.condition(), mv, varEmitter);
+                mv.visitInsn(Opcodes.DCONST_0);
+                mv.visitInsn(Opcodes.DCMPL);          // 0 iff condition==0.0
+                mv.visitJumpInsn(Opcodes.IFEQ, falseLabel);
+                emit(t.trueExpr(), mv, varEmitter);
+                mv.visitJumpInsn(Opcodes.GOTO, endLabel);
+                mv.visitLabel(falseLabel);
+                emit(t.falseExpr(), mv, varEmitter);
+                mv.visitLabel(endLabel);
+            }
+
+            case MathNode.CustomFunctionNode cf -> {
+                // 先压入函数名常量，再压入参数
+                mv.visitLdcInsn(cf.name());
+                int argCount = cf.arguments().size();
+                if (argCount <= 3) {
+                    // 特化路径：参数直接传递，无数组分配
+                    for (MathNode arg : cf.arguments()) emit(arg, mv, varEmitter);
+                } else {
+                    // 通用路径：打包参数到 double[]
+                    ASMUtils.emitIntConst(mv, argCount);
+                    mv.visitIntInsn(Opcodes.NEWARRAY, Opcodes.T_DOUBLE);
+                    for (int i = 0; i < argCount; i++) {
+                        mv.visitInsn(Opcodes.DUP);
+                        ASMUtils.emitIntConst(mv, i);
+                        emit(cf.arguments().get(i), mv, varEmitter);
+                        mv.visitInsn(Opcodes.DASTORE);
+                    }
+                }
+                MathFunction.emitCustom(mv, cf.name(), argCount);
             }
         }
     }

@@ -188,7 +188,7 @@ public final class ActionRegistry {
     public ActionDef lookup(String name) {
         ActionDef def = actions.get(name);
         if (def == null) {
-            throw new IllegalArgumentException("Unknown action: " + name
+            throw cn.warriorview.script.core.ScriptCompileException.parse("Unknown action: " + name
                     + ". Available: " + actions.keySet());
         }
         return def;

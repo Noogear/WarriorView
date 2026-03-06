@@ -4,6 +4,7 @@ import cn.warriorview.script.codegen.ASMUtils;
 
 import cn.warriorview.script.action.ActionRegistry;
 import cn.warriorview.script.codegen.BytecodeCompiler;
+import cn.warriorview.script.core.ParseContext;
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.ScriptIR;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
@@ -18,7 +19,6 @@ import org.objectweb.asm.Opcodes;
 
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 
 /**
  * ACTION 节点处理器。
@@ -45,24 +45,23 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
     }
 
     @Override
-    public FlowNode parse(Map<String, Object> yaml) {
-        String action = (String) yaml.get("action");
-        String store = (String) yaml.get("store");
+    public FlowNode parse(ParseContext ctx) {
+        String action = ctx.get("action");
+        String store = ctx.get("store");
 
-        @SuppressWarnings("unchecked")
-        List<String> args = (List<String>) yaml.getOrDefault("args", List.of());
+        List<String> args = ctx.getOrDefault("args", List.of());
 
         // 验证动作存在
         ActionRegistry.ActionDef def = REGISTRY.lookup(action);
 
-        // 参数个数校验：consumesPayload=true 时第一位由引擎自动注入，YAML args 对应第二位起；
-        // consumesPayload=false 时为纯工具方法，所有参数由 YAML args 提供
+        // 参数个数校验：consumesPayload=true 时第一位由引擎自动注入，args 对应第二位起；
+        // consumesPayload=false 时为纯工具方法，所有参数由 args 提供
         int expectedArgs = def.consumesPayload()
                 ? Math.max(0, def.paramCount() - 1)
                 : def.paramCount();
 
         if (args.size() != expectedArgs) {
-            throw new cn.warriorview.script.core.ScriptCompileException(
+            throw ctx.error(
                     String.format("Action '%s' expects %d %s, but got %d.",
                             action, expectedArgs,
                             def.consumesPayload()
@@ -90,13 +89,13 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
                 Object parsed = cn.warriorview.script.parser.ScriptParser.ValueParser.parseNumber(argStr);
                 boolean isNumber = (parsed instanceof Number);
                 if (!isNumber && !argStr.matches("-?\\d+(\\.\\d+)?")) {
-                    throw new cn.warriorview.script.core.ScriptCompileException(
+                    throw ctx.error(
                             String.format("Action '%s' expects a numeric value at argument %d (type %s), but got '%s'.",
                                     action, methodParamIndex, reqType.getSimpleName(), argStr));
                 }
             } else if (reqIRType == IRType.BOOLEAN) {
                 if (!argStr.equalsIgnoreCase("true") && !argStr.equalsIgnoreCase("false")) {
-                    throw new cn.warriorview.script.core.ScriptCompileException(
+                    throw ctx.error(
                             String.format("Action '%s' expects a boolean (true/false) at argument %d, but got '%s'.",
                                     action, methodParamIndex, argStr));
                 }
@@ -105,7 +104,7 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
                     @SuppressWarnings({ "unchecked", "rawtypes", "unused" })
                     Object ignored = Enum.valueOf((Class<Enum>) reqType, argStr);
                 } catch (IllegalArgumentException e) {
-                    throw new cn.warriorview.script.core.ScriptCompileException(
+                    throw ctx.error(
                             String.format(
                                     "Action '%s' expects an enum value of %s at argument %d, but got invalid constant '%s'.",
                                     action, reqType.getSimpleName(), methodParamIndex, argStr));
@@ -116,23 +115,23 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
         // 验证 store (不能存 void)
         if (store != null) {
             if (def.returnType() == void.class || def.returnType() == Void.class) {
-                throw new cn.warriorview.script.core.ScriptCompileException(
+                throw ctx.error(
                         String.format("Action '%s' does not return a value, cannot store to '%s'", action, store));
             }
         }
 
         IRType returnIRType = IRType.fromClass(def.returnType());
 
-        ImmutableMap.Builder<String, Object> attrs = ImmutableMap.builder();
-        attrs.put("action", action);
-        attrs.put("args", ImmutableList.copyOf(args));
-        attrs.put("def", def);
+        ImmutableMap.Builder<String, Object> nodeAttrs = ImmutableMap.builder();
+        nodeAttrs.put("action", action);
+        nodeAttrs.put("args", ImmutableList.copyOf(args));
+        nodeAttrs.put("def", def);
         if (store != null) {
-            attrs.put("store", store);
-            attrs.put("returnType", returnIRType);
+            nodeAttrs.put("store", store);
+            nodeAttrs.put("returnType", returnIRType);
         }
 
-        return new FlowNode(FlowNodeType.ACTION, attrs.build());
+        return new FlowNode(FlowNodeType.ACTION, nodeAttrs.build());
     }
 
     @Override
@@ -153,7 +152,7 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
                 int slot;
                 try {
                     slot = ctx.getSlot(store);
-                } catch (IllegalArgumentException e) {
+                } catch (cn.warriorview.script.diagnostic.DiagnosticException e) {
                     throw cn.warriorview.script.core.ScriptCompileException.create(node,
                             String.format("Undefined store variable '%s' for action '%s'. "
                                     + "If using ScriptBuilder.actionStore(), this is likely an internal error — "
@@ -442,7 +441,7 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
             if (!firstParamType.isAssignableFrom(payloadClass)) {
                 if (!payloadClass.isAssignableFrom(firstParamType)) {
                     // 完全无继承关系 → 直接幹错
-                    throw cn.warriorview.script.core.ScriptCompileException.create(node, String.format(
+                    throw cn.warriorview.script.core.ScriptCompileException.type(node, String.format(
                             "Action '%s' requires payload type '%s', but script payload is '%s'. "
                                     + "These types are unrelated \u2014 this action cannot be called from this script.",
                             actionName, firstParamType.getSimpleName(), payloadClass.getSimpleName()));
@@ -455,7 +454,7 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
                     if (slot1Var != null) narrowed = ctx.getNarrowedClass(slot1Var);
                 }
                 if (narrowed == null || !firstParamType.isAssignableFrom(narrowed)) {
-                    throw cn.warriorview.script.core.ScriptCompileException.create(node, String.format(
+                    throw cn.warriorview.script.core.ScriptCompileException.type(node, String.format(
                             "Action '%s' requires payload subtype '%s', but current payload is '%s'. "
                                     + "Add a 'check: instanceof: %s' guard before this action to narrow the type.",
                             actionName, firstParamType.getSimpleName(), payloadClass.getSimpleName(),
@@ -496,7 +495,7 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
         if (narrowed != null && expected.isAssignableFrom(IRType.fromClass(narrowed)))
             return;
 
-        throw cn.warriorview.script.core.ScriptCompileException.create(node, String.format(
+        throw cn.warriorview.script.core.ScriptCompileException.type(node, String.format(
                 "Action '%s' expects %s at argument %d, but variable '{%s}' is of type %s.",
                 action, expected, paramIndex, varName, actual));
     }
@@ -506,7 +505,7 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
         if (expected == IRType.STRING || expected == IRType.OBJECT)
             return;
 
-        throw cn.warriorview.script.core.ScriptCompileException.create(node, String.format(
+        throw cn.warriorview.script.core.ScriptCompileException.type(node, String.format(
                 "Action '%s' expects %s at argument %d, but a string template '%s' was provided.",
                 action, expected, paramIndex, argStr));
     }
@@ -520,7 +519,7 @@ public final class ActionNodeHandler implements ScriptIR.FlowNodeHandler, Script
         try {
             Enum.valueOf((Class<Enum>) expectedJavaType, argStr.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw cn.warriorview.script.core.ScriptCompileException.create(node, String.format(
+            throw cn.warriorview.script.core.ScriptCompileException.type(node, String.format(
                     "Invalid enum value '%s' for action '%s' at argument %d. Expected enum type %s",
                     argStr, action, paramIndex, expectedJavaType.getSimpleName()));
         }

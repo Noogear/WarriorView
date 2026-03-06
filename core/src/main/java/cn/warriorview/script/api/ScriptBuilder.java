@@ -333,7 +333,9 @@ public final class ScriptBuilder {
 
         // 验证返回值（与 ActionNodeHandler.parse 对齐）
         if (def.returnType() == void.class || def.returnType() == Void.class) {
-            throw new cn.warriorview.script.core.ScriptCompileException(
+            throw cn.warriorview.script.core.ScriptCompileException.create(
+                    null, null,
+                    cn.warriorview.script.diagnostic.DiagnosticCategory.SEMANTIC,
                     String.format("Action '%s' does not return a value, cannot store to '%s'", actionName, store));
         }
 
@@ -551,7 +553,9 @@ public final class ScriptBuilder {
                 ? Math.max(0, def.paramCount() - 1)
                 : def.paramCount();
         if (args.size() != expectedArgs) {
-            throw new cn.warriorview.script.core.ScriptCompileException(
+            throw cn.warriorview.script.core.ScriptCompileException.create(
+                    null, null,
+                    cn.warriorview.script.diagnostic.DiagnosticCategory.SEMANTIC,
                     String.format("Action '%s' expects %d %s, but got %d.",
                             actionName, expectedArgs,
                             def.consumesPayload()

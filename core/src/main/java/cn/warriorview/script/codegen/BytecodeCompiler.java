@@ -19,7 +19,6 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,9 +32,9 @@ import java.util.Set;
  * 编译期优化（只读保证下）：
  * <ul>
  * <li>static final 常量提升（Pattern/Set/数组 → {@code <clinit>}）</li>
- * <li>CSE：公共 getter 前缀只调一次</li>
+ * <li>CSE：多级公共 getter 前缀只调一次（Trie 前缀树分析）</li>
  * <li>死变量消除：flow 中未引用的变量不提取</li>
- * <li>手动帧计算：跳过 {@code COMPUTE_FRAMES}</li>
+ * <li>COMPUTE_FRAMES 自动帧计算（可考虑迁移 COMPUTE_MAXS + 手动 visitFrame 提升编译速度）</li>
  * <li>invokedynamic StringConcatFactory 零分配拼接</li>
  * </ul>
  */
@@ -60,7 +59,7 @@ public final class BytecodeCompiler implements Opcodes {
      */
     static final Handle CONST_BOOTSTRAP_HANDLE = new Handle(
             H_INVOKESTATIC,
-            "cn/warriorview/script/codegen/ScriptConstantBootstrap",
+            org.objectweb.asm.Type.getInternalName(ScriptConstantBootstrap.class),
             "bootstrap",
             MethodType.methodType(
                     CallSite.class, MethodHandles.Lookup.class, String.class,
@@ -211,92 +210,157 @@ public final class BytecodeCompiler implements Opcodes {
     }
 
     /**
-     * CSE 变量提取：检测公共前缀（按点号后的第一段划分），只调用一次。
-     * 改为了完全基于 TypeToken 和 PropertyAccessor 的方案。
+     * 多级 CSE 变量提取。
+     * <p>
+     * 将属性路径按 {@code '.'} 分段构建 Trie 前缀树，自动识别任意深度的公共前缀，
+     * 将中间结果缓存到临时 slot，消除冗余 getter 调用。
+     * <p>
+     * 改进前：仅缓存第一级公共前缀（如 {@code player}），每个子属性仍需从头解析
+     * 完整 Accessor 链并跳过第一个。现在：
+     * <ul>
+     *   <li>每个 VarDecl 的 Accessor 链只解析一次（消除冗余反射）</li>
+     *   <li>{@code player.inventory.size} 与 {@code player.inventory.type}
+     *       共享 {@code player.inventory} 两级缓存，{@code getInventory()} 只调用一次</li>
+     *   <li>单后代路径直接内联发射，零临时 slot 开销</li>
+     * </ul>
      */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private void emitVarExtractionWithCSE(MethodVisitor mv, ImmutableList<VarDecl> vars,
             CompilationContext ctx, String payloadInternal,
             Set<String> liveVars) {
 
-        // 分组策略：按原始 property 的第一段（例如 "player.inventory" 的 "player"）
-        // 这一段必须能抽出独立的 Accessor，因为有可能第一段就是 map['damage']，此时作为整体也可以复用。
-        // 但为了通用性，按完整的 propertyPath 重新拉取一次 Accessor 组
-        Map<String, List<VarDecl>> groups = new LinkedHashMap<>();
+        // 过滤活跃的非别名变量
+        List<VarDecl> live = new ArrayList<>();
         for (VarDecl var : vars) {
             if (!liveVars.contains(var.name()))
                 continue;
             if (var.isPayloadAlias())
                 continue; // 别名直接引用 slot 1（方法入参），无需任何提取指令
+            live.add(var);
+        }
+        if (live.isEmpty())
+            return;
 
-            // 按 Parser 规定的属性语法截取根基名称（提取第一段复用前缀）
-            String firstPart = cn.warriorview.script.parser.ScriptParser.PropertyResolver
-                    .getRootProperty(var.property());
-            groups.computeIfAbsent(firstPart, k -> new ArrayList<>()).add(var);
+        // 构建属性段 Trie 前缀树
+        SegNode root = new SegNode();
+        for (VarDecl var : live) {
+            SegNode cur = root;
+            for (String seg : var.property().split("\\.")) {
+                cur = cur.children.computeIfAbsent(seg, k -> new SegNode());
+            }
+            cur.terminals.add(var);
         }
 
-        Map<String, Integer> cachedPrefixes = new HashMap<>();
-        int tempSlot = ctx.nextSlot();
+        // DFS 发射：多级中间结果缓存
+        int[] nextTemp = { ctx.nextSlot() };
+        cseTrieDFS(mv, root, 0, 1,
+                com.google.common.reflect.TypeToken.of((Class) ctx.payloadClass()), ctx, nextTemp);
+    }
 
-        for (Map.Entry<String, List<VarDecl>> entry : groups.entrySet()) {
-            String prefix = entry.getKey();
-            List<VarDecl> group = entry.getValue();
+    /**
+     * Trie DFS 发射核心逻辑。
+     * <ul>
+     *   <li>后代 ≥2：缓存本级结果到临时 slot，后续子节点复用
+     *       （中间 getter 必为引用类型，ASTORE 安全）</li>
+     *   <li>后代 =1：直接发射完整剩余属性链，无需缓存</li>
+     * </ul>
+     *
+     * @param node       当前 Trie 节点
+     * @param depth      离根节点的深度（决定 dropPrefixSegments 裁剪数量）
+     * @param sourceSlot 持有已求值前缀结果的局部变量 slot
+     * @param sourceType 该 slot 的 TypeToken（用于解析下一段 Accessor）
+     */
+    private void cseTrieDFS(MethodVisitor mv, SegNode node, int depth, int sourceSlot,
+            com.google.common.reflect.TypeToken<?> sourceType,
+            CompilationContext ctx, int[] nextTemp) {
 
-            if (group.size() > 1) {
-                // 有复用价值，提取第一段
-                mv.visitVarInsn(ALOAD, 1);
+        for (Map.Entry<String, SegNode> entry : node.children.entrySet()) {
+            String segment = entry.getKey();
+            SegNode child = entry.getValue();
+            int descendants = cseDescendantCount(child);
 
-                // 解析第一段的 Accessor
-                List<cn.warriorview.script.parser.accessor.PropertyAccessor> prefixAccessors = cn.warriorview.script.parser.ScriptParser.PropertyResolver
-                        .resolveAccessors(
-                                com.google.common.reflect.TypeToken.of(ctx.payloadClass()), prefix);
+            if (descendants >= 2) {
+                // ---- 多后代分支：缓存本级结果 ----
+                List<cn.warriorview.script.parser.accessor.PropertyAccessor> segAccessors =
+                        cn.warriorview.script.parser.ScriptParser.PropertyResolver
+                                .resolveAccessors(sourceType, segment);
+                com.google.common.reflect.TypeToken<?> segType = segAccessors.isEmpty() ? sourceType
+                        : segAccessors.get(segAccessors.size() - 1).returnType();
 
-                // 只有一段（第一段必然只有一个）
-                cn.warriorview.script.parser.accessor.PropertyAccessor firstAcr = prefixAccessors.get(0);
-                firstAcr.emitLoad(mv);
-
-                mv.visitVarInsn(ASTORE, tempSlot);
-                cachedPrefixes.put(prefix, tempSlot);
-                int currentCache = tempSlot;
-                tempSlot++;
-
-                // 其余段跟进
-                for (VarDecl var : group) {
-                    mv.visitVarInsn(ALOAD, currentCache);
-
-                    List<cn.warriorview.script.parser.accessor.PropertyAccessor> fullAccessors = cn.warriorview.script.parser.ScriptParser.PropertyResolver
-                            .resolveAccessors(
-                                    com.google.common.reflect.TypeToken.of(ctx.payloadClass()), var.property());
-
-                    // 从第 1 个之后（索引 1）开始发射
-                    for (int i = 1; i < fullAccessors.size(); i++) {
-                        cn.warriorview.script.parser.accessor.PropertyAccessor acr = fullAccessors.get(i);
-                        acr.emitLoad(mv);
-                    }
-
-                    int storeOp = ASMUtils.storeOpcode(var.type());
-                    mv.visitVarInsn(storeOp, ctx.getSlot(var.name()));
+                mv.visitVarInsn(ALOAD, sourceSlot);
+                for (cn.warriorview.script.parser.accessor.PropertyAccessor acr : segAccessors) {
+                    acr.emitLoad(mv);
                 }
+                int cachedSlot = nextTemp[0]++;
+                mv.visitVarInsn(ASTORE, cachedSlot);
+
+                // 发射在本级终结的变量（如同时声明了 player.inventory 和 player.inventory.size）
+                for (VarDecl t : child.terminals) {
+                    mv.visitVarInsn(ALOAD, cachedSlot);
+                    mv.visitVarInsn(ASMUtils.storeOpcode(t.type()), ctx.getSlot(t.name()));
+                }
+
+                // 递归子层
+                cseTrieDFS(mv, child, depth + 1, cachedSlot, segType, ctx, nextTemp);
             } else {
-                emitSingleVarExtraction(mv, group.get(0), ctx, payloadInternal);
+                // ---- 单后代路径：直接发射完整剩余属性链，零临时 slot 开销 ----
+                VarDecl singleVar = cseFindSingleDescendant(child);
+                String remaining = cseDropPrefixSegments(singleVar.property(), depth);
+
+                mv.visitVarInsn(ALOAD, sourceSlot);
+                List<cn.warriorview.script.parser.accessor.PropertyAccessor> remAccessors =
+                        cn.warriorview.script.parser.ScriptParser.PropertyResolver
+                                .resolveAccessors(sourceType, remaining);
+                for (cn.warriorview.script.parser.accessor.PropertyAccessor acr : remAccessors) {
+                    acr.emitLoad(mv);
+                }
+                mv.visitVarInsn(ASMUtils.storeOpcode(singleVar.type()), ctx.getSlot(singleVar.name()));
             }
         }
     }
 
-    private void emitSingleVarExtraction(MethodVisitor mv, VarDecl var,
-            CompilationContext ctx, String eventInternal) {
-        int slot = ctx.getSlot(var.name());
-        mv.visitVarInsn(ALOAD, 1);
+    // ---- 多级 CSE Trie 内部数据结构与辅助方法 ----
 
-        List<cn.warriorview.script.parser.accessor.PropertyAccessor> accessors = cn.warriorview.script.parser.ScriptParser.PropertyResolver
-                .resolveAccessors(
-                        com.google.common.reflect.TypeToken.of(ctx.payloadClass()), var.property());
+    /** 属性段 Trie 节点：每个节点代表一个 '.' 分隔的属性段。 */
+    private static final class SegNode {
+        final Map<String, SegNode> children = new LinkedHashMap<>();
+        final List<VarDecl> terminals = new ArrayList<>();
+    }
 
-        for (cn.warriorview.script.parser.accessor.PropertyAccessor acr : accessors) {
-            acr.emitLoad(mv);
+    /** 递归计算 Trie 子树的叶节点（VarDecl）总数。 */
+    private static int cseDescendantCount(SegNode node) {
+        int count = node.terminals.size();
+        for (SegNode child : node.children.values())
+            count += cseDescendantCount(child);
+        return count;
+    }
+
+    /** 在单后代子树中找到唯一的 VarDecl 叶节点。 */
+    private static VarDecl cseFindSingleDescendant(SegNode node) {
+        if (!node.terminals.isEmpty())
+            return node.terminals.get(0);
+        for (SegNode child : node.children.values()) {
+            VarDecl found = cseFindSingleDescendant(child);
+            if (found != null)
+                return found;
         }
+        return null;
+    }
 
-        int storeOp = ASMUtils.storeOpcode(var.type());
-        mv.visitVarInsn(storeOp, slot);
+    /**
+     * 从属性路径中去掉前 {@code count} 个 {@code '.'} 分隔的段，返回剩余后缀。
+     * <p>
+     * 例：{@code cseDropPrefixSegments("a.b.c", 1)} → {@code "b.c"}
+     */
+    private static String cseDropPrefixSegments(String property, int count) {
+        int idx = 0;
+        for (int i = 0; i < count; i++) {
+            int dot = property.indexOf('.', idx);
+            if (dot == -1)
+                return "";
+            idx = dot + 1;
+        }
+        return property.substring(idx);
     }
 
     // ======================== invokedynamic 字符串拼接 ========================
@@ -394,7 +458,7 @@ public final class BytecodeCompiler implements Opcodes {
 
         Class<?> narrowed = ctx.getNarrowedClass(varName);
         if (narrowed == null) {
-            throw new cn.warriorview.script.core.ScriptCompileException(
+            throw cn.warriorview.script.core.ScriptCompileException.parse(
                     "Dotted template {" + part + "}: variable '" + varName +
                     "' has no narrowed type. Add 'check: op: instanceof' before this action.");
         }

@@ -127,7 +127,8 @@ public final class ScriptIR {
             try {
                 return Enum.valueOf(enumClass, val.toUpperCase());
             } catch (IllegalArgumentException e) {
-                throw new ScriptCompileException("Invalid value '" + val + "' for attribute '" + key
+                throw ScriptCompileException.create(this,
+                        "Invalid value '" + val + "' for attribute '" + key
                         + "'. Expected one of: " + Arrays.toString(enumClass.getEnumConstants()));
             }
         }
@@ -139,7 +140,8 @@ public final class ScriptIR {
         public <T> T getRequiredAttr(String key) {
             Object val = attrs.get(key);
             if (val == null) {
-                throw new ScriptCompileException("Missing required attribute: '" + key + "' in node " + type);
+                throw ScriptCompileException.create(this,
+                        "Missing required attribute: '" + key + "' in node " + type);
             }
             return (T) val;
         }
@@ -419,15 +421,52 @@ public final class ScriptIR {
 
     /**
      * 流程节点类型枚举，每个枚举值关联对应的 {@link FlowNodeHandler} 工厂。
+     *
+     * <p>每个枚举值可声明 {@code shorthandAlias}：shorthand 值在 attrs 中应被重命名为的目标键
+     * （如 {@code check → variable}、{@code math → expr}）；
+     * 省略表示保留原键不变。shorthand 触发键始终等于枚举名的小写形式。
+     * <p>新增节点类型时只需在此声明即可，{@link cn.warriorview.script.parser.ScriptParser} 无需改动。
      */
     public enum FlowNodeType {
-        CHECK,
-        SWITCH,
-        RETURN,
         ACTION,
+        RETURN,
+        CHECK(  "variable"),
+        SWITCH( "variable"),
         ANY,
         ALL,
-        MATH;
+        MATH(   "expr"    );
+
+        private final String shorthandAlias;
+
+        FlowNodeType() { this.shorthandAlias = null; }
+        FlowNodeType(String shorthandAlias) { this.shorthandAlias = shorthandAlias; }
+
+        /** YAML 短语法触发字段名，始终等于枚举名的小写形式。 */
+        public String shorthandKey() { return name().toLowerCase(); }
+
+        /** shorthand 值在 attrs 中应被重命名为的目标键，{@code null} 表示不需要重命名。 */
+        public String shorthandAlias() { return shorthandAlias; }
+
+        /** shorthand key → FlowNodeType 静态查找表，由枚举初始化时自动构建。 */
+        private static final java.util.Map<String, FlowNodeType> SHORTHAND_MAP;
+        static {
+            java.util.Map<String, FlowNodeType> m = new java.util.LinkedHashMap<>();
+            for (FlowNodeType t : values()) m.put(t.shorthandKey(), t);
+            SHORTHAND_MAP = java.util.Collections.unmodifiableMap(m);
+        }
+
+        /**
+         * 按 shorthand key 查找节点类型，未命中返回 {@code null}。
+         * 供 {@link cn.warriorview.script.parser.ScriptParser} 泛型分发使用。
+         */
+        public static FlowNodeType fromShorthand(String key) {
+            return SHORTHAND_MAP.get(key);
+        }
+
+        /** 保留的 shorthand key 集合，用于动态 Action 推断时过滤。 */
+        public static java.util.Set<String> reservedKeys() {
+            return SHORTHAND_MAP.keySet();
+        }
 
         private static final EnumMap<FlowNodeType, Supplier<FlowNodeHandler>> FACTORIES = new EnumMap<>(
                 FlowNodeType.class);
@@ -447,16 +486,11 @@ public final class ScriptIR {
         public static FlowNodeType fromYaml(String type) {
             if (type == null)
                 return ACTION;
-            return switch (type.toLowerCase()) {
-                case "check" -> CHECK;
-                case "switch" -> SWITCH;
-                case "return" -> RETURN;
-                case "action" -> ACTION;
-                case "any" -> ANY;
-                case "all" -> ALL;
-                case "math" -> MATH;
-                default -> throw new IllegalArgumentException("Unknown flow node type: " + type);
-            };
+            try {
+                return valueOf(type.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw ScriptCompileException.parse("Unknown flow node type: " + type);
+            }
         }
     }
 
@@ -466,7 +500,7 @@ public final class ScriptIR {
      * 流程节点处理器接口，统一解析与字节码发射。
      */
     public interface FlowNodeHandler {
-        FlowNode parse(Map<String, Object> yaml);
+        FlowNode parse(ParseContext ctx);
 
         void emit(FlowNode node, MethodVisitor mv, CompilationContext ctx);
 

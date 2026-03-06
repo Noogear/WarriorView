@@ -1,6 +1,7 @@
 package cn.warriorview.script.handler;
 
 import cn.warriorview.script.codegen.ASMUtils;
+import cn.warriorview.script.core.ParseContext;
 import cn.warriorview.script.core.CompilationContext;
 import cn.warriorview.script.core.ScriptIR.FlowNode;
 import cn.warriorview.script.core.ScriptIR.FlowNodeType;
@@ -40,18 +41,17 @@ public final class CompositeCheckHandler implements cn.warriorview.script.core.S
 
     @Override
     @SuppressWarnings("unchecked")
-    public FlowNode parse(Map<String, Object> yaml) {
+    public FlowNode parse(ParseContext ctx) {
         // 判断是 any 还是 all
-        Object anyRaw = yaml.get("any");
-        Object allRaw = yaml.get("all");
+        Object anyRaw = ctx.get("any");
+        Object allRaw = ctx.get("all");
         boolean isAny = anyRaw != null;
 
         List<?> conditionList = (List<?>) (isAny ? anyRaw : allRaw);
         FlowNodeType type = isAny ? FlowNodeType.ANY : FlowNodeType.ALL;
 
         if (conditionList == null || conditionList.isEmpty()) {
-            throw new cn.warriorview.script.core.ScriptCompileException(
-                    type.name() + " node requires a non-empty list of conditions.");
+            throw ctx.error(type.name() + " node requires a non-empty list of conditions.");
         }
 
         // 解析子条件列表，每个子项可以是 CHECK、嵌套的 ANY/ALL
@@ -62,27 +62,26 @@ public final class CompositeCheckHandler implements cn.warriorview.script.core.S
 
                 if (childYaml.containsKey("any") || childYaml.containsKey("all")) {
                     // 嵌套的 ANY/ALL 节点
-                    children.add(ScriptParser.parseFlowNode(childYaml));
+                    children.add(ScriptParser.parseFlowNode(ctx.withAttrs(childYaml)));
                 } else {
                     // 普通 CHECK 条件（复用 CheckNodeHandler.parse）
-                    children.add(FlowNodeType.CHECK.handler().parse(childYaml));
+                    children.add(FlowNodeType.CHECK.handler().parse(ctx.withAttrs(childYaml)));
                 }
             } else {
-                throw new cn.warriorview.script.core.ScriptCompileException(
-                        "Invalid condition in " + type.name() + " node: " + item);
+                throw ctx.error("Invalid condition in " + type.name() + " node: " + item);
             }
         }
 
-        ImmutableMap.Builder<String, Object> attrs = ImmutableMap.builder();
-        attrs.put("children", children.build());
+        ImmutableMap.Builder<String, Object> nodeAttrs = ImmutableMap.builder();
+        nodeAttrs.put("children", children.build());
 
         // 支持 on_fail
-        List<?> onFailRaw = (List<?>) yaml.get("on_fail");
+        List<?> onFailRaw = ctx.get("on_fail");
         if (onFailRaw != null) {
-            attrs.put("onFailNodes", ScriptParser.parseFlow(onFailRaw));
+            nodeAttrs.put("onFailNodes", ScriptParser.parseFlow(onFailRaw));
         }
 
-        return new FlowNode(type, attrs.build());
+        return new FlowNode(type, nodeAttrs.build());
     }
 
     @Override
@@ -126,7 +125,7 @@ public final class CompositeCheckHandler implements cn.warriorview.script.core.S
                 int jumpOp = emitter.emitCondition(child, mv, ctx);
                 mv.visitJumpInsn(jumpOp, passLabel);
             } else {
-                throw new cn.warriorview.script.core.ScriptCompileException(
+                throw cn.warriorview.script.core.ScriptCompileException.create(child,
                         "Node type " + child.type() + " is not supported inside ANY node.");
             }
             ctx.restoreNarrowed(branchSnapshot);
@@ -172,7 +171,7 @@ public final class CompositeCheckHandler implements cn.warriorview.script.core.S
                 int invertedOp = ASMUtils.invertJump(jumpOp);
                 mv.visitJumpInsn(invertedOp, failLabel);
             } else {
-                throw new cn.warriorview.script.core.ScriptCompileException(
+                throw cn.warriorview.script.core.ScriptCompileException.create(child,
                         "Node type " + child.type() + " is not supported inside ALL node.");
             }
             ctx.restoreNarrowed(branchSnapshot);
