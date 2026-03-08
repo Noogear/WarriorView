@@ -3,7 +3,7 @@ package cn.warriorview.manager;
 import cn.warriorview.animation.definition.AnimationDef;
 import cn.warriorview.api.manager.AnimationManager;
 import cn.warriorview.configFile.AnimationConfig;
-import cn.warriorview.listener.DamageHandler;
+import cn.warriorview.listener.IndicatorHandler;
 
 import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
@@ -16,18 +16,18 @@ import java.util.stream.Collectors;
 /**
  * {@link AnimationManager} 的 Core 实现。
  *
- * <p>职责限定为动画播放、动画查询、伤害指示器触发和动画定义重载。
+ * <p>职责限定为动画播放、动画查询、指示器触发和动画定义重载。
  * 跨模块的全局重载由 {@link cn.warriorview.Main} 直接协调。</p>
  */
 public final class AnimationManagerImpl implements AnimationManager {
 
     private final AnimationConfig config;
-    private final DamageHandler   damageHandler;
+    private final IndicatorHandler indicatorHandler;
 
     public AnimationManagerImpl(AnimationConfig config,
-                                DamageHandler damageHandler) {
-        this.config        = config;
-        this.damageHandler = damageHandler;
+                                IndicatorHandler indicatorHandler) {
+        this.config           = config;
+        this.indicatorHandler = indicatorHandler;
     }
 
     @Override
@@ -39,9 +39,9 @@ public final class AnimationManagerImpl implements AnimationManager {
     }
 
     @Override
-    public boolean showDamageIndicator(Entity victim, Entity attacker,
-                                       double finalDamage, String tag) {
-        return damageHandler.onDamage(victim, attacker, finalDamage, tag);
+    public boolean showIndicator(Entity victim, Entity attacker,
+                                  double finalDamage, String tag) {
+        return indicatorHandler.onIndicator(victim, attacker, finalDamage, tag);
     }
 
     @Override

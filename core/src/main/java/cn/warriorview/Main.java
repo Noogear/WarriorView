@@ -9,7 +9,7 @@ import cn.warriorview.configFile.AnimationConfig;
 import cn.warriorview.configFile.IndicatorConfigLoader;
 import cn.warriorview.configFile.MessageConfig;
 import cn.warriorview.configFile.PluginConfig;
-import cn.warriorview.listener.DamageHandler;
+import cn.warriorview.listener.IndicatorHandler;
 import cn.warriorview.manager.AnimationManagerImpl;
 import cn.warriorview.manager.BukkitScriptManager;
 import cn.warriorview.util.Log;
@@ -39,7 +39,7 @@ public class Main extends JavaPlugin implements WarriorView {
     private IndicatorConfigLoader indicatorConfigLoader;
     private PluginConfig pluginConfig;
     private MessageConfig messageConfig;
-    private DamageHandler damageHandler;
+    private IndicatorHandler indicatorHandler;
 
     @Override
     public void onEnable() {
@@ -87,20 +87,20 @@ public class Main extends JavaPlugin implements WarriorView {
         this.indicatorConfigLoader.load();
         if (pluginConfig.timingLog) Log.info("[Timing] indicators loaded in {} ms", System.currentTimeMillis() - t0);
 
-        // ── 伤害指示器（仅负责 quit 清理 + 引擎 tick，事件绑定由脚本驱动）──
-        this.damageHandler = new DamageHandler(
+        // ── 指示器引擎（仅负责 quit 清理 + 引擎 tick，事件绑定由脚本驱动）──
+        this.indicatorHandler = new IndicatorHandler(
                 animationConfig.getPlayer(),
                 indicatorConfigLoader,
                 pluginConfig.indicator.maxDistance);
-        getServer().getPluginManager().registerEvents(damageHandler, this);
-        animationScheduler.dispatchTimer(damageHandler::engineTick, 1L, 1L);
+        getServer().getPluginManager().registerEvents(indicatorHandler, this);
+        animationScheduler.dispatchTimer(indicatorHandler::engineTick, 1L, 1L);
 
         // ── 脚本系统（在动画系统就绪后初始化，action 需要 API） ─────────
         t0 = System.currentTimeMillis();
         this.scriptManager = new BukkitScriptManager(this);
 
         // ── API 门面 ─────────────────────────────────────────────────────
-        this.animationManager = new AnimationManagerImpl(animationConfig, damageHandler);
+        this.animationManager = new AnimationManagerImpl(animationConfig, indicatorHandler);
 
         // 先注册 API，再加载脚本（脚本 action 可能调用 API）
         WarriorViewAPI.register(this);

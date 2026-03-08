@@ -22,6 +22,6 @@ public final class BuiltinActions {
     @ScriptAction(value = "showIndicator", consumesPayload = false)
     public static void showIndicator(LivingEntity target, Entity source, double value, String tag) {
         WarriorViewAPI.getProvider().getAnimationManager()
-                .showDamageIndicator(target, source, value, tag);
+                .showIndicator(target, source, value, tag);
     }
 }

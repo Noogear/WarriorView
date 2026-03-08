@@ -7,6 +7,11 @@ import cn.warriorview.animation.data.OffsetExpr;
 import cn.warriorview.animation.definition.AnimationDef;
 import cn.warriorview.formatter.ValueFormatter;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+
+import java.util.regex.Pattern;
+
 import gloomlib.configuration.api.ConfigurationPart;
 import gloomlib.configuration.api.annotation.DefaultResources;
 import gloomlib.configuration.api.annotation.Ignore;
@@ -62,14 +67,28 @@ public class IndicatorConfig extends ConfigurationPart {
     @Ignore public transient AnimationDef   animationDef;
     @Ignore public transient ValueFormatter formatter = ValueFormatter.NONE;
 
+    /**
+     * 加载期用 MiniMessage 预解析的 Component 模板。
+     * {@code \uFFFD}（U+FFFD）标记数值插入点，运行期通过 {@link #buildText} 替换，
+     * 完全跳过 MiniMessage 运行期解析，且正确保留该点的所有样式继承。
+     */
+    @Ignore public transient Component cachedTemplate = Component.empty();
+
+    /** 用于在 Component 树中定位数值插入点的预编译模式（加载期固定）。 */
+    private static final String VALUE_SENTINEL   = "\uFFFD";
+    private static final Pattern VALUE_PATTERN   = Pattern.compile(Pattern.quote(VALUE_SENTINEL));
+
     // ── @PostLoad：加载期跨注册表绑定 ───────────────────────────────────────
 
     @PostLoad
     public void resolve(IndicatorContext ctx) {
+        // 预解析 MiniMessage 模板：将 {damage} 替换为哨兵字符，后续运行期零解析开销
+        cachedTemplate = MiniMessage.miniMessage()
+                .deserialize(textFormat.replace("{damage}", VALUE_SENTINEL));
         if (ctx == null) return;
         animationDef = animation != null ? ctx.animationRegistry().get(animation) : null;
         formatter = ctx.numberFormatRegistry().buildFormatter(
-                numberFormat, ctx.charReplaceRegistry(), charReplace);
+                numberFormat, ctx.charReplaceRegistry(), charReplace, decimalPlaces);
     }
 
     // ── 便捷方法 ────────────────────────────────────────────────────────────
@@ -89,6 +108,20 @@ public class IndicatorConfig extends ConfigurationPart {
      * 使用加载期绑定的 {@link ValueFormatter}（quantize + 字符替换）。
      */
     public String formatValue(double value) {
-        return formatter.format(value, decimalPlaces);
+        return formatter.format(value);
+    }
+
+    /**
+     * 用预解析模板直接构造富文本 Component，运行期不进行任何 MiniMessage 解析。
+     *
+     * <p>{@link Component#replaceText} 在 Component 树中定位哨兵字符节点，
+     * 以 {@code num} 替换其文字内容，同时完整保留该位置的样式继承（颜色、渐变、装饰等）。</p>
+     *
+     * @param num 已由 {@link #formatValue} 格式化的数值字符串
+     */
+    public Component buildText(String num) {
+        return cachedTemplate.replaceText(b -> b
+                .match(VALUE_PATTERN)
+                .replacement((m, builder) -> builder.content(num).build()));
     }
 }

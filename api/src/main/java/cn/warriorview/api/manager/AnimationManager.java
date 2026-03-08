@@ -10,7 +10,7 @@ import java.util.Collection;
 /**
  * 动画系统的公共 API 门面。
  *
- * <p>职责：动画播放、动画查询、伤害指示器触发。</p>
+ * <p>职责：动画播放、动画查询、指示器触发。</p>
  * <p>通过 {@link cn.warriorview.api.WarriorViewAPI#getProvider()} 获取实现。</p>
  */
 public interface AnimationManager {
@@ -55,19 +55,19 @@ public interface AnimationManager {
      */
     Collection<String> getAnimationNames();
 
-    // ── 伤害指示器 ────────────────────────────────────────────────────────────
+    // ── 指示器 ──────────────────────────────────────────────────────────────
 
     /**
-     * 处理一次伤害事件并生成伤害指示器动画。
+     * 处理一次事件并生成指示器动画（伤害、治愈等）。
      *
-     * @param victim      受击实体
-     * @param attacker    攻击者（触发者）
-     * @param finalDamage 最终伤害值
+     * @param victim      目标实体
+     * @param attacker    来源实体（触发者）
+     * @param finalDamage 最终数值（伤害、治愈量等）
      * @param tag         配置标记，用于匹配 {@code indicator/} 配置文件中的条目；
      *                    传入 {@code null} 或空串时回退到 {@code default} 配置
      * @return 是否至少有一名玩家在范围内看到了指示器
      */
-    boolean showDamageIndicator(Entity victim, Entity attacker, double finalDamage, String tag);
+    boolean showIndicator(Entity victim, Entity attacker, double finalDamage, String tag);
 
     // ── 重载 ─────────────────────────────────────────────────────────────────
 

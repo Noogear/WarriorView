@@ -4,6 +4,7 @@ import cn.warriorview.animation.data.BakedFrame;
 import cn.warriorview.animation.data.BakedSequence;
 import cn.warriorview.animation.data.DisplaySettings;
 import cn.warriorview.animation.definition.AnimationDef;
+import cn.warriorview.animation.definition.EquationDef;
 import cn.warriorview.animation.definition.PresetDef;
 
 import io.netty.util.internal.shaded.org.jctools.queues.MpscUnboundedArrayQueue;
@@ -31,7 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *  │ Main / event thread(s)                                              │
  *  │   play(def, anchor, text, viewers)  ─── MPSC queue ──►             │
  *  ├─────────────────────────────────────────────────────────────────────┤
- *  │ Single engine thread  (called once per tick from DamageHandler)     │
+ *  │ Single engine thread  (called once per tick from IndicatorHandler)  │
  *  │   tick()                                                            │
  *  │     1. Advance active instances → frameInto(…, collector)          │
  *  │     2. Destroy finished instances → destroyInto(…, collector)      │
@@ -147,7 +148,8 @@ public final class AnimationPlayer {
 
         pendingSpawn.relaxedOffer(
                 new AnimationInstance(entityId, entityUid, seq, spawnAt, text,
-                        settingsOverride, viewers, viewerCount));
+                        settingsOverride, viewers, viewerCount,
+                        !(concrete instanceof EquationDef)));
         wakeUp();
     }
 
@@ -180,6 +182,7 @@ public final class AnimationPlayer {
                 // dispatchLater fired: send destroy packet now and evict.
                 TextDisplayPackets.destroyInto(
                         inst.entityId, inst.viewers, inst.viewerCount, collector);
+                if (!inst.keyframe) TextDisplayPackets.evictFrameCache(inst.sequence.frames());
                 active.remove(i);
                 continue;
             }
@@ -314,6 +317,9 @@ public final class AnimationPlayer {
         final Player[]         viewers;
         int                    viewerCount; // mutable: reduced by cullViewers() on disconnect
 
+        /** True for keyframe animations (shared BakedFrames); false for equation (per-instance frames). */
+        final boolean          keyframe;
+
         /** Ticks elapsed since this instance was spawned.  0 on the spawn tick. */
         int age          = 0;
         /** Index of the next frame yet to be sent.  Frame[0] is sent at spawn time. */
@@ -329,7 +335,8 @@ public final class AnimationPlayer {
         AnimationInstance(int entityId, UUID entityUid, BakedSequence sequence,
                           Location spawnAt, Component text,
                           DisplaySettings settingsOverride,
-                          Player[] viewers, int viewerCount) {
+                          Player[] viewers, int viewerCount,
+                          boolean keyframe) {
             this.entityId         = entityId;
             this.entityUid        = entityUid;
             this.sequence         = sequence;
@@ -338,6 +345,7 @@ public final class AnimationPlayer {
             this.settingsOverride = settingsOverride;
             this.viewers          = viewers;
             this.viewerCount      = viewerCount;
+            this.keyframe         = keyframe;
         }
     }
 

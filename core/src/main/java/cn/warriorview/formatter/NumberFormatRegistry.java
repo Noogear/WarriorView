@@ -160,36 +160,39 @@ public final class NumberFormatRegistry implements NumberFormatManager {
     /**
      * 根据量化规则名称和字符替换规则，在加载期构建一个组合的 {@link ValueFormatter}。
      *
-     * @param nfName  量化规则名称（可为 null）
-     * @param crr     字符替换规则注册表
-     * @param crName  字符替换规则名称（可为 null）
+     * <p>所有配置参数（{@code decimalPlaces}、{@code scale} 等）均在此时绑定到闭包中，
+     * 运行期 {@link ValueFormatter#format(double)} 无额外分支判断。</p>
+     *
+     * @param nfName        量化规则名称（可为 null）
+     * @param crr           字符替换规则注册表
+     * @param crName        字符替换规则名称（可为 null）
+     * @param decimalPlaces 小数位数（绑定到闭包，运行期不再传递）
      */
-    public ValueFormatter buildFormatter(String nfName, CharReplaceRegistry crr, String crName) {
+    public ValueFormatter buildFormatter(String nfName, CharReplaceRegistry crr, String crName, int decimalPlaces) {
         CompactNumberFormatter compact  = nfName != null ? store.get(nfName) : null;
         CharReplacer           replacer = crr.get(crName);
 
         final boolean hasFmt     = compact != null;
         final boolean hasReplace = !(replacer instanceof CharReplacer.None);
 
-        if (!hasFmt && !hasReplace) return ValueFormatter.NONE;
+        if (!hasFmt && !hasReplace) return ValueFormatter.decimal(decimalPlaces);
+
+        final int p = Math.max(0, decimalPlaces);
 
         if (hasFmt && !hasReplace) {
             CompactNumberFormatter f = compact;
-            return (v, dp) -> f.format(v, Math.max(0, dp));
+            return v -> f.format(v, p);
         }
 
         if (!hasFmt) {
             CharReplacer r = replacer;
-            return (v, dp) -> {
-                int p = Math.max(0, dp);
-                String raw = p == 0 ? Long.toString((long) v) : String.format("%." + p + "f", v);
-                return r.apply(raw);
-            };
+            ValueFormatter base = ValueFormatter.decimal(decimalPlaces);
+            return v -> r.apply(base.format(v));
         }
 
         CompactNumberFormatter f = compact;
         CharReplacer r = replacer;
-        return (v, dp) -> r.apply(f.format(v, Math.max(0, dp)));
+        return v -> r.apply(f.format(v, p));
     }
 
     // ── 文件工具 ────────────────────────────────────────────────────────────

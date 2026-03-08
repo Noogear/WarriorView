@@ -173,8 +173,14 @@ public class BukkitScriptManager implements ScriptHost, ScriptManager {
     // ── ScriptHost SPI ──────────────────────────────────────────────────
 
     @Override
-    @SuppressWarnings("unchecked")
     public Object registerEvent(Class<?> payloadClass, int priority, Consumer<Object> handler) {
+        return registerEvent(payloadClass, priority, false, handler);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Object registerEvent(Class<?> payloadClass, int priority, boolean ignoreCancelled,
+                                Consumer<Object> handler) {
         if (!Event.class.isAssignableFrom(payloadClass)) {
             throw new IllegalArgumentException(
                     "Payload class must extend org.bukkit.event.Event: " + payloadClass.getName());
@@ -197,7 +203,8 @@ public class BukkitScriptManager implements ScriptHost, ScriptManager {
             }
         };
 
-        Bukkit.getPluginManager().registerEvent(eventClass, listener, bukkitPriority, executor, plugin);
+        Bukkit.getPluginManager().registerEvent(eventClass, listener, bukkitPriority, executor,
+                plugin, ignoreCancelled);
         return listener;
     }
 

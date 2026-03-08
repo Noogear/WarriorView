@@ -18,9 +18,9 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.UUID;
-import java.util.WeakHashMap;
 
 /**
  * Low-level PacketEvents wrapper for TextDisplay entity lifecycle and frame updates.
@@ -60,21 +60,20 @@ import java.util.WeakHashMap;
 public final class TextDisplayPackets {
 
     /**
-     * Per-frame transform metadata cache.
+     * Per-frame transform metadata cache: {@link BakedFrame} identity → pre-built {@link EntityData} list.
      *
-     * <p>A {@link BakedFrame} is fully immutable, so its 6-slot
-     * {@link EntityData} list can be built <em>once</em> and reused for every
-     * instance that plays through that frame.  For keyframe animations the
-     * entries live as long as the plugin is loaded (BakedFrames are held by
-     * KeyframeDef).  For equation animations the entries are automatically
-     * evicted by the GC when the AnimationInstance is discarded, because
-     * WeakHashMap uses weak keys.</p>
+     * <p>Uses {@link IdentityHashMap} for O(1) lookup via {@code System.identityHashCode()} —
+     * avoids the structural {@code hashCode()} of the {@link BakedFrame} record
+     * (which hashes all 15+ float fields of {@link TransformSnapshot} on every tick call).</p>
      *
-     * <p>Thread-safety: engine is single-consumer; WeakHashMap accesses are
-     * always on the same scheduler thread.</p>
+     * <p>Keyframe animation frames are long-lived (plugin lifetime); their entries persist
+     * indefinitely.  Equation animation frames are per-instance; call
+     * {@link #evictFrameCache(BakedFrame[])} when the instance is destroyed to release them.</p>
+     *
+     * <p>Thread-safety: engine is single-consumer; all accesses are on the same scheduler thread.</p>
      */
-    private static final WeakHashMap<BakedFrame, List<EntityData<?>>> FRAME_META_CACHE =
-            new WeakHashMap<>();
+    private static final IdentityHashMap<BakedFrame, List<EntityData<?>>> FRAME_META_CACHE =
+            new IdentityHashMap<>();
 
     private TextDisplayPackets() {}
 
@@ -172,12 +171,21 @@ public final class TextDisplayPackets {
      * Returns the cached immutable {@link EntityData} list for the given frame,
      * building and caching it on first access.
      *
-     * <p>The returned list is safe to pass to any number of concurrent
-     * {@link WrapperPlayServerEntityMetadata} wrappers because neither the list
-     * nor its elements are mutated after construction.</p>
+     * <p>Uses identity-based lookup: O(1) via {@code System.identityHashCode()},
+     * no structural field hashing.</p>
      */
     private static List<EntityData<?>> frameMetaOf(BakedFrame frame) {
         return FRAME_META_CACHE.computeIfAbsent(frame, TextDisplayPackets::buildFrameMetaList);
+    }
+
+    /**
+     * Removes all entries for the given frames from the cache.
+     * Called when an equation-animation instance is destroyed, so its
+     * {@link BakedFrame} objects (and the cached metadata lists) can be GC'd.
+     * Keyframe animation frames are long-lived and must NOT be evicted.
+     */
+    static void evictFrameCache(BakedFrame[] frames) {
+        for (BakedFrame f : frames) FRAME_META_CACHE.remove(f);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

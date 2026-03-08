@@ -9,7 +9,6 @@ import cn.warriorview.configFile.IndicatorConfigLoader;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
 
 import com.github.retrooper.packetevents.util.Vector3d;
 
@@ -19,6 +18,7 @@ import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -28,28 +28,28 @@ import io.netty.util.internal.shaded.org.jctools.queues.MpscUnboundedArrayQueue;
 import java.util.UUID;
 
 /**
- * 伤害指示器引擎：接收伤害事件快照，在专用线程上执行位置计算、文字格式化并驱动动画。
+ * 指示器引擎：接收事件快照（伤害、治愈等），在专用线程上执行位置计算、文字格式化并驱动动画。
  *
  * <p>主要流程：</p>
  * <ol>
- *   <li>主线程调用 {@link #onDamage} → 按距离过滤观察者，生成 {@link DamageIndicator} 快照入队</li>
- *   <li>引擎线程 {@link #engineTick} → 去重/合并同 tick 同实体同配置的伤害 → 按
+ *   <li>主线程调用 {@link #onIndicator} → 按距离过滤观察者，生成 {@link IndicatorSnapshot} 快照入队</li>
+ *   <li>引擎线程 {@link #engineTick} → 去重/合并同 tick 同实体同配置的数值 → 按
  *       {@link IndicatorConfig} 决定位置策略、文字模板、动画名称 → 播放动画</li>
  * </ol>
  *
- * <p>每次伤害事件携带一个 <b>tag</b>（可为 null），通过 {@link IndicatorConfigLoader}
- * 映射到具体的 {@link IndicatorConfig}，不同 tag 可产生完全不同外观的伤害指示器。</p>
+ * <p>每次事件携带一个 <b>tag</b>（可为 null），通过 {@link IndicatorConfigLoader}
+ * 映射到具体的 {@link IndicatorConfig}，不同 tag 可产生完全不同外观的指示器。</p>
  */
-public class DamageHandler implements Listener {
+public class IndicatorHandler implements Listener {
 
     // ── Queues shared between main thread and engine thread ──────────────────
-    private final MpscUnboundedArrayQueue<DamageIndicator> eventQueue = new MpscUnboundedArrayQueue<>(2048);
+    private final MpscUnboundedArrayQueue<IndicatorSnapshot> eventQueue = new MpscUnboundedArrayQueue<>(2048);
     private final MpscUnboundedArrayQueue<Player>          quitQueue  = new MpscUnboundedArrayQueue<>(128);
 
     // ── Engine-thread-only state (single consumer, no locks) ─────────────────
     /**
      * Per-tick deduplication: composite key → accumulated indicator.
-     * Key = (configIdentityHash << 32) | entityId，同 tick 同实体同配置的多次伤害会合并。
+     * Key = (configIdentityHash << 32) | entityId，同 tick 同实体同配置的多次数值会合并。
      */
     private final Long2ObjectOpenHashMap<ActiveIndicator> tickAccumulator = new Long2ObjectOpenHashMap<>();
 
@@ -58,11 +58,10 @@ public class DamageHandler implements Listener {
     private final IndicatorConfigLoader configLoader;
 
     private final double maxDistanceSq;
-    private static final MiniMessage MINI = MiniMessage.miniMessage();
 
-    public DamageHandler(AnimationPlayer animationPlayer,
-                         IndicatorConfigLoader configLoader,
-                         double maxDistance) {
+    public IndicatorHandler(AnimationPlayer animationPlayer,
+                            IndicatorConfigLoader configLoader,
+                            double maxDistance) {
         this.animationPlayer = animationPlayer;
         this.configLoader    = configLoader;
         this.maxDistanceSq   = maxDistance * maxDistance;
@@ -71,19 +70,28 @@ public class DamageHandler implements Listener {
     // ── Main-thread event sinks ───────────────────────────────────────────────
 
     /**
-     * 处理一次伤害事件。按距离过滤观察者后将快照入队到引擎线程。
+     * 处理一次指示器事件。按距离过滤观察者后将快照入队到引擎线程。
      *
-     * @param victim      受击实体
-     * @param attacker    攻击者
-     * @param finalDamage 最终伤害值
+     * @param victim      目标实体
+     * @param attacker    来源实体（可为 null；投射物实体会自动溯源到发射者进行 only-player 判定）
+     * @param finalDamage 最终数值（伤害、治愈量等）
      * @param tag         配置标记（可为 null 或空串，回退到 {@code default} 配置）
      * @return 是否至少有一名观察者在范围内
      */
-    public boolean onDamage(Entity victim, Entity attacker, double finalDamage, String tag) {
+    public boolean onIndicator(Entity victim, Entity attacker, double finalDamage, String tag) {
         IndicatorConfig config = configLoader.get(tag);
 
-        // only-player 检查：若配置要求仅玩家触发，非玩家攻击直接跳过
-        if (config.onlyPlayer && !(attacker instanceof Player)) return false;
+        // only-player 检查：投射物溯源到发射者再判定
+        if (config.onlyPlayer) {
+            Entity real = attacker;
+            if (attacker instanceof Projectile proj && proj.getShooter() instanceof Entity shooter) {
+                real = shooter;
+            }
+            if (!(real instanceof Player)) return false;
+        }
+
+        // null attacker 回退到 victim（治愈等场景 / API 容错）
+        if (attacker == null) attacker = victim;
 
         var trackers = victim.getTrackedBy();
         if (trackers.isEmpty()) return false;
@@ -107,7 +115,7 @@ public class DamageHandler implements Listener {
         float attackerPitch = attacker.getPitch();
         float attackerYaw   = attacker.getYaw();
 
-        eventQueue.relaxedOffer(new DamageIndicator(
+        eventQueue.relaxedOffer(new IndicatorSnapshot(
                 config,
                 finalDamage,
                 eyeX, eyeY, eyeZ,
@@ -134,9 +142,9 @@ public class DamageHandler implements Listener {
             animationPlayer.removeViewer(q);
         }
 
-        // ── Phase 1: drain events, accumulate damage per entity + config ─────
+        // ── Phase 1: drain events, accumulate values per entity + config ─────
         tickAccumulator.clear();
-        DamageIndicator event;
+        IndicatorSnapshot event;
         while ((event = eventQueue.poll()) != null) {
             long key = accumKey(event.vId, event.config);
 
@@ -157,7 +165,7 @@ public class DamageHandler implements Listener {
                         event.viewers, event.viewerCount);
                 tickAccumulator.put(key, ind);
             } else {
-                ind.damage += event.finalDamage; // merge multi-hit within same tick
+                ind.damage += event.finalDamage; // merge multi-event within same tick
             }
         }
 
@@ -182,26 +190,16 @@ public class DamageHandler implements Listener {
 
     // ── Formatting ────────────────────────────────────────────────────────────
 
-    /**
-     * 根据 {@link IndicatorConfig} 格式化伤害数值并返回富文本 Component。
-     * <ol>
-     *   <li>将数值交给 {@link cn.warriorview.util.formatter.NumberFormat} 进行
-     *       quantize + 字符替换</li>
-     *   <li>将结果填入 {@code text-format} 中的 {@code {damage}} 占位符</li>
-     *   <li>通过 MiniMessage 活化预设的标签（颜色、标签等）</li>
-     * </ol>
-     */
+    /** 格式化数值并返回富文本 Component（运行期零 MiniMessage 解析）。 */
     private static Component formatDamage(double damage, IndicatorConfig config) {
-        String num = config.formatValue(damage);
-        String raw = config.textFormat.replace("{damage}", num);
-        return MINI.deserialize(raw);
+        return config.buildText(config.formatValue(damage));
     }
 
     // ── Accumulator key ───────────────────────────────────────────────────────
 
     /**
      * 组合键：高 32 位为 config 的 identity hash，低 32 位为 entity id。
-     * 同 tick 同实体同配置的伤害事件会合并到一个 ActiveIndicator 中。
+     * 同 tick 同实体同配置的事件会合并到一个 ActiveIndicator 中。
      */
     private static long accumKey(int entityId, IndicatorConfig config) {
         return ((long) System.identityHashCode(config) << 32) | (entityId & 0xFFFFFFFFL);
@@ -213,7 +211,7 @@ public class DamageHandler implements Listener {
      * 不可变事件快照，在主线程生成，传递到引擎线程处理。
      * 携带 {@link IndicatorConfig} 引用以决定位置策略、文字模板和动画名称。
      */
-    private record DamageIndicator(
+    private record IndicatorSnapshot(
             IndicatorConfig config,
             double   finalDamage,
             double   aX, double aY, double aZ,
