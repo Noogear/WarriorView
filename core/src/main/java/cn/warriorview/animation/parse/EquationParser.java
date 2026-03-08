@@ -58,7 +58,7 @@ public final class EquationParser {
 
         ConfigurationSection math = section.getConfigurationSection("math");
         if (math == null) {
-            System.err.println("[StrikeView] Equation animation '" + name + "' is missing a 'math:' section.");
+            System.err.println("[WarriorView] Equation animation '" + name + "' is missing a 'math:' section.");
             return null;
         }
 
@@ -88,7 +88,7 @@ public final class EquationParser {
                     opacity
             );
         } catch (Exception e) {
-            System.err.println("[StrikeView] Failed to compile equation for '" + name + "': " + e.getMessage());
+            System.err.println("[WarriorView] Failed to compile equation for '" + name + "': " + e.getMessage());
             return null;
         }
     }
@@ -113,7 +113,7 @@ public final class EquationParser {
     }
 
     private static void plugin_warn(String name, String msg) {
-        System.err.println("[StrikeView] Animation '" + name + "' – " + msg);
+        System.err.println("[WarriorView] Animation '" + name + "' – " + msg);
     }
 
     private static MathEngine.CompiledMathExpression compile(

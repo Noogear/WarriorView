@@ -1,7 +1,7 @@
 package cn.warriorview.command;
 
+import cn.warriorview.api.WarriorView;
 import cn.warriorview.api.WarriorViewAPI;
-import cn.warriorview.api.manager.AnimationManager;
 import cn.warriorview.configFile.MessageConfig;
 
 import com.mojang.brigadier.Command;
@@ -46,7 +46,7 @@ public final class WarriorViewCommand {
         manager.registerEventHandler(LifecycleEvents.COMMANDS, event -> {
             Commands commands = event.registrar();
             commands.register(buildCommand(), "WarriorView 管理命令",
-                    java.util.List.of("wv", "sv", "strikeview"));
+                    java.util.List.of("wv", "sv"));
         });
     }
 
@@ -121,13 +121,13 @@ public final class WarriorViewCommand {
 
     @SuppressWarnings("UnstableApiUsage")
     private static void reload(CommandSourceStack source, String target) {
-        AnimationManager mgr = WarriorViewAPI.getProvider().getAnimationManager();
-        MessageConfig msg = ((cn.warriorview.Main) WarriorViewAPI.getProvider()).getMessageConfig();
+        WarriorView provider = WarriorViewAPI.getProvider();
+        MessageConfig msg = ((cn.warriorview.Main) provider).getMessageConfig();
         long start = System.currentTimeMillis();
 
         if ("all".equals(target)) {
             msg.smartReload();
-            Map<String, Boolean> changes = mgr.smartReloadAll();
+            Map<String, Boolean> changes = provider.smartReloadAll();
             long elapsed = System.currentTimeMillis() - start;
 
             source.getSender().sendMessage(msg.prefixed(msg.reload.smartComplete, of("elapsed", elapsed)));
@@ -139,11 +139,11 @@ public final class WarriorViewCommand {
         }
 
         switch (target) {
-            case "animations"  -> mgr.reloadAnimations();
-            case "indicators"  -> mgr.reloadIndicatorConfigs();
-            case "formatters"  -> mgr.reloadFormatters();
-            case "scripts"     -> mgr.reloadScripts();
-            default            -> mgr.reloadAll();
+            case "animations"  -> provider.getAnimationManager().reload();
+            case "indicators"  -> provider.getIndicatorManager().reload();
+            case "formatters"  -> { provider.getNumberFormatManager().reload(); provider.getCharReplaceManager().reload(); }
+            case "scripts"     -> provider.getScriptManager().reloadMappings();
+            default            -> provider.reloadAll();
         }
 
         long elapsed = System.currentTimeMillis() - start;
@@ -172,7 +172,7 @@ public final class WarriorViewCommand {
     @SuppressWarnings("UnstableApiUsage")
     private static void listIndicators(CommandSourceStack source) {
         MessageConfig msg = ((cn.warriorview.Main) WarriorViewAPI.getProvider()).getMessageConfig();
-        Collection<String> tags = WarriorViewAPI.getProvider().getAnimationManager().getIndicatorTags();
+        Collection<String> tags = WarriorViewAPI.getProvider().getIndicatorManager().getTags();
         source.getSender().sendMessage(msg.prefixed(msg.list.indicatorsHeader, of("count", tags.size())));
         tags.stream().sorted().forEach(tag ->
                 source.getSender().sendMessage(msg.format(msg.list.entry, of("name", tag))));
@@ -198,7 +198,7 @@ public final class WarriorViewCommand {
         source.getSender().sendMessage(msg.format(msg.info.header, of("version", provider.getVersion())));
         source.getSender().sendMessage(msg.format(msg.info.separator));
         source.getSender().sendMessage(msg.format(msg.info.animations, of("count", animMgr.getAnimationNames().size())));
-        source.getSender().sendMessage(msg.format(msg.info.indicators, of("count", animMgr.getIndicatorTags().size())));
+        source.getSender().sendMessage(msg.format(msg.info.indicators, of("count", provider.getIndicatorManager().getTags().size())));
         source.getSender().sendMessage(msg.format(msg.info.mappings, of("count", scriptMgr.getMappingIds().size())));
         source.getSender().sendMessage(msg.format(msg.info.actions, of("count", ActionNodeHandler.registry().all().size())));
         source.getSender().sendMessage(msg.format(msg.info.numberFormats, of("count", provider.getNumberFormatManager().getRuleNames().size())));

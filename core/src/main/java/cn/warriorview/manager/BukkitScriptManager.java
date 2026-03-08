@@ -1,7 +1,7 @@
 package cn.warriorview.manager;
 
 import cn.warriorview.api.manager.ScriptManager;
-import cn.warriorview.api.action.BuiltinActions;
+import cn.warriorview.action.BuiltinActions;
 import cn.warriorview.util.Log;
 import gloomlib.configuration.api.exception.LoadContext;
 import gloomlib.configuration.core.util.YamlLineIndex;
@@ -47,7 +47,7 @@ import java.util.function.Consumer;
  * Bukkit 平台脚本管理器。
  *
  * <p>实现 {@link ScriptHost}（gloomlib SPI）和 {@link ScriptManager}（公共 API）。
- * 从 {@code plugins/StrikeView/event-mapping/} 目录加载事件脚本，
+ * 从 {@code plugins/WarriorView/event-mapping/} 目录加载事件脚本，
  * 通过 gloomlib:script 解析并注册为 Bukkit 事件监听器。</p>
  */
 public class BukkitScriptManager implements ScriptHost, ScriptManager {

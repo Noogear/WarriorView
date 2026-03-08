@@ -4,6 +4,7 @@ import cn.warriorview.api.WarriorView;
 import cn.warriorview.api.WarriorViewAPI;
 import cn.warriorview.api.manager.AnimationManager;
 import cn.warriorview.api.manager.CharReplaceManager;
+import cn.warriorview.api.manager.IndicatorManager;
 import cn.warriorview.api.manager.NumberFormatManager;
 import cn.warriorview.api.manager.ScriptManager;
 import org.junit.jupiter.api.*;
@@ -77,10 +78,13 @@ class TestWarriorViewAPI {
     private WarriorView createMockWarriorView() {
         return new WarriorView() {
             @Override public AnimationManager getAnimationManager() { return null; }
+            @Override public IndicatorManager getIndicatorManager() { return null; }
             @Override public NumberFormatManager getNumberFormatManager() { return null; }
             @Override public CharReplaceManager getCharReplaceManager() { return null; }
             @Override public ScriptManager getScriptManager() { return null; }
             @Override public String getVersion() { return "test-1.0.0"; }
+            @Override public void reloadAll() { }
+            @Override public java.util.Map<String, Boolean> smartReloadAll() { return java.util.Map.of(); }
         };
     }
 }

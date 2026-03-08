@@ -1,5 +1,5 @@
 # ============================================================
-#  StrikeView — 伤害指示器事件映射
+#  WarriorView — 伤害指示器事件映射
 #
 #  监听 EntityDamageByEntityEvent，完整复现旧版 EntityDamage
 #  监听器逻辑：
@@ -8,6 +8,27 @@
 #    3. 暴击命中 → 使用 CRITICAL 标签并提前返回
 #    4. 药水云伤害 → 重映射为 MAGIC 标签并提前返回
 #    5. 默认使用 DamageCause.name() 作为标签
+#
+#  事件映射顶层字段：
+#    id         : 唯一标识（省略时使用文件名）
+#    event      : 监听的 Bukkit 事件全限定类名
+#    priority   : 事件优先级 — -2(LOWEST) / -1(LOW) / 0(NORMAL) /
+#                                1(HIGH) / 2(HIGHEST) / 3(MONITOR)
+#    variables  : 从事件对象提取变量（name: fieldPath），支持嵌套属性
+#    flow       : 条件与动作列表（顺序执行）
+#
+#  flow 条目格式：
+#    条件检查:
+#      - check: <变量名>
+#        op: <操作符>            # ==  !=  >  <  >=  <=  instanceof  !instanceof
+#        value: <期望值>         # instanceof 格式为 org/bukkit/entity/ClassName
+#        on_fail:               # 可选，条件不满足时执行
+#          - action: [args...]
+#          - return
+#
+#    动作调用:
+#      - showIndicator: [target, source, value, tag]
+#      - return                 # 提前返回
 # ============================================================
 
 id: damage-indicator

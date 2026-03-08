@@ -57,13 +57,15 @@ public class DamageHandler implements Listener {
     private final AnimationPlayer       animationPlayer;
     private final IndicatorConfigLoader configLoader;
 
-    private static final double MAX_DISTANCE_SQ = 24.0 * 24.0;
+    private final double maxDistanceSq;
     private static final MiniMessage MINI = MiniMessage.miniMessage();
 
     public DamageHandler(AnimationPlayer animationPlayer,
-                         IndicatorConfigLoader configLoader) {
+                         IndicatorConfigLoader configLoader,
+                         double maxDistance) {
         this.animationPlayer = animationPlayer;
         this.configLoader    = configLoader;
+        this.maxDistanceSq   = maxDistance * maxDistance;
     }
 
     // ── Main-thread event sinks ───────────────────────────────────────────────
@@ -92,7 +94,7 @@ public class DamageHandler implements Listener {
         double vX = victim.getX(), vY = victim.getY(), vZ = victim.getZ();
         for (Player p : trackers) {
             double dX = vX - p.getX(), dY = vY - p.getY(), dZ = vZ - p.getZ();
-            if (dX * dX + dY * dY + dZ * dZ <= MAX_DISTANCE_SQ) {
+            if (dX * dX + dY * dY + dZ * dZ <= maxDistanceSq) {
                 preciseViewers[validCount++] = p;
             }
         }

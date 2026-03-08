@@ -1,11 +1,13 @@
 # ============================================================
-#  StrikeView — 生命恢复指示器事件映射
+#  WarriorView — 生命恢复指示器事件映射
 #
 #  监听 EntityRegainHealthEvent，完整复现旧版 RegainHealth
 #  监听器逻辑：
 #    1. 守卫：实体必须为 LivingEntity
 #    2. 守卫：忽略零恢复
 #    3. 使用 RegainReason.name() 作为标签
+#
+#  事件映射字段说明请参见 damage-indicator.yml 的注释头。
 # ============================================================
 
 id: regain-indicator

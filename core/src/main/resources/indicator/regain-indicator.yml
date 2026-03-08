@@ -1,8 +1,14 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # 生命恢复指示器配置
 #
-# 每个顶层键对应一个 RegainReason 枚举名（自动匹配）。
-# 配置字段与伤害指示器一致，参见 damage-indicator.yml 注释。
+# 每个顶层键对应一个 RegainReason 枚举名（自动匹配），匹配不到时回退到 default。
+# 配置字段与伤害指示器一致，完整字段列表请参见 damage-indicator.yml 的注释头。
+#
+# 可用字段简表：
+#   text-format / decimal-places / position / animation / billboard /
+#   see-through / text-shadow / background / view-range / teleport-duration /
+#   brightness / shadow-radius / shadow-strength / glow-color / line-width /
+#   only-player / number-format / char-replace
 # ──────────────────────────────────────────────────────────────────────────────
 
 # 全局恢复兜底配置

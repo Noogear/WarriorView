@@ -1,4 +1,4 @@
-package cn.warriorview.api.action;
+package cn.warriorview.action;
 
 import cn.warriorview.api.WarriorViewAPI;
 import gloomlib.script.api.action.ActionRegistry.ScriptAction;

@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# StrikeView — 数字量化缩写规则（number-format.yml）
+# WarriorView — 数字量化缩写规则（number-format.yml）
 #
 # 每个顶层键定义一套命名规则，可在 indicator/ 配置文件的 number-format 字段中引用。
 #

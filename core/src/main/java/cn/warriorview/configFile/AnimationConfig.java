@@ -10,7 +10,7 @@ import org.bukkit.plugin.java.JavaPlugin;
  * Facade that wires together the animation sub-system components.
  *
  * <p>Call {@link #reload()} to (re-)scan all YAML files in
- * {@code plugins/StrikeView/animations/} and rebuild the registry.</p>
+ * {@code plugins/WarriorView/animations/} and rebuild the registry.</p>
  */
 public final class AnimationConfig {
 

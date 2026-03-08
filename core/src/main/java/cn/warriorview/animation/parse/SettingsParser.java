@@ -102,7 +102,7 @@ public final class SettingsParser {
                     MathEngine.compile(zExpr, OffsetExpr.VARS)
             );
         } catch (Exception e) {
-            System.err.println("[StrikeView] Failed to compile offset expression: " + e.getMessage());
+            System.err.println("[WarriorView] Failed to compile offset expression: " + e.getMessage());
             return OffsetExpr.ZERO;
         }
     }

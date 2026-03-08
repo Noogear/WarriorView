@@ -10,7 +10,7 @@ import org.jetbrains.annotations.NotNull;
  * 
  * <pre>{@code
  * WarriorView api = WarriorViewAPI.getProvider();
- * api.getAnimationManager().reloadAll();
+ * api.reloadAll();
  * }</pre>
  */
 public final class WarriorViewAPI {

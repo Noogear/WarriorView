@@ -3,18 +3,27 @@
 #
 # 每个顶层键对应一个 tag（标记），当脚本触发 showDamageIndicator action 时
 # 传入的第三个参数（tag）会匹配此处的键名，以确定 TextDisplay 的显示参数
-# 和生成策略。
+# 和生成策略。匹配不到时回退到 default。
 #
 # 配置字段说明：
-#   text-format  : MiniMessage 模板，{damage} 占位符会被替换为格式化后的伤害数值
-#   position     : 生成位置算法 —— PROJECTED / CLAMPED / RAY_TRACED / ATTACKER
-#   animation    : 关联的动画定义名称（在 animations/ 目录中定义）
-#   billboard    : TextDisplay 朝向约束 —— CENTER / VERTICAL / HORIZONTAL / FIXED
-#   see-through  : 是否穿透方块渲染（布尔值）
-#   text-shadow  : 是否显示文字阴影（布尔值）
-#   background   : ARGB 背景颜色（支持 0xAARRGGBB 格式或十进制整数）
-#   view-range   : 客户端可见距离（方块数，浮点）
-#   only-player  : 为 true 时仅在攻击者为玩家时触发指示器
+#   text-format        : MiniMessage 模板，{damage} 占位符替换为格式化后的伤害数值
+#   decimal-places     : 伤害数值保留的小数位数（int，默认 1）
+#   position           : 生成位置算法 —— PROJECTED / CLAMPED / RAY_TRACED / ATTACKER
+#   animation          : 关联的动画定义名称（在 animations/ 目录中定义）
+#   billboard          : TextDisplay 朝向约束 —— CENTER / VERTICAL / HORIZONTAL / FIXED
+#   see-through        : 是否穿透方块渲染（布尔值，默认 false）
+#   text-shadow        : 是否显示文字阴影（布尔值，默认 true）
+#   background         : ARGB 背景颜色（0xAARRGGBB 格式或十进制整数，默认 0x40000000）
+#   view-range         : 客户端可见距离倍率（float，默认 1.0）
+#   teleport-duration  : 位置 / 旋转插值 tick 数（int，默认 0 = 立即传送）
+#   brightness         : 亮度覆盖（int，-1 = 使用世界光照）
+#   shadow-radius      : 地面阴影半径（float，默认 0）
+#   shadow-strength    : 地面阴影强度（float，默认 1.0）
+#   glow-color         : 发光颜色覆盖（RGB int，默认 0）
+#   line-width         : 文本最大行宽像素（int，默认 200）
+#   only-player        : 为 true 时仅在攻击者为玩家时触发指示器（默认 true）
+#   number-format      : 数字量化缩写规则名称（引用 number-format.yml，null = 不缩写）
+#   char-replace       : 字符替换规则名称（引用 char-replace.yml，null = 不替换）
 # ──────────────────────────────────────────────────────────────────────────────
 
 # 全局兜底配置（tag 匹配不到时使用）

@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 从 {@code plugins/StrikeView/number-format.yml} 加载数字量化缩写规则。
+ * 从 {@code plugins/WarriorView/number-format.yml} 加载数字量化缩写规则。
  *
  * <p>每个顶层键为规则名称，值为 阈值→后缀 的映射。
  * 规则名称通过 {@code indicator/} 配置文件中的 {@code number-format} 字段引用。</p>
@@ -58,6 +58,16 @@ public final class NumberFormatRegistry implements NumberFormatManager {
     @Override
     public Collection<String> getRuleNames() {
         return store.keySet();
+    }
+
+    @Override
+    public String formatNumber(String ruleName, double value, int precision) {
+        CompactNumberFormatter fmt = store.get(ruleName);
+        if (fmt == null) {
+            int p = Math.max(0, precision);
+            return p == 0 ? Long.toString((long) value) : String.format("%%.%df".formatted(p), value);
+        }
+        return fmt.format(value, Math.max(0, precision));
     }
 
     @Override

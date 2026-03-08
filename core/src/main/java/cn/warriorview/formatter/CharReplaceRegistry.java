@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 从 {@code plugins/StrikeView/char-replace.yml} 加载字符替换规则。
+ * 从 {@code plugins/WarriorView/char-replace.yml} 加载字符替换规则。
  *
  * <p>每个顶层键为规则名称，值为 单字符→替换串 的映射。
  * 规则名称通过 {@code indicator/} 配置文件中的 {@code char-replace} 字段引用。</p>
@@ -57,6 +57,11 @@ public final class CharReplaceRegistry implements CharReplaceManager {
     @Override
     public Collection<String> getRuleNames() {
         return store.keySet();
+    }
+
+    @Override
+    public String replaceChars(String ruleName, String input) {
+        return get(ruleName).apply(input);
     }
 
     @Override

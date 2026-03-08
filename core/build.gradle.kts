@@ -1,7 +1,7 @@
 plugins {
     id("io.papermc.paperweight.userdev")
     id("xyz.jpenilla.run-paper")
-    id("io.github.goooler.shadow")
+    id("com.gradleup.shadow")
 }
 
 repositories {
@@ -12,15 +12,19 @@ dependencies {
     implementation(project(":api"))
     paperweight.paperDevBundle("1.21.1-R0.1-SNAPSHOT")
 
-    // GloomLib
-    implementation("gloomlib:configuration:1.2.2.0")
-    implementation("gloomlib:script:1.1.0.0")
-    implementation("gloomlib:math:1.1.0.0")
-    implementation("com.github.retrooper:packetevents-spigot:2.11.2")
-    
+    // GloomLib（纯库，须 shade 进 JAR）
+    val gloomlibVersion: String by project
+    implementation("gloomlib:configuration:$gloomlibVersion")
+    implementation("gloomlib:script:$gloomlibVersion")
+    implementation("gloomlib:math:$gloomlibVersion")
+
+    // PacketEvents（独立插件，运行时由服务端加载，不 shade）
+    compileOnly("com.github.retrooper:packetevents-spigot:2.11.2")
+
     // 使得测试可以使用被 PaperAPI 打包进来的依赖
     testImplementation("com.google.guava:guava:33.2.1-jre")
     testImplementation("org.yaml:snakeyaml:2.2")
+    testImplementation("com.github.retrooper:packetevents-spigot:2.11.2")
 
     // JUnit 5
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
@@ -42,9 +46,8 @@ tasks {
     shadowJar {
         archiveClassifier.set("")
 
-        // 重定位 packetevents，避免与其他插件冲突
-        // 注意：packetevents 作为独立插件加载时不需要重定位
-        // 仅在 shade 进 JAR 时才需要
+        // 重定位 GloomLib，避免与其他使用 GloomLib 的插件冲突
+        relocate("gloomlib", "cn.warriorview.libs.gloomlib")
     }
 
     processResources {

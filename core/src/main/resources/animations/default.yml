@@ -1,6 +1,49 @@
 # ============================================================
-#  StrikeView — 默认动画配置文件
+#  WarriorView — 默认动画配置文件
 #  根键为 `animation:` → 由 AnimationFileLoader 加载为动画注册表
+#
+#  动画类型：
+#    keyframe  — 关键帧动画，使用语法糖或原生 NMS 参数
+#    equation  — 方程式动画，使用 gloomlib-math 表达式
+#    preset    — 预设引用，复用 presets/ 中的定义
+#
+#  settings 共享字段：
+#    billboard          : FIXED / VERTICAL / HORIZONTAL / CENTER
+#    see-through        : 穿透方块渲染（布尔值，默认 false）
+#    text-shadow        : 文字阴影（布尔值，默认 false）
+#    background         : ARGB 颜色字符串（如 "#40000000"）或 "transparent"
+#    view-range         : 可见距离倍率（float，默认 1.0）
+#    teleport-duration  : 插值 tick 数（int，默认 0）
+#    brightness         : 亮度覆盖（int，-1 = 世界光照）
+#    shadow-radius      : 阴影半径（float，默认 0）
+#    shadow-strength    : 阴影强度（float，默认 1.0）
+#    glow-color         : 发光颜色 RGB（int，默认 0）
+#    line-width         : 最大行宽像素（int，默认 200）
+#    offset:            : 每实例随机偏移
+#      x/y/z            : 数字（固定偏移）或字符串表达式（变量 r ∈ [0,1)）
+#
+#  keyframe timeline 语法糖字段：
+#    move               : {up, down, right, left, forward, backward} — 相对位移
+#    size               : 数字（统一缩放）或 {width, height} — 非均匀缩放
+#    tilt               : {left, right} — Z轴旋转角度
+#    spin               : {left, right} — Y轴旋转角度
+#    opacity            : "N%" 或 0-127 — 文本透明度
+#
+#  keyframe timeline 原生字段（优先于语法糖）：
+#    translation        : [x, y, z] — 绝对位置
+#    scale              : [x, y, z] — 缩放
+#    left_rotation      : [x,y,z,w] 四元数 或 [ex,ey,ez] 欧拉角
+#    right_rotation     : [x,y,z,w] 四元数 或 [ex,ey,ez] 欧拉角
+#    text_opacity       : 0-127 — 不透明度
+#
+#  equation 字段：
+#    duration           : 持续 tick 数（int 或表达式字符串）
+#    sample_interval    : 采样间隔 tick 数
+#    math:
+#      position: {x, y, z}  — 位置表达式（变量 t=tick, r=random）
+#      scale:    {x, y, z}  — 缩放表达式
+#      rotation: {x, y, z}  — 欧拉角旋转表达式
+#      opacity:             — 不透明度表达式（0-127）
 # ============================================================
 
 animation:

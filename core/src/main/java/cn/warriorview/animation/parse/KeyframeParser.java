@@ -57,7 +57,7 @@ public final class KeyframeParser {
 
         List<?> rawTimeline = section.getList("timeline");
         if (rawTimeline == null || rawTimeline.isEmpty()) {
-            System.err.println("[StrikeView] Keyframe animation '" + name + "' has no timeline.");
+            System.err.println("[WarriorView] Keyframe animation '" + name + "' has no timeline.");
             return null;
         }
 

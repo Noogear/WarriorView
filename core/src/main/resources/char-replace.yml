@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# StrikeView — 字符替换规则（char-replace.yml）
+# WarriorView — 字符替换规则（char-replace.yml）
 #
 # 每个顶层键定义一套命名规则，可在 indicator/ 配置文件的 char-replace 字段中引用。
 #

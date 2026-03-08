@@ -27,7 +27,7 @@ import java.util.List;
 
 /**
  * Loads animation and preset definitions from YAML files stored in
- * {@code plugins/StrikeView/animations/} (and its sub-directories).
+ * {@code plugins/WarriorView/animations/} (and its sub-directories).
  *
  * <h3>File type detection</h3>
  * The root key of each YAML file determines how it is parsed:
