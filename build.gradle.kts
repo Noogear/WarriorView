@@ -12,6 +12,7 @@ subprojects {
     version = "1.1.1"
 
     repositories {
+        mavenLocal()
         maven("https://maven.aliyun.com/repository/public")
         mavenCentral()
         maven("https://repo.papermc.io/repository/maven-public/")

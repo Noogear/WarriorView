@@ -1,0 +1,119 @@
+# ============================================================
+#  StrikeView — 通用预设库
+#  根键为 `preset:` → 由 AnimationFileLoader 在第一轮优先加载
+#  预设定义后可被 `type: preset` 的动画引用，实现配置复用
+# ============================================================
+
+preset:
+
+  # ----------------------------------------------------------
+  # 预设 1：简单上浮淡出（伤害数字通用模板）
+  # ----------------------------------------------------------
+  float_fade:
+    type: keyframe
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      view-range: 24
+      offset:
+        x: "r * 0.5 - 0.25"
+        y: "r * 0.3"
+        z: "r * 0.5 - 0.25"
+
+    timeline:
+      - time: 0
+        size: 1.0
+        opacity: 100%
+
+      - duration: 6
+        size: 1.4
+        move:
+          up: 0.1
+        opacity: 100%
+
+      - duration: 12
+        size: 1.0
+        move:
+          up: 0.35
+        opacity: 100%
+
+      - duration: 12
+        move:
+          up: 0.25
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # 预设 2：爆炸弹跳（大暴击特效）
+  # ----------------------------------------------------------
+  bounce_explode:
+    type: keyframe
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      view-range: 32
+      offset:
+        x: "r * 0.8 - 0.4"
+        y: "0"
+        z: "r * 0.8 - 0.4"
+
+    timeline:
+      - time: 0
+        size: 0.3
+        opacity: 0%
+
+      # 快速弹出
+      - duration: 3
+        size: 2.0
+        opacity: 100%
+
+      # 回弹缩小
+      - duration: 3
+        size: 1.2
+        move:
+          up: 0.05
+
+      # 略微放大维持
+      - duration: 2
+        size: 1.4
+
+      # 上浮淡出
+      - duration: 20
+        size: 0.8
+        move:
+          up: 0.6
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # 预设 3：螺旋上升（方程式，适合特殊技能特效）
+  # ----------------------------------------------------------
+  spiral_rise:
+    type: equation
+    settings:
+      billboard: center
+      see-through: false
+      background: "transparent"
+      view-range: 28
+      offset:
+        x: "r * 0.3 - 0.15"
+        y: "r * 0.2"
+        z: "r * 0.3 - 0.15"
+
+    duration: 50
+    sample_interval: 2
+
+    math:
+      position:
+        x: "sin(t * 0.3) * (0.6 - t * 0.01)"
+        y: "t * 0.05"
+        z: "cos(t * 0.3) * (0.6 - t * 0.01)"
+      scale:
+        x: "1.2 - t * 0.02"
+        y: "1.2 - t * 0.02"
+        z: "1.2 - t * 0.02"
+      rotation:
+        x: "0"
+        y: "t * 12"
+        z: "0"
+      opacity: "127 - t * 2.5"

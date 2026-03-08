@@ -1,0 +1,32 @@
+# ============================================================
+#  StrikeView — 生命恢复指示器事件映射
+#
+#  监听 EntityRegainHealthEvent，完整复现旧版 RegainHealth
+#  监听器逻辑：
+#    1. 守卫：实体必须为 LivingEntity
+#    2. 守卫：忽略零恢复
+#    3. 使用 RegainReason.name() 作为标签
+# ============================================================
+
+id: regain-indicator
+event: org.bukkit.event.entity.EntityRegainHealthEvent
+priority: 3
+
+variables:
+  target: entity
+  value: amount
+  reason: regainReason
+
+flow:
+  # 守卫：实体必须为 LivingEntity
+  - check: target
+    op: instanceof
+    value: org/bukkit/entity/LivingEntity
+
+  # 守卫：忽略零恢复
+  - check: value
+    op: ">"
+    value: "0"
+
+  # 使用 RegainReason 枚举名作为标签（source 复用 target）
+  - showIndicator: ["{target}", "{target}", "{value}", "{reason.name}"]

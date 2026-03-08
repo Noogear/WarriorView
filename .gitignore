@@ -2,7 +2,6 @@
 /core/build
 *.log
 *.txt
-/core/src/test
 /core/bin
 /api/bin
 core/ScriptDump.class

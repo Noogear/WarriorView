@@ -9,8 +9,8 @@ import org.jetbrains.annotations.NotNull;
  * 外部插件通过本类获取 API 实例：
  * 
  * <pre>{@code
- * WarriorViewProvider api = WarriorViewAPI.getProvider();
- * api.getConfigManager().reloadAll();
+ * WarriorView api = WarriorViewAPI.getProvider();
+ * api.getAnimationManager().reloadAll();
  * }</pre>
  */
 public final class WarriorViewAPI {

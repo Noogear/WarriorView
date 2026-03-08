@@ -1,0 +1,48 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# 生命恢复指示器配置
+#
+# 每个顶层键对应一个 RegainReason 枚举名（自动匹配）。
+# 配置字段与伤害指示器一致，参见 damage-indicator.yml 注释。
+# ──────────────────────────────────────────────────────────────────────────────
+
+# 全局恢复兜底配置
+default:
+  text-format: "<green>+{damage}"
+  position: PROJECTED
+  animation: critical_hit
+  billboard: CENTER
+  see-through: false
+  text-shadow: true
+  background: 0x40000000
+  view-range: 32.0
+  only-player: false
+
+# 自然恢复（满饱食度缓慢回血）
+REGEN:
+  text-format: "<green>+{damage}"
+  position: PROJECTED
+  animation: critical_hit
+
+# 饱食恢复
+SATIATED:
+  text-format: "<dark_green>+{damage}"
+  position: PROJECTED
+  animation: critical_hit
+
+# 进食
+EATING:
+  text-format: "<green>🍖 +{damage}"
+  position: PROJECTED
+  animation: critical_hit
+
+# 药水 / 魔法恢复
+MAGIC:
+  text-format: "<light_purple>✦ +{damage}"
+  position: PROJECTED
+  animation: critical_hit
+
+# 魔法恢复（瞬间）
+MAGIC_REGEN:
+  text-format: "<light_purple>✦ +{damage}"
+  position: PROJECTED
+  animation: critical_hit

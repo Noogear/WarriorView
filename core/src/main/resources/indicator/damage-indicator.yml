@@ -1,0 +1,67 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# 伤害指示器 Action 配置
+#
+# 每个顶层键对应一个 tag（标记），当脚本触发 showDamageIndicator action 时
+# 传入的第三个参数（tag）会匹配此处的键名，以确定 TextDisplay 的显示参数
+# 和生成策略。
+#
+# 配置字段说明：
+#   text-format  : MiniMessage 模板，{damage} 占位符会被替换为格式化后的伤害数值
+#   position     : 生成位置算法 —— PROJECTED / CLAMPED / RAY_TRACED / ATTACKER
+#   animation    : 关联的动画定义名称（在 animations/ 目录中定义）
+#   billboard    : TextDisplay 朝向约束 —— CENTER / VERTICAL / HORIZONTAL / FIXED
+#   see-through  : 是否穿透方块渲染（布尔值）
+#   text-shadow  : 是否显示文字阴影（布尔值）
+#   background   : ARGB 背景颜色（支持 0xAARRGGBB 格式或十进制整数）
+#   view-range   : 客户端可见距离（方块数，浮点）
+#   only-player  : 为 true 时仅在攻击者为玩家时触发指示器
+# ──────────────────────────────────────────────────────────────────────────────
+
+# 全局兜底配置（tag 匹配不到时使用）
+default:
+  text-format: "<white>{damage}"
+  position: PROJECTED
+  animation: critical_hit
+  billboard: CENTER
+  see-through: false
+  text-shadow: true
+  background: 0x40000000
+  view-range: 32.0
+  only-player: true
+
+# 暴击
+CRITICAL:
+  text-format: "<red><bold>✦ {damage}"
+  position: PROJECTED
+  animation: critical_hit
+  billboard: CENTER
+  see-through: false
+  text-shadow: true
+  background: 0x40000000
+  view-range: 48.0
+  only-player: true
+
+# 近战实体攻击
+ENTITY_ATTACK:
+  text-format: "<white>{damage}"
+  position: PROJECTED
+  animation: critical_hit
+
+# 投射物（弓箭、三叉戟等）
+PROJECTILE:
+  text-format: "<yellow>➶ {damage}"
+  position: RAY_TRACED
+  animation: critical_hit
+
+# 区域伤害 / 爆炸
+ENTITY_EXPLOSION:
+  text-format: "<gold>💥 {damage}"
+  position: CLAMPED
+  animation: critical_hit
+  only-player: false
+
+# 自身反馈（附魔反伤、荆棘等）
+THORNS:
+  text-format: "<green>⚡ {damage}"
+  position: ATTACKER
+  animation: critical_hit

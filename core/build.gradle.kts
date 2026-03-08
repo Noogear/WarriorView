@@ -11,6 +11,11 @@ repositories {
 dependencies {
     implementation(project(":api"))
     paperweight.paperDevBundle("1.21.1-R0.1-SNAPSHOT")
+
+    // GloomLib
+    implementation("gloomlib:configuration:1.2.2.0")
+    implementation("gloomlib:script:1.1.0.0")
+    implementation("gloomlib:math:1.1.0.0")
     implementation("com.github.retrooper:packetevents-spigot:2.11.2")
     
     // 使得测试可以使用被 PaperAPI 打包进来的依赖
@@ -19,7 +24,7 @@ dependencies {
 
     // JUnit 5
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
 
     // Crunch（基准测试对比用）
     testImplementation("com.github.Redempt:Crunch:2.0.3")

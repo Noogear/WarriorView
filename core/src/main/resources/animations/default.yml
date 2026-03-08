@@ -1,0 +1,132 @@
+# ============================================================
+#  StrikeView — 默认动画配置文件
+#  根键为 `animation:` → 由 AnimationFileLoader 加载为动画注册表
+# ============================================================
+
+animation:
+
+  # ----------------------------------------------------------
+  # 示例 1：语法糖关键帧动画（用于伤害数字上浮）
+  # 使用 `move` / `size` / `opacity` 语法糖，适合大多数需求
+  # ----------------------------------------------------------
+  critical_hit:
+    type: keyframe
+    settings:
+      billboard: center
+      see-through: false
+      text-shadow: true
+      background: "transparent"
+      view-range: 24
+      offset:
+        x: "r * 0.6 - 0.3"   # 随机 -0.3 到 +0.3 格，避免重叠
+        y: "r * 0.4"          # 随机 0 到 +0.4 格
+        z: "r * 0.6 - 0.3"
+        # ↑ offset 的 x/y/z 支持两种写法：
+        #   数字：x: 0.5         → 固定偏移 0.5 格
+        #   字符串：x: "r*0.6-0.3" → 含变量 r (0~1) 的 gloomlib-math 表达式
+
+    timeline:
+      # 第 0 tick：初始状态，正常大小
+      - time: 0
+        size: 1.0
+        opacity: 100%
+
+      # 0→5 ticks：快速放大至 1.5 倍，同时微微上浮
+      - duration: 5
+        size: 1.5
+        move:
+          up: 0.15
+        opacity: 100%
+
+      # 5→20 ticks：缩回原大小，继续上浮
+      - duration: 15
+        size: 1.0
+        move:
+          up: 0.4
+        opacity: 100%
+
+      # 20→35 ticks：向上淡出消失
+      - duration: 15
+        move:
+          up: 0.3
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # 示例 2：底层原生参数关键帧动画（适合需要精确控制四元数的场景）
+  # 与上方语法糖格式可混用，原生参数优先于语法糖
+  # ----------------------------------------------------------
+  spin_popup:
+    type: keyframe
+    settings:
+      billboard: fixed          # 不跟随玩家朝向，固定在世界空间
+      see-through: false
+      text-shadow: false
+      background: "#60000000"   # 半透明黑色背景
+      view-range: 32
+      offset:
+        x: 0     # 纯数字写法：固定偏移 0 格（等价于 "0"）
+        y: 0     # offset x/y/z 同样支持字符串表达式，只是这里不需要随机
+        z: 0
+
+    timeline:
+      # 初始帧：直接填写 translation / scale / left_rotation / right_rotation
+      - time: 0
+        translation: [0.0, 0.0, 0.0]
+        scale: [0.5, 0.5, 0.5]
+        left_rotation: [0, 0, 0, 1]      # 单位四元数（x, y, z, w）
+        right_rotation: [0, 0, 0, 1]
+        text_opacity: 0
+
+      # 0→8 ticks：淡入 + 放大
+      - duration: 8
+        translation: [0.0, 0.3, 0.0]
+        scale: [1.0, 1.0, 1.0]
+        left_rotation: [0, 0, 0, 1]
+        right_rotation: [0, 0.3827, 0, 0.9239]  # 绕 Y 轴旋转 45°
+        text_opacity: 127
+
+      # 8→25 ticks：上浮并旋转
+      - duration: 17
+        translation: [0.0, 0.8, 0.0]
+        scale: [1.0, 1.0, 1.0]
+        left_rotation: [0, 0, 0, 1]
+        right_rotation: [0, 0.7071, 0, 0.7071]  # 绕 Y 轴旋转 90°
+
+      # 25→35 ticks：淡出 + 上浮
+      - duration: 10
+        translation: [0.0, 1.2, 0.0]
+        scale: [0.6, 0.6, 0.6]
+        left_rotation: [0, 0, 0, 1]
+        right_rotation: [0, 1.0, 0, 0]
+        text_opacity: 0
+
+  # ----------------------------------------------------------
+  # 示例 3：方程式动画（自动从预设库引用）
+  # ----------------------------------------------------------
+  orbit_damage:
+    type: equation
+    settings:
+      billboard: center
+      view-range: 24
+      offset:
+        x: "r * 0.4 - 0.2"
+        y: "r * 0.3"
+        z: "r * 0.4 - 0.2"
+
+    duration: 40           # 支持纯整数，也支持字符串表达式如 "20 * 2"
+    sample_interval: 2        # 每 2 tick 采样一次，客户端自动插值
+
+    math:
+      position:
+        x: "sin(t * 0.25) * 0.5"    # 水平圆周运动
+        y: "t * 0.04"                # 缓慢上浮
+        z: "cos(t * 0.25) * 0.5"
+      scale:
+        x: "1 - t * 0.02"            # 随时间缩小
+        y: "1 - t * 0.02"
+        z: "1 - t * 0.02"
+      rotation:
+        x: "0"
+        y: "t * 9"                   # 每 tick 旋转 9°
+        z: "0"
+      opacity: "127 - t * 3"         # 逐渐淡出（127→-7，被截断至 0）

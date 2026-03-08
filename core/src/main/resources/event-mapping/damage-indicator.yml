@@ -1,0 +1,52 @@
+# ============================================================
+#  StrikeView — 伤害指示器事件映射
+#
+#  监听 EntityDamageByEntityEvent，完整复现旧版 EntityDamage
+#  监听器逻辑：
+#    1. 守卫：实体必须为 LivingEntity
+#    2. 守卫：忽略零伤害
+#    3. 暴击命中 → 使用 CRITICAL 标签并提前返回
+#    4. 药水云伤害 → 重映射为 MAGIC 标签并提前返回
+#    5. 默认使用 DamageCause.name() 作为标签
+# ============================================================
+
+id: damage-indicator
+event: org.bukkit.event.entity.EntityDamageByEntityEvent
+priority: 3
+
+variables:
+  target: entity
+  source: damager
+  value: finalDamage
+  cause: cause
+  critical: critical
+
+flow:
+  # 守卫：实体必须为 LivingEntity
+  - check: target
+    op: instanceof
+    value: org/bukkit/entity/LivingEntity
+
+  # 守卫：忽略零伤害
+  - check: value
+    op: ">"
+    value: "0"
+
+  # 暴击命中 → 使用 CRITICAL 标签后提前返回
+  - check: critical
+    op: "!="
+    value: true
+    on_fail:
+      - showIndicator: ["{target}", "{source}", "{value}", "CRITICAL"]
+      - return
+
+  # 药水云（AreaEffectCloud）伤害 → 重映射为 MAGIC
+  - check: source
+    op: "!instanceof"
+    value: org/bukkit/entity/AreaEffectCloud
+    on_fail:
+      - showIndicator: ["{target}", "{source}", "{value}", "MAGIC"]
+      - return
+
+  # 默认路径：使用 DamageCause 枚举名作为标签
+  - showIndicator: ["{target}", "{source}", "{value}", "{cause.name}"]
