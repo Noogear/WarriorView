@@ -14,7 +14,7 @@
 # 全局恢复兜底配置
 default:
   text-format: "<green>+{damage}"
-  position: PROJECTED
+  position: AIM
   animation: critical_hit
   billboard: CENTER
   see-through: false
@@ -26,29 +26,29 @@ default:
 # 自然恢复（满饱食度缓慢回血）
 REGEN:
   text-format: "<green>+{damage}"
-  position: PROJECTED
+  position: AIM
   animation: critical_hit
 
 # 饱食恢复
 SATIATED:
   text-format: "<dark_green>+{damage}"
-  position: PROJECTED
+  position: AIM
   animation: critical_hit
 
 # 进食
 EATING:
   text-format: "<green>🍖 +{damage}"
-  position: PROJECTED
+  position: AIM
   animation: critical_hit
 
 # 药水 / 魔法恢复
 MAGIC:
   text-format: "<light_purple>✦ +{damage}"
-  position: PROJECTED
+  position: AIM
   animation: critical_hit
 
 # 魔法恢复（瞬间）
 MAGIC_REGEN:
   text-format: "<light_purple>✦ +{damage}"
-  position: PROJECTED
+  position: AIM
   animation: critical_hit

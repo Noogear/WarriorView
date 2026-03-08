@@ -44,6 +44,7 @@ tasks {
     }
 
     shadowJar {
+        archiveBaseName.set(rootProject.name)
         archiveClassifier.set("")
 
         // 重定位 GloomLib，避免与其他使用 GloomLib 的插件冲突

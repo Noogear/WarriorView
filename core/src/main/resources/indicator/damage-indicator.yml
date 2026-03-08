@@ -8,7 +8,7 @@
 # 配置字段说明：
 #   text-format        : MiniMessage 模板，{damage} 占位符替换为格式化后的伤害数值
 #   decimal-places     : 伤害数值保留的小数位数（int，默认 1）
-#   position           : 生成位置算法 —— PROJECTED / CLAMPED / RAY_TRACED / ATTACKER
+#   position           : 生成位置算法 —— AIM / SURFACE / IMPACT / ORIGIN
 #   animation          : 关联的动画定义名称（在 animations/ 目录中定义）
 #   billboard          : TextDisplay 朝向约束 —— CENTER / VERTICAL / HORIZONTAL / FIXED
 #   see-through        : 是否穿透方块渲染（布尔值，默认 false）
@@ -29,7 +29,7 @@
 # 全局兜底配置（tag 匹配不到时使用）
 default:
   text-format: "<white>{damage}"
-  position: PROJECTED
+  position: AIM
   animation: critical_hit
   billboard: CENTER
   see-through: false
@@ -41,7 +41,7 @@ default:
 # 暴击
 CRITICAL:
   text-format: "<red><bold>✦ {damage}"
-  position: PROJECTED
+  position: AIM
   animation: critical_hit
   billboard: CENTER
   see-through: false
@@ -53,24 +53,24 @@ CRITICAL:
 # 近战实体攻击
 ENTITY_ATTACK:
   text-format: "<white>{damage}"
-  position: PROJECTED
+  position: AIM
   animation: critical_hit
 
-# 投射物（弓箭、三叉戟等）
+# 投射物（弓箭、三叉戟等）：投射物实体本身充当 attacker，位置即撞击点，IMPACT 的 tMin ≈ 0，命中检测准确
 PROJECTILE:
   text-format: "<yellow>➶ {damage}"
-  position: RAY_TRACED
+  position: IMPACT
   animation: critical_hit
 
 # 区域伤害 / 爆炸
 ENTITY_EXPLOSION:
   text-format: "<gold>💥 {damage}"
-  position: CLAMPED
+  position: SURFACE
   animation: critical_hit
   only-player: false
 
 # 自身反馈（附魔反伤、荆棘等）
 THORNS:
   text-format: "<green>⚡ {damage}"
-  position: ATTACKER
+  position: ORIGIN
   animation: critical_hit

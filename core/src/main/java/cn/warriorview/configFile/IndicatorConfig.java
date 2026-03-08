@@ -41,7 +41,7 @@ public class IndicatorConfig extends ConfigurationPart {
 
     public String                 textFormat       = "<white>{damage}";
     public int                    decimalPlaces    = 1;
-    public IndicatorSpawnStrategy position         = IndicatorSpawnStrategy.PROJECTED;
+    public IndicatorSpawnStrategy position         = IndicatorSpawnStrategy.AIM;
     public Billboard              billboard        = Billboard.CENTER;
     public boolean                seeThrough       = false;
     public boolean                textShadow       = true;

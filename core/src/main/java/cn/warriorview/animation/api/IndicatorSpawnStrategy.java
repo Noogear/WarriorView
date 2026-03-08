@@ -13,24 +13,37 @@ import cn.warriorview.util.LocationUtil;
  *
  * <h3>Quick selection guide</h3>
  * <pre>
- *  PROJECTED   – melee / directed skills      (trigonometry, ~6 ops)
- *  CLAMPED     – AoE / DoT / splash damage    (no trig, fastest)
- *  RAY_TRACED  – sniper / headshot precision  (Liang-Barsky, most accurate)
- *  ATTACKER    – self-buff / combo floaters   (trivial, returns attacker eye)
+ *  AIM     – melee / directed attacks          (gaze-depth projection, ~6 trig ops)
+ *  SURFACE – AoE / DoT / direction-agnostic    (AABB clamp, no trig, fastest)
+ *  IMPACT  – precise melee / projectile hit    (ray-AABB, hard ≤5-block limit)
+ *  ORIGIN  – self-damage / healing / buffs     (trivial, returns attacker eye)
  * </pre>
+ *
+ * <p><b>Note on projectile attacks:</b> when a projectile entity deals damage,
+ * the {@code attacker} passed to {@link #resolve} is the projectile entity itself
+ * (position = impact point, pitch/yaw = flight direction at moment of collision).
+ * All strategies handle this correctly, but {@link #IMPACT} is the most accurate
+ * since the projectile is right at the victim's AABB entry surface ({@code tMin ≈ 0}).</p>
  */
 public enum IndicatorSpawnStrategy {
 
     /**
-     * <b>Algorithm 1 — Dot Product Projection</b>
+     * <b>Algorithm 1 — Dot-Product Gaze Projection</b>
      *
-     * <p>Projects the attacker's gaze direction onto the victim's body centre,
-     * then pulls back by half the victim's width to avoid the indicator
-     * clipping through geometry.</p>
+     * <p>Scalar-projects the attacker-to-victim vector onto the normalised gaze
+     * direction, then places the indicator at that depth along the gaze ray,
+     * pulled back by {@code vW / 2 + 0.3} to sit just outside the victim's
+     * near surface as seen from the attacker.</p>
      *
-     * <p>Best for: melee hits, targeted spell projectiles.</p>
+     * <p>For projectile hits the "attacker" is the projectile entity itself
+     * (position ≈ AABB entry surface, direction = flight direction), so the
+     * projection naturally places the indicator just outside the impact face.</p>
+     *
+     * <p>Best for: melee attacks and any directed hit where the attacker is
+     * facing the victim.  Degrades gracefully for off-angle hits (e.g. AoE
+     * side-swipe) but is not the most accurate in those cases.</p>
      */
-    PROJECTED {
+    AIM {
         @Override
         public Vector3d resolve(double eyeX, double eyeY, double eyeZ,
                                 float pitch, float yaw,
@@ -44,12 +57,20 @@ public enum IndicatorSpawnStrategy {
     /**
      * <b>Algorithm 2 — Expanded AABB Clamping</b>
      *
-     * <p>Geometrically clamps the attacker's eye position to the padded
-     * bounding box of the victim.  No trigonometry; fastest of all variants.</p>
+     * <p>Clamps the attacker's eye position to the victim's bounding box
+     * expanded by {@code 0.3} on every side.  The indicator appears at the
+     * nearest point on the victim's body surface to the attacker.  Uses no
+     * trigonometry; fastest of all variants.</p>
      *
-     * <p>Best for: AoE damage, persistent damage-over-time ticks, splash.</p>
+     * <p>When the attacker is {@code null} (e.g. DoT with no source), it
+     * defaults to the victim entity, so the eye position lies within the
+     * victim's own AABB — the indicator then appears at the victim's body
+     * centre area, which is ideal for directionless damage ticks.</p>
+     *
+     * <p>Best for: AoE damage, splash, persistent DoT, and any damage whose
+     * source direction is irrelevant or unknown.</p>
      */
-    CLAMPED {
+    SURFACE {
         @Override
         public Vector3d resolve(double eyeX, double eyeY, double eyeZ,
                                 float pitch, float yaw,
@@ -64,15 +85,28 @@ public enum IndicatorSpawnStrategy {
      * <b>Algorithm 3 — Liang-Barsky Ray-AABB Intersection</b>
      *
      * <p>Casts a ray from the attacker's eye along their look direction and
-     * finds the exact entry point on the victim's bounding box.  Zero GC;
-     * highest spatial accuracy.</p>
+     * finds the exact AABB entry point, then pulls back {@code 0.3} in the
+     * ray direction to sit on the surface.  Zero GC; highest directional
+     * accuracy of all variants.</p>
      *
-     * <p>Falls back to {@code (vX, vY + vH * 0.75, vZ)} when the ray misses
-     * (e.g., lag compensation desync).</p>
+     * <p><b>Hard range limit: 5 blocks.</b>  The intersection is rejected when
+     * {@code tMin > 5.0} or {@code tMin < 0} (attacker's eye has already
+     * passed the entry surface).  In those cases the method falls back to
+     * {@code (vX, vY + vH × 0.75, vZ)} — the victim's upper-body centre.</p>
      *
-     * <p>Best for: sniper rifles, headshot detection, pinpoint single-target skills.</p>
+     * <p>Fall-back triggers: (1) ray does not intersect the AABB, (2) nearest
+     * intersection is more than 5 blocks away, (3) attacker eye is already
+     * inside or past the entry face (common when a projectile entity is
+     * processed one tick after collision).</p>
+     *
+     * <p>Best for: precise close-range melee hits (≤5 blocks) and projectile
+     * impacts — the projectile entity's position is at the AABB entry surface
+     * at the moment of damage, so {@code tMin ≈ 0} and the check passes.
+     * <em>Do not use for long-range ranged attacks</em> (sniping, bow shots
+     * from 10+ blocks) — the attacker eye is too far away and the result
+     * always falls back to the centre position.</p>
      */
-    RAY_TRACED {
+    IMPACT {
         @Override
         public Vector3d resolve(double eyeX, double eyeY, double eyeZ,
                                 float pitch, float yaw,
@@ -86,13 +120,15 @@ public enum IndicatorSpawnStrategy {
     /**
      * <b>Attacker exact eye position</b>
      *
-     * <p>The indicator spawns at the attacker's eye rather than at the victim.
-     * {@code pitch}, {@code yaw}, and all victim parameters are ignored.</p>
+     * <p>The indicator spawns at the attacker's eye position rather than at
+     * the victim.  {@code pitch}, {@code yaw}, and all victim parameters are
+     * ignored.</p>
      *
-     * <p>Best for: outgoing damage floaters, self-buff numbers, combo counters,
-     * or any effect that should visually "come from" the attacker.</p>
+     * <p>Best for: healing numbers, self-buff floaters, combo counters, thorns
+     * / reflect damage, or any effect that should visually originate from the
+     * damage source rather than appear on the victim.</p>
      */
-    ATTACKER {
+    ORIGIN {
         @Override
         public Vector3d resolve(double eyeX, double eyeY, double eyeZ,
                                 float pitch, float yaw,
