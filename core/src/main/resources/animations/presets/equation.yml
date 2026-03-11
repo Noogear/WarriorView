@@ -1,0 +1,464 @@
+# ============================================================
+#  WarriorView — 方程式动画预设库
+#  使用 gloomlib-math 数学表达式驱动的动画
+#  可实现螺旋、波浪、抛物线等复杂运动轨迹
+#
+#  公式变量：
+#    t — 已过 tick 数（从 0 开始，每 tick +1）
+#    r — 每实例随机数 ∈ [0, 1)（生成时固定，整个动画不变）
+#
+#  常用函数（弧度制）：
+#    sin(x) cos(x)       — 三角函数
+#    sqrt(x) abs(x)      — 平方根、绝对值
+#    min(a,b) max(a,b)   — 取较小/较大值
+#    clamp(x, lo, hi)    — 钳制到 [lo, hi] 范围
+#    sign(x) floor(x)    — 符号函数、向下取整
+#    x ** n              — 幂运算
+#
+#  周期参考（弧度制）：
+#    sin(t * 0.1) → 周期 ≈63 tick (2π/0.1)
+#    sin(t * 0.2) → 周期 ≈31 tick
+#    sin(t * 0.5) → 周期 ≈13 tick
+#
+#  通过 `type: preset` + `id: 预设名` 引用
+# ============================================================
+
+preset:
+
+  # ----------------------------------------------------------
+  # parabola_toss — 抛物线飞出
+  # 效果：如同被抛出的物体，先上升后因"重力"下落
+  # 适用：投射物伤害、爆炸碎片、击飞效果
+  # 轨迹：水平匀速漂移 + 垂直抛物线 y = v·t - ½g·t²
+  #
+  # 公式解析：
+  #   x = 0.04t         → 水平匀速漂移，45 tick 移动 1.8 格
+  #   y = 0.11t - 0.0025t²  → 顶点在 t≈22，高度 ≈1.2 格
+  #                          → t≈44 回到 y=0（"落地"）
+  # ----------------------------------------------------------
+  parabola_toss:
+    type: equation
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      view-range: 24
+      offset:
+        x: "r * 0.3 - 0.15"
+        y: 0
+        z: "r * 0.3 - 0.15"
+
+    duration: 45
+    sample_interval: 2
+
+    math:
+      position:
+        x: "t * 0.04"                           # 水平匀速漂移
+        y: "t * 0.11 - t ** 2 * 0.0025"         # 抛物线：先升后降
+        z: "0"
+      scale:
+        x: "max(0.3, 1.2 - t * 0.02)"           # 逐渐缩小
+        y: "max(0.3, 1.2 - t * 0.02)"
+        z: "max(0.3, 1.2 - t * 0.02)"
+      opacity: "max(0, 127 - t * 2.8)"          # 逐渐淡出
+
+  # ----------------------------------------------------------
+  # sine_drift — 正弦漂移
+  # 效果：水平方向做正弦波浪摆动，同时匀速上浮
+  # 适用：水/冰系法术伤害、波纹扩散效果
+  # 轨迹：垂直上升直线 + 水平正弦波叠加
+  #
+  # 公式解析：
+  #   x = sin(0.2t) × 0.4  → 水平振幅 0.4 格
+  #                         → 周期 ≈31 tick，50 tick 内约 1.6 个完整波
+  #   y = 0.04t             → 匀速上浮，50 tick 升高 2 格
+  # ----------------------------------------------------------
+  sine_drift:
+    type: equation
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.3 - 0.15"
+        y: "r * 0.15"
+        z: "r * 0.3 - 0.15"
+
+    duration: 50
+    sample_interval: 2
+
+    math:
+      position:
+        x: "sin(t * 0.2) * 0.4"                 # 水平正弦波摆动
+        y: "t * 0.04"                            # 匀速上浮
+        z: "0"
+      opacity: "max(0, 127 - t * 2.5)"
+
+  # ----------------------------------------------------------
+  # decelerate_float — 减速上浮
+  # 效果：起初快速上升，随后逐渐减速，如同受空气阻力
+  # 适用：通用伤害数字、治疗回复（自然感最强）
+  # 轨迹：√t 曲线上浮（速度 ∝ 1/√t，加速度持续减小）
+  #
+  # 公式解析：
+  #   y = √t × 0.18
+  #     t=1:  0.18 格  ← 起步快
+  #     t=9:  0.54 格
+  #     t=25: 0.90 格  ← 中段减速明显
+  #     t=45: 1.21 格  ← 末段接近停滞
+  # ----------------------------------------------------------
+  decelerate_float:
+    type: equation
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.5 - 0.25"
+        y: "r * 0.2"
+        z: "r * 0.5 - 0.25"
+
+    duration: 45
+    sample_interval: 2
+
+    math:
+      position:
+        x: "0"
+        y: "sqrt(t) * 0.18"                     # √t 减速上浮
+        z: "0"
+      scale:
+        x: "max(0.4, 1.2 - t * 0.018)"          # 逐渐缩小
+        y: "max(0.4, 1.2 - t * 0.018)"
+        z: "max(0.4, 1.2 - t * 0.018)"
+      opacity: "max(0, 127 - t * 2.8)"
+
+  # ----------------------------------------------------------
+  # pendulum_swing — 阻尼摆动
+  # 效果：在固定高度左右摆动，振幅逐渐衰减至静止
+  # 适用：眩晕效果伤害、混乱状态、摇晃中受击
+  # 轨迹：水平阻尼正弦振荡，垂直位置固定
+  #
+  # 公式解析：
+  #   x = sin(0.25t) × 0.5 × max(0.01, 1 - 0.018t)
+  #     → 振荡周期 ≈25 tick
+  #     → 振幅包络 0.5 × (1 - 0.018t)：线性衰减
+  #     → ~2 次完整摆动后振幅趋近 0
+  #   y = 0.3（固定高度，不上浮）
+  #
+  # sample_interval: 1 确保快速摆动不丢帧
+  # ----------------------------------------------------------
+  pendulum_swing:
+    type: equation
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: 0
+        y: "r * 0.2 + 0.2"
+        z: 0
+
+    duration: 55
+    sample_interval: 1                              # 每 tick 采样，摆动更平滑
+
+    math:
+      position:
+        x: "sin(t * 0.25) * 0.5 * max(0.01, 1 - t * 0.018)"
+        y: "0.3"                                    # 固定高度
+        z: "0"
+      opacity: "max(0, 127 - t * 2.3)"
+
+  # ----------------------------------------------------------
+  # zigzag_climb — 锯齿攀升
+  # 效果：快速左右抖动同时向上攀升，如同电流或闪电
+  # 适用：雷电伤害、闪电苦力怕攻击、电击效果
+  # 轨迹：高频正弦水平振荡 + 线性垂直上升
+  #
+  # 公式解析：
+  #   x = sin(0.5t) × 0.25
+  #     → 周期 ≈12.6 tick，50 tick 内约 4 次锯齿
+  #     → 振幅 0.25 格，快速且密集
+  #   y = 0.05t → 匀速攀升 2.5 格
+  #
+  # sample_interval: 1 防止高频振荡被采样掉
+  # ----------------------------------------------------------
+  zigzag_climb:
+    type: equation
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.3 - 0.15"
+        y: "r * 0.15"
+        z: "r * 0.3 - 0.15"
+
+    duration: 50
+    sample_interval: 1                              # 高频振荡需要密采样
+
+    math:
+      position:
+        x: "sin(t * 0.5) * 0.25"                   # 高频横向抖动
+        y: "t * 0.05"                               # 匀速攀升
+        z: "0"
+      opacity: "max(0, 127 - t * 2.5)"
+
+  # ----------------------------------------------------------
+  # heartbeat_pulse — 心跳脉冲
+  # 效果：文字像心跳一样有节奏地放大缩小，脉动明显
+  # 适用：生命吸取伤害、治疗数字、BOSS 心跳机制特效
+  # 轨迹：几乎静止（极缓慢上浮），核心效果靠缩放脉冲
+  #
+  # 公式解析：
+  #   scale = 1 + 0.35 × |sin(0.15t)|
+  #     → |sin| 周期 = π/0.15 ≈ 21 tick
+  #     → 55 tick 内约 2.6 次心跳脉冲
+  #     → 缩放范围 1.0 ~ 1.35（温和但有节奏感的跳动）
+  # ----------------------------------------------------------
+  heartbeat_pulse:
+    type: equation
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.3 - 0.15"
+        y: "r * 0.1"
+        z: "r * 0.3 - 0.15"
+
+    duration: 55
+    sample_interval: 1
+
+    math:
+      position:
+        x: "0"
+        y: "t * 0.015"                             # 极缓慢上浮
+        z: "0"
+      scale:
+        x: "1 + 0.35 * abs(sin(t * 0.15))"         # 脉冲缩放
+        y: "1 + 0.35 * abs(sin(t * 0.15))"
+        z: "1 + 0.35 * abs(sin(t * 0.15))"
+      opacity: "max(0, 127 - t * 2.3)"
+
+  # ----------------------------------------------------------
+  # helix_expand — 扩散螺旋
+  # 效果：沿螺旋路径上升，半径逐渐扩大（向外扩散）
+  # 适用：风系/扩散型法术、龙卷风伤害、漩涡效果
+  # 轨迹：XZ 平面圆周 + 线性上升，半径随时间增大
+  #
+  # 对比 spiral_rise（common.yml）：
+  #   spiral_rise   → 半径收缩（向内聚拢）
+  #   helix_expand  → 半径扩大（向外扩散）
+  #
+  # 公式解析：
+  #   radius(t) = 0.15 + 0.012t
+  #     → t=0:  半径 0.15 格（紧密起始）
+  #     → t=55: 半径 0.81 格（大幅扩散）
+  #   x/z = sin/cos(0.2t) × radius(t)
+  #     → ~1.75 个螺旋圈
+  # ----------------------------------------------------------
+  helix_expand:
+    type: equation
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      view-range: 28
+      offset:
+        x: 0
+        y: "r * 0.15"
+        z: 0
+
+    duration: 55
+    sample_interval: 2
+
+    math:
+      position:
+        x: "sin(t * 0.2) * (0.15 + t * 0.012)"    # 扩大的圆周半径
+        y: "t * 0.05"                               # 匀速上浮
+        z: "cos(t * 0.2) * (0.15 + t * 0.012)"
+      opacity: "max(0, 127 - t * 2.3)"
+
+  # ----------------------------------------------------------
+  # figure_eight — ∞ 字形轨迹
+  # 效果：文字沿 ∞（无穷大/Lissajous）形状运动
+  # 适用：魔法/附魔伤害、神秘效果、特殊 BOSS 攻击
+  # 轨迹：由两个不同频率的正弦波合成的 Lissajous 曲线
+  #
+  # 公式解析（Lissajous 曲线，频率比 1:2）：
+  #   x = sin(0.12t) × 0.5    → 基准频率，周期 ≈52 tick
+  #   z = sin(0.24t) × 0.35   → 二倍频，周期 ≈26 tick
+  #   → 二倍频创造出 ∞ 字形的交叉轨迹
+  #   y = 0.025t → 极缓慢上浮，让 ∞ 字形清晰可见
+  # ----------------------------------------------------------
+  figure_eight:
+    type: equation
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      view-range: 30
+      offset:
+        x: 0
+        y: "r * 0.2"
+        z: 0
+
+    duration: 65
+    sample_interval: 2
+
+    math:
+      position:
+        x: "sin(t * 0.12) * 0.5"                   # 基准频率
+        y: "t * 0.025"                              # 极缓慢上浮
+        z: "sin(t * 0.24) * 0.35"                   # 二倍频 → ∞ 形
+      opacity: "max(0, 127 - t * 1.95)"
+
+  # ----------------------------------------------------------
+  # orbit_decay — 衰减坠落轨道
+  # 效果：沿收缩圆形轨道盘旋下沉，如同被黑洞/漩涡吸入
+  # 适用：凋零效果伤害、虚空伤害、灵魂抽取
+  # 轨迹：XZ 圆周轨道半径递减 + 缓慢下沉
+  #
+  # 对比 orbit_damage（default.yml）：
+  #   orbit_damage → 上浮 + 缩放缩小 + Y 轴自转
+  #   orbit_decay  → 下沉 + 轨道半径收缩 + 无自转
+  #
+  # 公式解析：
+  #   radius(t) = max(0.05, 0.6 - 0.012t)
+  #     → 从 0.6 收缩到 0.05 格（接近中心）
+  #   y = -0.015t → 下沉 0.75 格（50 tick）
+  #   周期 ≈25 tick → 约 2 圈公转
+  # ----------------------------------------------------------
+  orbit_decay:
+    type: equation
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      view-range: 24
+      offset:
+        x: 0
+        y: "r * 0.1"
+        z: 0
+
+    duration: 50
+    sample_interval: 2
+
+    math:
+      position:
+        x: "cos(t * 0.25) * max(0.05, 0.6 - t * 0.012)"
+        y: "-t * 0.015"                            # 缓慢下沉
+        z: "sin(t * 0.25) * max(0.05, 0.6 - t * 0.012)"
+      scale:
+        x: "max(0.3, 1.0 - t * 0.014)"             # 伴随缩小
+        y: "max(0.3, 1.0 - t * 0.014)"
+        z: "max(0.3, 1.0 - t * 0.014)"
+      opacity: "max(0, 127 - t * 2.5)"
+
+  # ----------------------------------------------------------
+  # charge_burst — 冲锋爆发（视角坐标）
+  # 效果：文字沿攻击者前方急速冲出后减速停滞
+  # 适用：冲锋攻击、突进技能、剑气横扫
+  # 轨迹：+Z 方向（攻击者前方）快速推进 + 上浮
+  #
+  # space: view 使 +Z = 攻击者面前方向
+  # 公式：z = √t × 0.16 → 初期快速推进，后半段减速
+  # ----------------------------------------------------------
+  charge_burst:
+    type: equation
+    space: view                           # 视角坐标系
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.3 - 0.15"
+        y: "r * 0.1"
+        z: 0
+
+    duration: 40
+    sample_interval: 2
+
+    math:
+      position:
+        x: "0"                                    # 不偏移
+        y: "t * 0.02"                              # 缓慢上浮
+        z: "sqrt(t) * 0.16"                        # 前方减速冲出
+      scale:
+        x: "max(0.5, 1.3 - t * 0.02)"
+        y: "max(0.5, 1.3 - t * 0.02)"
+        z: "max(0.5, 1.3 - t * 0.02)"
+      opacity: "max(0, 127 - t * 3.2)"
+
+  # ----------------------------------------------------------
+  # cone_scatter — 锥形散射（视角坐标）
+  # 效果：文字沿攻击者前方的扇形区域散开
+  # 适用：霰弹枪/散射攻击、扇形技能、多段伤害
+  # 轨迹：每个实例获得不同的随机偏转角 r，在攻击者前方扇形展开
+  #
+  # space: view 下：
+  #   x = 随机横向偏移（扇形展开）
+  #   z = 向前推进
+  #   → 多个数字形成一个从攻击者面前向外扩散的锥形
+  #
+  # 随机变量 r 用于给每个实例不同的偏转方向
+  # ----------------------------------------------------------
+  cone_scatter:
+    type: equation
+    space: view
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: 0
+        y: "r * 0.15"
+        z: 0
+
+    duration: 35
+    sample_interval: 2
+
+    math:
+      position:
+        x: "(r - 0.5) * t * 0.03"                 # 随机横向展开（r决定偏转方向）
+        y: "t * 0.025"                             # 缓慢上浮
+        z: "t * 0.045"                             # 向前推进
+      scale:
+        x: "max(0.4, 1.1 - t * 0.02)"
+        y: "max(0.4, 1.1 - t * 0.02)"
+        z: "max(0.4, 1.1 - t * 0.02)"
+      opacity: "max(0, 127 - t * 3.6)"
+
+  # ----------------------------------------------------------
+  # boomerang_arc — 回旋弧线（视角坐标）
+  # 效果：文字先向攻击者右前方飞出，再弧线折返向左
+  # 适用：回旋镖/链条攻击、弧形技能
+  # 轨迹：视角坐标的抛物线弧线 x = at - bt²
+  #
+  # 公式解析（视角坐标系）：
+  #   x = 0.06t - 0.0015t²
+  #     → 先向右 (x+)，t=20 时到达最远 x=0.6，然后折返向左
+  #   z = 0.03t → 持续向攻击者前方推进
+  #   → 整体路径：从攻击者视角看是一条 C 形弧线
+  # ----------------------------------------------------------
+  boomerang_arc:
+    type: equation
+    space: view
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: 0
+        y: "r * 0.1"
+        z: 0
+
+    duration: 45
+    sample_interval: 2
+
+    math:
+      position:
+        x: "t * 0.06 - t ** 2 * 0.0015"            # 先右后左的弧线
+        y: "t * 0.02"                               # 轻微上浮
+        z: "t * 0.03"                               # 持续前推
+      opacity: "max(0, 127 - t * 2.8)"

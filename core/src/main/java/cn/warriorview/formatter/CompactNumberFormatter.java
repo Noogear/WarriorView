@@ -1,11 +1,7 @@
 package cn.warriorview.formatter;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Supplier;
 
 /**
  * 紧凑型数字格式化器，支持将大数字格式化为带尾缀的短字符串（如 1.2K, 3.5M）。
@@ -17,23 +13,12 @@ class CompactNumberFormatter {
     private static final long[] POW10_CACHE = new long[18];
     private static final char[] DIGITS = "0123456789".toCharArray();
 
-    private static final MethodHandle IS_VIRTUAL_MH;
-
     static {
         long value = 1;
         for (int i = 0; i < POW10_CACHE.length; i++) {
             POW10_CACHE[i] = value;
             value *= 10;
         }
-
-        MethodHandle mh = null;
-        try {
-            mh = MethodHandles.publicLookup().findVirtual(Thread.class, "isVirtual",
-                    MethodType.methodType(boolean.class));
-        } catch (NoSuchMethodException | IllegalAccessException e) {
-            mh = null;
-        }
-        IS_VIRTUAL_MH = mh;
     }
 
     private final double[] thresholds;
@@ -41,35 +26,14 @@ class CompactNumberFormatter {
     private final char[][] units;
     private final int maxUnitIndex;
 
-    private final ThreadLocal<StringBuilder> threadLocalBuffer;
-    private final Supplier<StringBuilder> bufferSupplier;
+    private final ThreadLocal<StringBuilder> threadLocalBuffer =
+            ThreadLocal.withInitial(() -> new StringBuilder(32));
 
     private CompactNumberFormatter(double[] thresholds, double[] multipliers, char[][] units) {
         this.thresholds = thresholds;
         this.multipliers = multipliers;
         this.units = units;
         this.maxUnitIndex = thresholds.length - 1;
-
-        this.threadLocalBuffer = ThreadLocal.withInitial(() -> new StringBuilder(32));
-
-        this.bufferSupplier = () -> {
-            if (isVirtualThread()) {
-                return new StringBuilder(32);
-            } else {
-                return threadLocalBuffer.get();
-            }
-        };
-    }
-
-    private static boolean isVirtualThread() {
-        if (IS_VIRTUAL_MH == null) {
-            return false;
-        }
-        try {
-            return (boolean) IS_VIRTUAL_MH.invokeExact(Thread.currentThread());
-        } catch (Throwable e) {
-            return false;
-        }
     }
 
     static CompactNumberFormatter of(Map<Double, String> configuration) {
@@ -92,7 +56,7 @@ class CompactNumberFormatter {
             throw new IllegalArgumentException("Precision must be between 0 and " + (POW10_CACHE.length - 1) + ".");
         }
 
-        final StringBuilder buf = bufferSupplier.get();
+        final StringBuilder buf = threadLocalBuffer.get();
         buf.setLength(0);
 
         boolean isNegative = value < 0;

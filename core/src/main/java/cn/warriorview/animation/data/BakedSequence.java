@@ -19,4 +19,36 @@ public record BakedSequence(
         BakedFrame[]    frames,
         int             totalTicks,
         DisplaySettings settings
-) {}
+) {
+
+    /**
+     * 创建一个新的 BakedSequence，其中每帧的 tx/tz 被绕 Y 轴旋转。
+     * 用于将视角空间的帧数据转换为世界空间。
+     *
+     * @param cos cos(yawRad)
+     * @param sin sin(yawRad)
+     * @return 旋转后的新序列（不修改原始帧）
+     */
+    public BakedSequence rotateXZ(float cos, float sin) {
+        BakedFrame[] rotated = new BakedFrame[frames.length];
+        for (int i = 0; i < frames.length; i++) {
+            BakedFrame f = frames[i];
+            TransformSnapshot s = f.snapshot();
+            float tx =  s.tx() * cos + s.tz() * sin;
+            float tz = -s.tx() * sin + s.tz() * cos;
+            rotated[i] = new BakedFrame(
+                    f.tickOffset(),
+                    f.interpolationDelay(),
+                    f.interpolationTicks(),
+                    new TransformSnapshot(
+                            tx, s.ty(), tz,
+                            s.sx(), s.sy(), s.sz(),
+                            s.lrx(), s.lry(), s.lrz(), s.lrw(),
+                            s.rrx(), s.rry(), s.rrz(), s.rrw(),
+                            s.textOpacity()
+                    )
+            );
+        }
+        return new BakedSequence(rotated, totalTicks, settings);
+    }
+}

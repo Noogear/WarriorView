@@ -1,5 +1,6 @@
 package cn.warriorview.animation.parse;
 
+import cn.warriorview.animation.api.Space;
 import cn.warriorview.animation.data.DisplaySettings;
 import cn.warriorview.animation.definition.EquationDef;
 import gloomlib.math.api.MathEngine;
@@ -50,6 +51,7 @@ public final class EquationParser {
      */
     public static EquationDef parse(String name, ConfigurationSection section) {
         DisplaySettings settings = SettingsParser.parse(section.getConfigurationSection("settings"));
+        Space space = Space.fromName(section.getString("space"));
 
         // duration supports plain number or math expression (no variables, evaluated once)
         int duration = parseDuration(section, name);
@@ -81,7 +83,7 @@ public final class EquationParser {
             MathEngine.CompiledMathExpression opacity = MathEngine.compile(opacityExpr, EquationDef.VARS);
 
             return new EquationDef(
-                    name, settings, duration, sampleInterval,
+                    name, settings, space, duration, sampleInterval,
                     posX, posY, posZ,
                     sclX, sclY, sclZ,
                     rotX, rotY, rotZ,

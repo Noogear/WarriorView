@@ -1,15 +1,19 @@
 package cn.warriorview.animation.engine;
 
 import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.manager.player.PlayerManager;
+import com.github.retrooper.packetevents.protocol.player.User;
 import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBundle;
+
+import io.netty.channel.Channel;
+import io.netty.channel.EventLoop;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 
 import org.bukkit.entity.Player;
 
 import java.util.IdentityHashMap;
-import java.util.Map;
 
 // ─── Bundle-delimiter protocol (MC 1.19.4+) ─────────────────────────────────
 // The client treats all packets between two BUNDLE_DELIMITER packets as a
@@ -38,6 +42,13 @@ import java.util.Map;
  * from repeated allocation.  Call {@link #remove(Player)} on player quit to release
  * the stale map entry.
  *
+ * <h3>Single-EventLoop-task optimization</h3>
+ * For each player, {@link #flush()} submits exactly <b>one</b> task to the player's
+ * Netty {@link EventLoop} that performs all writes + a single flush inline.
+ * From non-EventLoop threads, every {@code channel.write/flush} call submits an
+ * additional task; wrapping the whole batch in {@code eventLoop.execute()} reduces
+ * N+1 task submissions to <b>1</b> and N TCP pushes to <b>1</b>.
+ *
  * <p>Not thread-safe; must be driven from a single engine thread.</p>
  */
 public final class PacketCollector {
@@ -45,6 +56,26 @@ public final class PacketCollector {
     /** Per-player outbox. IdentityHashMap avoids Player.hashCode() / equals() overhead. */
     private final IdentityHashMap<Player, ObjectArrayList<PacketWrapper<?>>> mailboxes =
             new IdentityHashMap<>();
+
+    /**
+     * Cached PacketEvents {@link User} objects keyed by {@link Player} identity.
+     * Populated lazily on first {@link #collect} and invalidated in {@link #remove}.
+     */
+    private final IdentityHashMap<Player, User> userCache = new IdentityHashMap<>();
+
+    /**
+     * Cached Netty {@link EventLoop} per player — derived from the player's Channel
+     * on first use, stays stable for the connection lifetime.
+     * Cached here to avoid repeated {@code (Channel) user.getChannel().eventLoop()} calls.
+     */
+    private final IdentityHashMap<Player, EventLoop> eventLoopCache = new IdentityHashMap<>();
+
+    /**
+     * Players who received at least one packet this tick.
+     * Maintained by {@link #collect} so {@link #flush} iterates only active viewers
+     * instead of scanning all historic mailbox entries.
+     */
+    private final ObjectArrayList<Player> dirtyPlayers = new ObjectArrayList<>(64);
 
     /**
      * Shared stateless delimiter sentinel; allocated once for the lifetime of the JVM.
@@ -72,6 +103,9 @@ public final class PacketCollector {
                 box = new ObjectArrayList<>(8);
                 mailboxes.put(p, box);
             }
+            if (box.isEmpty()) {
+                dirtyPlayers.add(p); // mark as active this tick (first packet for this player)
+            }
             box.add(packet); // pointer copy only — flyweight
         }
     }
@@ -92,28 +126,51 @@ public final class PacketCollector {
      * Players that disconnected during the tick are silently skipped.
      */
     public void flush() {
-        for (Map.Entry<Player, ObjectArrayList<PacketWrapper<?>>> entry : mailboxes.entrySet()) {
-            ObjectArrayList<PacketWrapper<?>> box = entry.getValue();
-            if (box.isEmpty()) continue;
+        if (dirtyPlayers.isEmpty()) return;
 
-            var user = PacketEvents.getAPI().getPlayerManager().getUser(entry.getKey());
+        PlayerManager pm = PacketEvents.getAPI().getPlayerManager();
+        for (int d = 0; d < dirtyPlayers.size(); d++) {
+            Player p = dirtyPlayers.get(d);
+            ObjectArrayList<PacketWrapper<?>> box = mailboxes.get(p);
+
+            User user = userCache.get(p);
             if (user == null) {
-                box.clear();
-                continue;
-            }
-
-            if (box.size() == 1) {
-                user.sendPacket(box.get(0));
-            } else {
-                user.sendPacket(DELIMITER);                   // open
-                for (int i = 0; i < box.size(); i++) {
-                    user.sendPacket(box.get(i));
+                user = pm.getUser(p);
+                if (user == null) {
+                    box.clear();
+                    continue;
                 }
-                user.sendPacket(DELIMITER);                   // close
+                userCache.put(p, user);
             }
 
-            box.clear(); // 0-GC: reuse the ObjectArrayList allocation next tick
+            EventLoop el = eventLoopCache.get(p);
+            if (el == null) {
+                el = ((Channel) user.getChannel()).eventLoop();
+                eventLoopCache.put(p, el);
+            }
+
+            // Swap out the full box so collect() can immediately start filling a
+            // fresh one for the next tick without waiting for the EventLoop task.
+            final ObjectArrayList<PacketWrapper<?>> toSend = box;
+            mailboxes.put(p, new ObjectArrayList<>(8));
+
+            // Submit ONE task to the player's EventLoop.
+            // Inside the EventLoop thread, channel.write/flush execute synchronously
+            // (no further task submissions), so the entire bundle is 1 task + 1 flush.
+            final User finalUser = user;
+            el.execute(() -> {
+                if (toSend.size() == 1) {
+                    finalUser.sendPacket(toSend.get(0));
+                } else {
+                    finalUser.writePacket(DELIMITER);
+                    for (int i = 0; i < toSend.size(); i++) finalUser.writePacket(toSend.get(i));
+                    finalUser.writePacket(DELIMITER);
+                    finalUser.flushPackets();
+                }
+                // toSend is unreferenced after this; eligible for GC.
+            });
         }
+        dirtyPlayers.clear();
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -125,5 +182,7 @@ public final class PacketCollector {
      */
     public void remove(Player player) {
         mailboxes.remove(player);
+        userCache.remove(player);
+        eventLoopCache.remove(player);
     }
 }

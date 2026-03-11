@@ -43,7 +43,7 @@ public class IndicatorConfig extends ConfigurationPart {
     public int                    decimalPlaces    = 1;
     public IndicatorSpawnStrategy position         = IndicatorSpawnStrategy.AIM;
     public Billboard              billboard        = Billboard.CENTER;
-    public boolean                seeThrough       = false;
+    public boolean                seeThrough       = true;
     public boolean                textShadow       = true;
     public int                    background       = DisplaySettings.DEFAULT_BACKGROUND;
     public float                  viewRange        = 1.0f;

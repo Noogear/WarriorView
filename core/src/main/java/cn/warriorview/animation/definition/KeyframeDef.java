@@ -1,6 +1,7 @@
 package cn.warriorview.animation.definition;
 
 import cn.warriorview.animation.api.AnimationType;
+import cn.warriorview.animation.api.Space;
 import cn.warriorview.animation.data.BakedSequence;
 import cn.warriorview.animation.data.DisplaySettings;
 
@@ -18,6 +19,7 @@ import cn.warriorview.animation.data.DisplaySettings;
 public record KeyframeDef(
         String          name,
         DisplaySettings settings,
+        Space           space,
         BakedSequence   baked
 ) implements AnimationDef {
 

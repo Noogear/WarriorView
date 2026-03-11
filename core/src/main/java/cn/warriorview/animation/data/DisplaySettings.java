@@ -47,7 +47,7 @@ public record DisplaySettings(
         OffsetExpr offset
 ) {
     /** Minecraft default background colour for text displays: semi-transparent black. */
-    public static final int DEFAULT_BACKGROUND = 0x40000000;
+    public static final int DEFAULT_BACKGROUND = 0x00000000;
 
     public static final DisplaySettings DEFAULT = new DisplaySettings(
             Billboard.CENTER,

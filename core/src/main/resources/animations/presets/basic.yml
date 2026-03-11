@@ -1,0 +1,234 @@
+# ============================================================
+#  WarriorView — 基础动画预设库
+#  包含简单实用的动画效果，适合入门和日常伤害数字显示
+#
+#  所有预设均为 keyframe 类型，轨迹简洁直观
+#  通过 `type: preset` + `id: 预设名` 引用
+#
+#  关键帧要点：
+#    move   — 增量位移（每帧叠加到上一帧位置）
+#    size   — 绝对缩放（直接设定当前帧大小）
+#    opacity — 绝对透明度（"N%" 或 0-127）
+#    未指定的字段 → 继承上一帧的值
+# ============================================================
+
+preset:
+
+  # ----------------------------------------------------------
+  # gentle_rise — 温柔上浮
+  # 效果：文字缓缓上浮并淡出，最简约的伤害数字动画
+  # 适用：普通伤害、治疗数字、经验值提示
+  # 轨迹：纯垂直线性上浮，无缩放变化
+  #
+  # 可调参数提示（拷贝后修改）：
+  #   上浮距离 → move: {up: N}  增大 N 上浮更高
+  #   持续时间 → duration: N    增大 N 动画更慢
+  #   散布范围 → offset 的系数  增大后数字分布更散
+  # ----------------------------------------------------------
+  gentle_rise:
+    type: keyframe
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.4 - 0.2"         # 随机 ±0.2 格水平偏移
+        y: "r * 0.2"               # 随机 0~0.2 格垂直偏移
+        z: "r * 0.4 - 0.2"
+
+    timeline:
+      # 起始：正常大小，完全不透明
+      - time: 0
+        size: 1.0
+        opacity: 100%
+
+      # 30 tick 内匀速上浮 0.8 格，同时从不透明渐变为透明
+      - duration: 30
+        move: { up: 0.8 }
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # arc_toss — 斜抛飞出
+  # 效果：向攻击者右上方斜飞出，带有大小变化
+  # 适用：弓箭/投掷伤害、远程攻击反馈
+  # 轨迹：对角线（视角坐标系，跟随攻击者朝向）
+  #
+  # space: view 使 right/left/forward 相对攻击者面朝方向
+  # 例：攻击者面朝北 → right 指向东方
+  #     攻击者面朝东 → right 指向南方
+  # ----------------------------------------------------------
+  arc_toss:
+    type: keyframe
+    space: view                     # 视角坐标：运动跟随攻击者朝向
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.3 - 0.15"
+        y: "r * 0.15"
+        z: "r * 0.3 - 0.15"
+
+    timeline:
+      # 起始：略小
+      - time: 0
+        size: 0.8
+        opacity: 100%
+
+      # 快速飞向攻击者的右上方，放大至 1.2 倍
+      - duration: 8
+        size: 1.2
+        move: { right: 0.15, up: 0.25 }
+        opacity: 100%
+
+      # 继续飞行但逐渐减速，回到正常大小，渐隐
+      - duration: 17
+        size: 1.0
+        move: { right: 0.25, up: 0.15 }
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # scatter_pop — 四散弹出
+  # 效果：从较大范围随机位置弹出，短暂停留后淡出
+  # 适用：AOE 群伤、范围法术、多目标攻击
+  # 轨迹：几乎原地不动，核心靠宽幅随机偏移散布数字
+  #
+  # 宽 offset 使多个数字不易重叠：
+  #   x/z: ±0.6 格 → 直径 1.2 格的散布范围
+  # ----------------------------------------------------------
+  scatter_pop:
+    type: keyframe
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      view-range: 28
+      offset:
+        x: "r * 1.2 - 0.6"         # ±0.6 格的宽幅水平散布
+        y: "r * 0.6"               # 0~0.6 格的垂直分散
+        z: "r * 1.2 - 0.6"
+
+    timeline:
+      # 起始：极小且透明（即将"弹出"）
+      - time: 0
+        size: 0.2
+        opacity: 0%
+
+      # 3 tick 内快速弹出到 1.3 倍大小并完全显现
+      - duration: 3
+        size: 1.3
+        opacity: 100%
+
+      # 回弹到正常大小
+      - duration: 4
+        size: 1.0
+
+      # 轻微上浮并淡出
+      - duration: 15
+        move: { up: 0.15 }
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # pulse_flash — 脉冲闪现
+  # 效果：原地放大缩小脉冲，无位移，纯注意力吸引
+  # 适用：暴击提示、重要状态变化、成就达成
+  # 轨迹：零位移，仅靠缩放变化吸引眼球
+  #
+  # 缩放序列：0.5 → 2.0 → 0.9 → 1.3 → 0.6 → 消失
+  # 两次脉冲产生节奏感
+  # ----------------------------------------------------------
+  pulse_flash:
+    type: keyframe
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+
+    timeline:
+      # 起始：小
+      - time: 0
+        size: 0.5
+        opacity: 100%
+
+      # 第一脉冲：急速放大
+      - duration: 3
+        size: 2.0
+
+      # 急速缩小
+      - duration: 4
+        size: 0.9
+
+      # 第二脉冲：微微放大
+      - duration: 4
+        size: 1.3
+
+      # 缩小并淡出
+      - duration: 9
+        size: 0.6
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # linger_fade — 驻留渐隐
+  # 效果：稳定显示较长时间后才开始淡出
+  # 适用：状态提示、BUFF/DEBUFF 名称、需要被阅读的技能名
+  # 轨迹：几乎静止，末段才上浮消失
+  #
+  # 时间分配：25 tick 驻留 + 15 tick 淡出 = 40 tick 总时长
+  # 驻留期间 opacity 继承上一帧 100%，不需显式写出
+  # ----------------------------------------------------------
+  linger_fade:
+    type: keyframe
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.3 - 0.15"
+        y: "r * 0.2"
+        z: "r * 0.3 - 0.15"
+
+    timeline:
+      - time: 0
+        size: 1.0
+        opacity: 100%
+
+      # 驻留 25 tick：几乎不动，保持完全可见
+      # opacity 未指定 → 自动继承上一帧的 100%
+      - duration: 25
+        move: { up: 0.05 }
+
+      # 快速上浮并淡出
+      - duration: 15
+        move: { up: 0.3 }
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # grow_dissolve — 膨胀消散
+  # 效果：文字逐渐放大同时淡出，如同能量扩散消散
+  # 适用：魔法伤害、灵魂伤害、虚空伤害等非物理伤害
+  # 轨迹：轻微上浮，主要表现力靠缩放 + 透明度渐变
+  #
+  # 缩放 0.8 → 2.5 是 3 倍增长，配合淡出产生"扩散消散"视觉
+  # ----------------------------------------------------------
+  grow_dissolve:
+    type: keyframe
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.4 - 0.2"
+        y: "r * 0.2"
+        z: "r * 0.4 - 0.2"
+
+    timeline:
+      # 起始：略小
+      - time: 0
+        size: 0.8
+        opacity: 100%
+
+      # 30 tick 内膨胀至 2.5 倍并完全消散
+      - duration: 30
+        size: 2.5
+        move: { up: 0.2 }
+        opacity: 0%

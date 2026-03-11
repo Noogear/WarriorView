@@ -3,9 +3,9 @@ package cn.warriorview.formatter;
 import cn.warriorview.api.manager.CharReplaceManager;
 import cn.warriorview.util.Log;
 
-import gloomlib.configuration.api.exception.LoadContext;
+import gloomlib.diagnostic.LoadContext;
 import gloomlib.configuration.api.util.FileCache;
-import gloomlib.configuration.core.util.YamlLineIndex;
+import gloomlib.diagnostic.YamlLineIndex;
 import gloomlib.diagnostic.Diagnostic;
 import gloomlib.diagnostic.DiagnosticCategory;
 import gloomlib.diagnostic.SourceLocation;

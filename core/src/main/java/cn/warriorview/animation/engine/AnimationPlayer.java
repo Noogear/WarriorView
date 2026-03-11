@@ -5,7 +5,9 @@ import cn.warriorview.animation.data.BakedSequence;
 import cn.warriorview.animation.data.DisplaySettings;
 import cn.warriorview.animation.definition.AnimationDef;
 import cn.warriorview.animation.definition.EquationDef;
+import cn.warriorview.animation.definition.KeyframeDef;
 import cn.warriorview.animation.definition.PresetDef;
+import cn.warriorview.animation.api.Space;
 
 import io.netty.util.internal.shaded.org.jctools.queues.MpscUnboundedArrayQueue;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
@@ -18,6 +20,8 @@ import org.bukkit.entity.Player;
 
 import cn.warriorview.util.RapidTransientScheduler;
 import cn.warriorview.util.RapidTransientScheduler.TaskHandle;
+
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -107,18 +111,26 @@ public final class AnimationPlayer {
      */
     public void play(AnimationDef def, Location anchor, Component text,
                      Player[] viewers, int viewerCount) {
-        play(def, anchor, text, null, viewers, viewerCount);
+        play(def, anchor, text, null, 0f, viewers, viewerCount);
+    }
+
+    public void play(AnimationDef def, Location anchor, Component text,
+                     DisplaySettings settingsOverride,
+                     Player[] viewers, int viewerCount) {
+        play(def, anchor, text, settingsOverride, 0f, viewers, viewerCount);
     }
 
     /**
-     * 带 {@link DisplaySettings} 覆盖的播放入口。
+     * 带 {@link DisplaySettings} 覆盖 + 攻击者朝向的播放入口。
      *
      * @param settingsOverride 非 null 时覆盖动画定义自带的 DisplaySettings（billboard、
      *                         背景色、view-range 等），{@code null} 则使用动画默认值。
      *                         offset 表达式始终从动画定义获取。
+     * @param attackerYaw      攻击者的 yaw 角度（MC 度数）；仅当动画的
+     *                         {@code space() == Space.VIEW} 时用于 XZ 旋转。
      */
     public void play(AnimationDef def, Location anchor, Component text,
-                     DisplaySettings settingsOverride,
+                     DisplaySettings settingsOverride, float attackerYaw,
                      Player[] viewers, int viewerCount) {
         if (viewers == null || viewerCount == 0) return;
 
@@ -129,6 +141,37 @@ public final class AnimationPlayer {
         DisplaySettings effective = settingsOverride != null ? settingsOverride : concrete.settings();
         float[] offsetBuf = new float[3];
         effective.offset().evaluateInto(r, offsetBuf);
+
+        // 视角空间旋转参数（仅 VIEW 时计算三角函数，WORLD 时跳过）
+        final boolean viewSpace = concrete.space() == Space.VIEW;
+        float cos = 1f, sin = 0f;
+        if (viewSpace) {
+            float yawRad = (float) Math.toRadians(-attackerYaw);
+            cos = (float) Math.cos(yawRad);
+            sin = (float) Math.sin(yawRad);
+        }
+
+        // 密封接口多态分派：
+        //   EquationDef + VIEW  → bakeRotated() 内联旋转，零中间分配
+        //   EquationDef + WORLD → bake(r) 常规路径
+        //   KeyframeDef + VIEW  → bake(r) 返回共享序列，rotateXZ() 产生 per-instance 拷贝
+        //   KeyframeDef + WORLD → bake(r) 直接返回共享序列，零拷贝
+        BakedSequence seq;
+        if (viewSpace && concrete instanceof EquationDef eq) {
+            seq = eq.bakeRotated(r, cos, sin);
+        } else {
+            seq = concrete.bake(r);
+            if (viewSpace) seq = seq.rotateXZ(cos, sin);
+        }
+
+        if (seq.frames().length == 0) return;
+
+        // 偏移量同步旋转（视角空间 offset 也需要转到世界坐标）
+        if (viewSpace) {
+            float ox = offsetBuf[0], oz = offsetBuf[2];
+            offsetBuf[0] =  ox * cos + oz * sin;
+            offsetBuf[2] = -ox * sin + oz * cos;
+        }
 
         Location spawnAt = new Location(
                 anchor.getWorld(),
@@ -141,21 +184,21 @@ public final class AnimationPlayer {
         int entityId = Bukkit.getUnsafe().nextEntityId();
         UUID entityUid = UUID.randomUUID();
 
-        // 密封接口多态分派：KeyframeDef 返回共享预烘焙序列（零拷贝），EquationDef 实例级烘焙（单次分配）
-        BakedSequence seq = concrete.bake(r);
-
-        if (seq.frames().length == 0) return;
-
+        // sharedSeq = true 仅当帧数组是全局共享的（KeyframeDef + WORLD 空间）。
+        // 以下两种情况需要 evict 缓存：
+        //   1. EquationDef（始终 per-instance）
+        //   2. KeyframeDef + VIEW（rotateXZ 产生 per-instance 拷贝，不能用共享标识判断）
+        boolean sharedSeq = concrete instanceof KeyframeDef && !viewSpace;
         pendingSpawn.relaxedOffer(
                 new AnimationInstance(entityId, entityUid, seq, spawnAt, text,
                         settingsOverride, viewers, viewerCount,
-                        !(concrete instanceof EquationDef)));
+                        sharedSeq));
         wakeUp();
     }
 
     /** Convenience overload: uses all entries in {@code viewers}. */
     public void play(AnimationDef def, Location anchor, Component text, Player[] viewers) {
-        play(def, anchor, text, null, viewers, viewers == null ? 0 : viewers.length);
+        play(def, anchor, text, null, 0f, viewers, viewers == null ? 0 : viewers.length);
     }
 
     /**
@@ -175,6 +218,9 @@ public final class AnimationPlayer {
         tickHandleRef.set(null);
 
         // ── Phase A: advance active instances; flush destroy for cancelled ────
+        // minSleep tracks time-to-next-frame across all instances, accumulated here
+        // (Phase A for existing, Phase B for new spawns) to eliminate the old Phase D scan.
+        long minSleep = Long.MAX_VALUE;
         for (int i = active.size() - 1; i >= 0; i--) {
             AnimationInstance inst = active.get(i);
 
@@ -182,7 +228,7 @@ public final class AnimationPlayer {
                 // dispatchLater fired: send destroy packet now and evict.
                 TextDisplayPackets.destroyInto(
                         inst.entityId, inst.viewers, inst.viewerCount, collector);
-                if (!inst.keyframe) TextDisplayPackets.evictFrameCache(inst.sequence.frames());
+                if (!inst.sharedFrames) TextDisplayPackets.evictFrameCache(inst.sequence.frames());
                 active.remove(i);
                 continue;
             }
@@ -190,13 +236,19 @@ public final class AnimationPlayer {
             inst.age++;
 
             // Send all frames whose absolute tick-offset has arrived this tick.
+            // framePkts[] was pre-built at spawn: zero allocations in the hot loop.
             BakedFrame[] frames = inst.sequence.frames();
             while (inst.nextFrameIdx < frames.length
                     && frames[inst.nextFrameIdx].tickOffset() <= inst.age) {
-                TextDisplayPackets.frameInto(
-                        inst.entityId, frames[inst.nextFrameIdx],
-                        inst.viewers, inst.viewerCount, collector);
+                collector.collect(inst.viewers, inst.viewerCount,
+                        inst.framePkts[inst.nextFrameIdx]);
                 inst.nextFrameIdx++;
+            }
+
+            // Accumulate minSleep — replaces the separate Phase D scan.
+            if (inst.nextFrameIdx < frames.length) {
+                long sleep = frames[inst.nextFrameIdx].tickOffset() - inst.age;
+                if (sleep < minSleep) minSleep = sleep;
             }
         }
 
@@ -213,6 +265,14 @@ public final class AnimationPlayer {
                     pending.text, spawnSettings, pending.sequence.frames()[0],
                     pending.viewers, pending.viewerCount, collector);
             active.add(pending);
+
+            // Accumulate minSleep for newly spawned instances (Phase B contribution).
+            // nextFrameIdx starts at 1 (frame[0] sent at spawn), so we check frame[1].
+            BakedFrame[] spawnFrames = pending.sequence.frames();
+            if (pending.nextFrameIdx < spawnFrames.length) {
+                long sleep = spawnFrames[pending.nextFrameIdx].tickOffset() - pending.age;
+                if (sleep < minSleep) minSleep = sleep;
+            }
 
             // ── Option 3: precise destroy via dispatchLater ───────────────────
             // Schedules the destroy exactly when the animation finishes, eliminating
@@ -234,20 +294,8 @@ public final class AnimationPlayer {
             return;
         }
 
-        // Find the minimum ticks until the next keyframe fires across all instances.
-        // Instances that have already sent all frames (waiting only for their
-        // dispatchLater destroy) are skipped — wakeUp() from the destroy callback handles them.
-        long minSleep = Long.MAX_VALUE;
-        for (int i = 0; i < active.size(); i++) {
-            AnimationInstance inst = active.get(i);
-            if (inst.cancelled) { minSleep = 1; break; }
-            BakedFrame[] frames = inst.sequence.frames();
-            if (inst.nextFrameIdx < frames.length) {
-                long sleep = frames[inst.nextFrameIdx].tickOffset() - inst.age;
-                if (sleep < minSleep) minSleep = sleep;
-            }
-        }
-
+        // minSleep was accumulated during Phase A (existing instances) and Phase B (new spawns);
+        // no second scan needed.
         if (minSleep == Long.MAX_VALUE) {
             // All living instances are fully animated; waiting for dispatchLater destroys.
             // Do not schedule a tick now — wakeUp() from those callbacks will do it.
@@ -317,8 +365,12 @@ public final class AnimationPlayer {
         final Player[]         viewers;
         int                    viewerCount; // mutable: reduced by cullViewers() on disconnect
 
-        /** True for keyframe animations (shared BakedFrames); false for equation (per-instance frames). */
-        final boolean          keyframe;
+        /**
+         * True when the {@link BakedFrame} array is globally shared (load-time keyframe + WORLD space).
+         * False when frames are per-instance (equation, or keyframe + VIEW rotated clone).
+         * Controls whether {@link TextDisplayPackets#evictFrameCache} is called on destroy.
+         */
+        final boolean          sharedFrames;
 
         /** Ticks elapsed since this instance was spawned.  0 on the spawn tick. */
         int age          = 0;
@@ -332,11 +384,19 @@ public final class AnimationPlayer {
          */
         boolean cancelled = false;
 
+        /**
+         * Pre-built metadata packets for every frame (index-aligned with
+         * {@code sequence.frames()}).  Built once at spawn time so the tick loop
+         * can hand a cached pointer to {@link PacketCollector#collect} instead of
+         * allocating a new {@link WrapperPlayServerEntityMetadata} on each advance.
+         */
+        final WrapperPlayServerEntityMetadata[] framePkts;
+
         AnimationInstance(int entityId, UUID entityUid, BakedSequence sequence,
                           Location spawnAt, Component text,
                           DisplaySettings settingsOverride,
                           Player[] viewers, int viewerCount,
-                          boolean keyframe) {
+                          boolean sharedFrames) {
             this.entityId         = entityId;
             this.entityUid        = entityUid;
             this.sequence         = sequence;
@@ -345,7 +405,9 @@ public final class AnimationPlayer {
             this.settingsOverride = settingsOverride;
             this.viewers          = viewers;
             this.viewerCount      = viewerCount;
-            this.keyframe         = keyframe;
+            this.sharedFrames     = sharedFrames;
+            // Pre-build frame packets at spawn so tick() needs zero per-frame allocations.
+            this.framePkts = TextDisplayPackets.buildFramePackets(entityId, sequence.frames());
         }
     }
 

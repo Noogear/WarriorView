@@ -1,0 +1,374 @@
+# ============================================================
+#  WarriorView — 参数化模板库
+#  模板 = 带有可配置参数（$参数名）的预设
+#  一套模板 + 不同参数 = 多种效果，避免大量复制粘贴
+#
+#  定义方式：在预设中添加 `params:` 块声明参数及默认值
+#  占位规则：
+#    完整值   — `size: $peak_size`          → 整个值替换，保持原始类型
+#    内嵌插值 — `x: "sin(t * $speed)"`      → $speed 作为文本替换进字符串
+#
+#  使用方式（在 animations/*.yml 中）：
+#    animation:
+#      my_anim:
+#        type: preset
+#        id: 模板名
+#        params:
+#          参数名: 覆盖值           # 未覆盖的使用 params 中的默认值
+#        settings:                  # 可选：额外覆盖显示设置
+#          view-range: 32
+#
+#  重要：模板参数可用于任何位置 — timeline、math、settings、duration 等
+# ============================================================
+
+preset:
+
+  # ----------------------------------------------------------
+  # rise_template — 可配置上浮模板
+  # 上浮 + 弹跳缩放 + 淡出，最通用的伤害数字模板
+  #
+  # 参数          默认值    说明
+  # peak_size     1.3       弹跳峰值缩放倍数
+  # rise          0.7       总上浮高度（格）
+  # fade          15        淡出阶段持续 tick
+  # spread        0.5       随机散布范围（±spread/2）
+  #
+  # 调参示例：
+  #   低调小伤害 → peak_size=1.0, rise=0.5,  fade=12, spread=0.3
+  #   夸张暴击   → peak_size=2.0, rise=1.0,  fade=18, spread=0.8
+  #   密集群伤   → peak_size=1.1, rise=0.4,  fade=10, spread=1.0
+  # ----------------------------------------------------------
+  rise_template:
+    type: keyframe
+    params:
+      peak_size: 1.3
+      rise: 0.7
+      fade: 15
+      spread: 0.5
+
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * $spread - $spread / 2"
+        y: "r * 0.2"
+        z: "r * $spread - $spread / 2"
+
+    timeline:
+      - time: 0
+        size: 1.0
+        opacity: 100%
+
+      # 弹跳放大阶段
+      - duration: 5
+        size: $peak_size
+        move: { up: 0.1 }
+        opacity: 100%
+
+      # 回缩 + 主体上浮
+      - duration: 10
+        size: 1.0
+        move: { up: $rise }
+
+      # 淡出阶段
+      - duration: $fade
+        move: { up: 0.2 }
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # bounce_template — 可配置弹跳模板
+  # 弹簧式弹跳动画，可控制弹力和回弹幅度
+  #
+  # 参数          默认值    说明
+  # height        0.6       弹跳最高点（格）
+  # rebound       0.2       回弹距离（格，向下）
+  # hold          20        稳定后停留/淡出 tick
+  # spread        0.5       随机散布范围
+  #
+  # 调参示例：
+  #   大幅弹跳 → height=0.8, rebound=0.3
+  #   微弹效果 → height=0.3, rebound=0.1
+  #   长驻留   → hold=30
+  # ----------------------------------------------------------
+  bounce_template:
+    type: keyframe
+    params:
+      height: 0.6
+      rebound: 0.2
+      hold: 20
+      spread: 0.5
+
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * $spread - $spread / 2"
+        y: 0
+        z: "r * $spread - $spread / 2"
+
+    timeline:
+      - time: 0
+        size: 1.0
+        opacity: 100%
+
+      # 快速弹至最高点
+      - duration: 6
+        size: 1.2
+        move: { up: $height }
+
+      # 回弹向下
+      - duration: 5
+        size: 0.9
+        move: { down: $rebound }
+
+      # 稳定后上浮淡出
+      - duration: $hold
+        size: 1.0
+        move: { up: 0.3 }
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # spiral_template — 可配置螺旋模板 (equation)
+  # 圆形螺旋上升，可灵活控制半径、速度和持续时间
+  #
+  # 参数          默认值    说明
+  # radius        0.5       螺旋半径（格）
+  # speed         0.2       角速度（弧度/tick）
+  # rise          0.05      每 tick 上浮距离（格/tick）
+  # dur           50        总持续 tick 数
+  #
+  # 调参示例：
+  #   紧密快旋 → radius=0.3, speed=0.35, dur=40
+  #   大缓螺旋 → radius=0.8, speed=0.12, dur=65
+  #   快速攀升 → rise=0.08
+  #
+  # 速度参考：
+  #   speed=0.1 → ~63 tick 一圈 (2π/0.1)
+  #   speed=0.2 → ~31 tick 一圈
+  #   speed=0.5 → ~13 tick 一圈
+  # ----------------------------------------------------------
+  spiral_template:
+    type: equation
+    params:
+      radius: 0.5
+      speed: 0.2
+      rise: 0.05
+      dur: 50
+
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: 0
+        y: "r * 0.15"
+        z: 0
+
+    duration: $dur
+    sample_interval: 2
+
+    math:
+      position:
+        x: "sin(t * $speed) * $radius"
+        y: "t * $rise"
+        z: "cos(t * $speed) * $radius"
+      opacity: "max(0, 127 - t * 127 / $dur)"      # 均匀淡出
+
+  # ----------------------------------------------------------
+  # wave_template — 可配置波浪模板 (equation)
+  # 水平正弦波 + 上浮，可调振幅和频率实现多种波浪效果
+  #
+  # 参数          默认值    说明
+  # amp           0.4       波浪振幅（格）
+  # freq          0.2       角频率（弧度/tick）
+  # rise          0.04      每 tick 上浮距离
+  # dur           50        总持续 tick 数
+  #
+  # 调参示例：
+  #   轻柔小波浪 → amp=0.2,  freq=0.15
+  #   剧烈大波浪 → amp=0.6,  freq=0.3
+  #   电击感抖动 → amp=0.15, freq=0.8, dur=35
+  #   水波纹效果 → amp=0.3,  freq=0.12, dur=60
+  #
+  # 频率参考：
+  #   freq=0.1 → 周期 ≈63 tick，缓慢
+  #   freq=0.3 → 周期 ≈21 tick，中速
+  #   freq=0.8 → 周期 ≈8 tick，高频抖动
+  # ----------------------------------------------------------
+  wave_template:
+    type: equation
+    params:
+      amp: 0.4
+      freq: 0.2
+      rise: 0.04
+      dur: 50
+
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.3 - 0.15"
+        y: "r * 0.15"
+        z: "r * 0.3 - 0.15"
+
+    duration: $dur
+    sample_interval: 2
+
+    math:
+      position:
+        x: "sin(t * $freq) * $amp"
+        y: "t * $rise"
+        z: "0"
+      opacity: "max(0, 127 - t * 127 / $dur)"
+
+  # ----------------------------------------------------------
+  # projectile_template — 可配置抛射模板 (equation)
+  # 自定义抛物线轨迹，模拟投射物/弹道运动
+  #
+  # 参数          默认值    说明
+  # h_speed       0.04      水平速度（格/tick），0=纯垂直
+  # v_speed       0.11      初始垂直速度（格/tick）
+  # gravity       0.0025    重力加速度（格/tick²）
+  # dur           45        总持续 tick 数
+  #
+  # 调参示例：
+  #   远距低弧线 → h_speed=0.06, v_speed=0.13, gravity=0.003
+  #   近距高弧线 → h_speed=0.02, v_speed=0.15, gravity=0.004
+  #   纯垂直上抛 → h_speed=0,    v_speed=0.12, gravity=0.003
+  #   超远平射   → h_speed=0.08, v_speed=0.06, gravity=0.001
+  #
+  # 物理计算：
+  #   顶点时间 = v_speed / (2 × gravity)
+  #   顶点高度 = v_speed² / (4 × gravity)
+  #   默认参数 → 顶点 t=22 tick, 高度 1.21 格
+  # ----------------------------------------------------------
+  projectile_template:
+    type: equation
+    params:
+      h_speed: 0.04
+      v_speed: 0.11
+      gravity: 0.0025
+      dur: 45
+
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.3 - 0.15"
+        y: 0
+        z: "r * 0.3 - 0.15"
+
+    duration: $dur
+    sample_interval: 2
+
+    math:
+      position:
+        x: "t * $h_speed"                          # 水平匀速
+        y: "t * $v_speed - t ** 2 * $gravity"      # 抛物线
+        z: "0"
+      scale:
+        x: "max(0.3, 1.2 - t * 0.02)"
+        y: "max(0.3, 1.2 - t * 0.02)"
+        z: "max(0.3, 1.2 - t * 0.02)"
+      opacity: "max(0, 127 - t * 127 / $dur)"
+
+  # ----------------------------------------------------------
+  # directional_template — 可配置方向飞出模板（视角坐标）
+  # 文字沿攻击者 (right, forward, up) 方向飞出
+  # space: view 使所有运动跟随攻击者朝向
+  #
+  # 参数          默认值    说明
+  # h_right       0.3       向攻击者右方飞出距离（负值=左方）
+  # h_forward     0.2       向攻击者前方飞出距离（负值=后方）
+  # rise          0.5       上浮总高度
+  # fade          15        淡出阶段持续 tick
+  # spread        0.3       随机散布范围
+  #
+  # 调参示例：
+  #   右斩击     → h_right=0.4, h_forward=0.1
+  #   左闪避     → h_right=-0.4, h_forward=0
+  #   正面冲锋   → h_right=0, h_forward=0.6
+  #   后退防御   → h_right=0, h_forward=-0.3
+  # ----------------------------------------------------------
+  directional_template:
+    type: keyframe
+    space: view                           # 视角坐标系
+    params:
+      h_right: 0.3
+      h_forward: 0.2
+      rise: 0.5
+      fade: 15
+      spread: 0.3
+
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * $spread - $spread / 2"
+        y: "r * 0.15"
+        z: "r * $spread - $spread / 2"
+
+    timeline:
+      - time: 0
+        size: 1.0
+        opacity: 100%
+
+      # 快速飞向指定方向
+      - duration: 8
+        size: 1.2
+        move: { right: $h_right, forward: $h_forward, up: 0.15 }
+        opacity: 100%
+
+      # 上浮淡出
+      - duration: $fade
+        size: 1.0
+        move: { up: $rise }
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # view_spiral_template — 可配置视角螺旋模板（视角坐标）
+  # 螺旋运动沿攻击者前方展开
+  # space: view 使螺旋轴指向攻击者面前方向
+  #
+  # 参数          默认值    说明
+  # radius        0.3       螺旋半径（格）
+  # speed         0.3       角速度（弧度/tick）
+  # push          0.04      向攻击者前方推进速度（格/tick）
+  # dur           40        总持续 tick 数
+  #
+  # 对比 spiral_template（世界坐标）：
+  #   spiral_template     → 绕世界 Y 轴螺旋上升
+  #   view_spiral_template → 绕攻击者视线螺旋前推
+  #
+  # 调参示例：
+  #   钻头冲刺   → radius=0.2, speed=0.5, push=0.06
+  #   大缓旋     → radius=0.5, speed=0.15, push=0.02
+  # ----------------------------------------------------------
+  view_spiral_template:
+    type: equation
+    space: view
+    params:
+      radius: 0.3
+      speed: 0.3
+      push: 0.04
+      dur: 40
+
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+
+    duration: $dur
+    sample_interval: 2
+
+    math:
+      position:
+        x: "sin(t * $speed) * $radius"             # 视角左右摆动
+        y: "cos(t * $speed) * $radius"              # 视角上下摆动
+        z: "t * $push"                              # 向攻击者前方推进
+      opacity: "max(0, 127 - t * 127 / $dur)"

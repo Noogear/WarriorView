@@ -5,15 +5,19 @@
 # 传入的第三个参数（tag）会匹配此处的键名，以确定 TextDisplay 的显示参数
 # 和生成策略。匹配不到时回退到 default。
 #
+# Tag 来源：
+#   hardcoded  → CRITICAL（暴击检测）、MAGIC（AreaEffectCloud 重映射）
+#   dynamic    → DamageCause.name()（Bukkit 枚举名称：ENTITY_ATTACK 等）
+#
 # 配置字段说明：
 #   text-format        : MiniMessage 模板，{damage} 占位符替换为格式化后的伤害数值
 #   decimal-places     : 伤害数值保留的小数位数（int，默认 1）
-#   position           : 生成位置算法 —— AIM / SURFACE / IMPACT / ORIGIN
+#   position           : 生成位置算法 —— AIM / SURFACE / IMPACT / SOURCE_ORIGIN / TARGET_EYE / TARGET_BOTTOM
 #   animation          : 关联的动画定义名称（在 animations/ 目录中定义）
 #   billboard          : TextDisplay 朝向约束 —— CENTER / VERTICAL / HORIZONTAL / FIXED
 #   see-through        : 是否穿透方块渲染（布尔值，默认 false）
 #   text-shadow        : 是否显示文字阴影（布尔值，默认 true）
-#   background         : ARGB 背景颜色（0xAARRGGBB 格式或十进制整数，默认 0x40000000）
+#   background         : ARGB 背景颜色（0xAARRGGBB 格式或十进制整数，0x00000000 = 完全透明）
 #   view-range         : 客户端可见距离倍率（float，默认 1.0）
 #   teleport-duration  : 位置 / 旋转插值 tick 数（int，默认 0 = 立即传送）
 #   brightness         : 亮度覆盖（int，-1 = 使用世界光照）
@@ -21,56 +25,100 @@
 #   shadow-strength    : 地面阴影强度（float，默认 1.0）
 #   glow-color         : 发光颜色覆盖（RGB int，默认 0）
 #   line-width         : 文本最大行宽像素（int，默认 200）
-#   only-player        : 为 true 时仅在攻击者为玩家时触发指示器（默认 true）
+#   only-player        : 为 true 时仅在来源（source）为玩家时触发指示器（默认 true）
 #   number-format      : 数字量化缩写规则名称（引用 number-format.yml，null = 不缩写）
 #   char-replace       : 字符替换规则名称（引用 char-replace.yml，null = 不替换）
+#
+# 动画参考（详见 animations/presets/ 目录）：
+#   decelerate_float — 自然减速上浮（方程式）
+#   spring_bounce    — 弹簧弹跳（关键帧）
+#   arc_toss         — 视角坐标右斩飞出
+#   scatter_pop      — 四散弹出（宽幅偏移）
+#   parabola_toss    — 抛物线飞出
+#   figure_eight     — ∞ 字形魔法轨迹
+#   zigzag_climb     — 锯齿攀升（闪电感）
+#   charge_burst     — 视角坐标前方冲出
+#   slam_down        — 从上方砸下
+#   sine_drift       — 正弦波漂移
+#   orbit_decay      — 衰减坠落轨道
+#   helix_expand     — 扩散螺旋
+#   cone_scatter     — 视角坐标扇形散射
+#   gentle_rise      — 温柔上浮
+#   float_fade       — 弹跳上浮淡出
 # ──────────────────────────────────────────────────────────────────────────────
 
-# 全局兜底配置（tag 匹配不到时使用）
+# ======================== 全局兜底配置 ========================
 default:
   text-format: "<white>{damage}"
   position: AIM
-  animation: critical_hit
+  animation: decelerate_float
   billboard: CENTER
-  see-through: false
+  see-through: true
   text-shadow: true
-  background: 0x40000000
+  background: 0x00000000
   view-range: 32.0
   only-player: true
 
-# 暴击
+# ======================== 物理近战 ========================
+
+# 暴击（硬编码 tag：暴击检测 → CRITICAL）
 CRITICAL:
   text-format: "<red><bold>✦ {damage}"
   position: AIM
-  animation: critical_hit
-  billboard: CENTER
-  see-through: false
-  text-shadow: true
-  background: 0x40000000
+  animation: spring_bounce
   view-range: 48.0
-  only-player: true
 
-# 近战实体攻击
+# 近战实体攻击（普通左键命中）
 ENTITY_ATTACK:
   text-format: "<white>{damage}"
   position: AIM
-  animation: critical_hit
+  animation: arc_toss
 
-# 投射物（弓箭、三叉戟等）：投射物实体本身充当 attacker，位置即撞击点，IMPACT 的 tMin ≈ 0，命中检测准确
+# 横扫攻击（剑横扫对周围目标的伤害）
+ENTITY_SWEEP_ATTACK:
+  text-format: "<white>⚔ {damage}"
+  position: AIM
+  animation: cone_scatter
+
+# ======================== 远程 / 投射物 ========================
+
+# 投射物（弓箭、三叉戟、雪球等）
 PROJECTILE:
   text-format: "<yellow>➶ {damage}"
   position: IMPACT
-  animation: critical_hit
+  animation: parabola_toss
 
-# 区域伤害 / 爆炸
-ENTITY_EXPLOSION:
-  text-format: "<gold>💥 {damage}"
-  position: SURFACE
-  animation: critical_hit
+# ======================== 魔法 / 元素 ========================
+
+# 药水云 / 魔法伤害（AreaEffectCloud 或瞬间伤害药水，玩家投掷触发）
+MAGIC:
+  text-format: "<aqua>✦ {damage}"
+  position: AIM
+  animation: figure_eight
   only-player: false
 
-# 自身反馈（附魔反伤、荆棘等）
+# 着火伤害（火焰附魔点燃瞬间）
+FIRE:
+  text-format: "<red>🔥 {damage}"
+  position: AIM
+  animation: sine_drift
+
+# 火焰持续伤害（火焰附魔灼烧 tick）
+FIRE_TICK:
+  text-format: "<red>🔥 {damage}"
+  position: AIM
+  animation: sine_drift
+
+# 闪电击中（三叉戟+引雷附魔）
+LIGHTNING:
+  text-format: "<yellow><bold>⚡ {damage}"
+  position: TARGET_EYE
+  animation: slam_down
+
+# ======================== 特殊机制 ========================
+
+# 荆棘附魔反伤（显示在攻击者身上 → SOURCE_ORIGIN）
 THORNS:
   text-format: "<green>⚡ {damage}"
-  position: ORIGIN
-  animation: critical_hit
+  position: SOURCE_ORIGIN
+  animation: zigzag_climb

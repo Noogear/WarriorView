@@ -1,6 +1,7 @@
 package cn.warriorview.animation.definition;
 
 import cn.warriorview.animation.api.AnimationType;
+import cn.warriorview.animation.api.Space;
 import cn.warriorview.animation.data.BakedSequence;
 import cn.warriorview.animation.data.DisplaySettings;
 
@@ -27,6 +28,9 @@ public sealed interface AnimationDef permits KeyframeDef, EquationDef, PresetDef
 
     /** Total duration of this animation in game ticks. */
     int totalDurationTicks();
+
+    /** 动画坐标空间：{@link Space#WORLD}（默认）或 {@link Space#VIEW}（视角相对）。 */
+    default Space space() { return Space.WORLD; }
 
     /**
      * 将此动画定义烘焙为可播放的帧序列。

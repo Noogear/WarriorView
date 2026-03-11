@@ -3,14 +3,15 @@ package cn.warriorview.manager;
 import cn.warriorview.api.manager.ScriptManager;
 import cn.warriorview.action.BuiltinActions;
 import cn.warriorview.util.Log;
-import gloomlib.configuration.api.exception.LoadContext;
-import gloomlib.configuration.core.util.YamlLineIndex;
+import gloomlib.diagnostic.LoadContext;
+import gloomlib.diagnostic.YamlLineIndex;
 import gloomlib.diagnostic.Diagnostic;
 import gloomlib.diagnostic.DiagnosticCategory;
 import gloomlib.diagnostic.SourceLocation;
 import gloomlib.script.api.ScriptHost;
 import gloomlib.script.api.injection.ScriptInjector;
 import gloomlib.script.core.handler.ActionNodeHandler;
+import gloomlib.script.core.parser.ScriptParser;
 
 import org.bukkit.Bukkit;
 import org.bukkit.event.Event;
@@ -20,23 +21,13 @@ import org.bukkit.event.Listener;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.nodes.MappingNode;
-import org.yaml.snakeyaml.nodes.Node;
-import org.yaml.snakeyaml.nodes.NodeTuple;
-import org.yaml.snakeyaml.nodes.ScalarNode;
-import org.yaml.snakeyaml.nodes.SequenceNode;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -108,18 +99,7 @@ public class BukkitScriptManager implements ScriptHost, ScriptManager {
 
             LoadContext.set(file.getName(), YamlLineIndex.buildFromString(content));
             try {
-                Node rootNode = new Yaml().compose(new StringReader(content));
-                if (!(rootNode instanceof MappingNode)) {
-                    Log.warn(new Diagnostic(
-                            new SourceLocation(file.getName(), 0, 0),
-                            DiagnosticCategory.PARSE,
-                            "Root element is not a mapping"
-                    ).format());
-                    continue;
-                }
-
-                @SuppressWarnings("unchecked")
-                Map<String, Object> rootMap = (Map<String, Object>) parseYamlNode(rootNode);
+                Map<String, Object> rootMap = ScriptParser.parseYaml(content);
                 // 提取 id：优先用 YAML 中的 id 字段，否则用文件名
                 String scriptId = rootMap.containsKey("id")
                         ? String.valueOf(rootMap.get("id"))
@@ -213,33 +193,6 @@ public class BukkitScriptManager implements ScriptHost, ScriptManager {
         if (registrationToken instanceof Listener listener) {
             HandlerList.unregisterAll(listener);
         }
-    }
-
-    // ── YAML 解析 ───────────────────────────────────────────────────────
-
-    /** 递归解析 SnakeYAML AST 节点，注入 {@code __line__} 行号信息。 */
-    private static Object parseYamlNode(Node node) {
-        if (node instanceof ScalarNode scalar) {
-            String value = scalar.getValue();
-            if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value))
-                return Boolean.parseBoolean(value);
-            return value;
-        } else if (node instanceof SequenceNode sequence) {
-            List<Object> list = new ArrayList<>(sequence.getValue().size());
-            for (Node child : sequence.getValue()) {
-                list.add(parseYamlNode(child));
-            }
-            return list;
-        } else if (node instanceof MappingNode mapping) {
-            Map<String, Object> map = new LinkedHashMap<>(mapping.getValue().size() + 1);
-            map.put("__line__", mapping.getStartMark().getLine() + 1);
-            for (NodeTuple tuple : mapping.getValue()) {
-                String key = ((ScalarNode) tuple.getKeyNode()).getValue();
-                map.put(key, parseYamlNode(tuple.getValueNode()));
-            }
-            return map;
-        }
-        return null;
     }
 
     // ── 文件工具 ────────────────────────────────────────────────────────

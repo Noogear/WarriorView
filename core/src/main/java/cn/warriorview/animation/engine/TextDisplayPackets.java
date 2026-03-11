@@ -179,6 +179,26 @@ public final class TextDisplayPackets {
     }
 
     /**
+     * Pre-builds one {@link WrapperPlayServerEntityMetadata} per frame for the
+     * given entity ID.  Called once at spawn time so the tick loop can
+     * {@link PacketCollector#collect} a cached pointer instead of allocating a
+     * new wrapper on every advance.
+     *
+     * @param entityId unique entity id for the animation instance
+     * @param frames   all baked frames of the animation sequence
+     * @return array of pre-built metadata packets, index-aligned with {@code frames}
+     */
+    static WrapperPlayServerEntityMetadata[] buildFramePackets(
+            int entityId, BakedFrame[] frames) {
+        WrapperPlayServerEntityMetadata[] pkts =
+                new WrapperPlayServerEntityMetadata[frames.length];
+        for (int i = 0; i < frames.length; i++) {
+            pkts[i] = new WrapperPlayServerEntityMetadata(entityId, frameMetaOf(frames[i]));
+        }
+        return pkts;
+    }
+
+    /**
      * Removes all entries for the given frames from the cache.
      * Called when an equation-animation instance is destroyed, so its
      * {@link BakedFrame} objects (and the cached metadata lists) can be GC'd.

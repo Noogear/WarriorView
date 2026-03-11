@@ -1,14 +1,17 @@
 package cn.warriorview.animation.parse;
 
+import cn.warriorview.animation.api.Space;
 import cn.warriorview.animation.data.BakedFrame;
 import cn.warriorview.animation.data.BakedSequence;
 import cn.warriorview.animation.data.DisplaySettings;
 import cn.warriorview.animation.data.TransformSnapshot;
 import cn.warriorview.animation.definition.KeyframeDef;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.MemoryConfiguration;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Parses a {@code type: keyframe} animation section into a fully pre-baked
@@ -54,9 +57,10 @@ public final class KeyframeParser {
      */
     public static KeyframeDef parse(String name, ConfigurationSection section) {
         DisplaySettings settings = SettingsParser.parse(section.getConfigurationSection("settings"));
+        Space space = Space.fromName(section.getString("space"));
 
-        List<?> rawTimeline = section.getList("timeline");
-        if (rawTimeline == null || rawTimeline.isEmpty()) {
+        List<Map<?, ?>> rawTimeline = section.getMapList("timeline");
+        if (rawTimeline.isEmpty()) {
             System.err.println("[WarriorView] Keyframe animation '" + name + "' has no timeline.");
             return null;
         }
@@ -65,8 +69,10 @@ public final class KeyframeParser {
         TransformSnapshot prev = TransformSnapshot.IDENTITY;
         int currentTick = 0;
 
-        for (Object entry : rawTimeline) {
-            if (!(entry instanceof ConfigurationSection frameSection)) continue;
+        for (Map<?, ?> entry : rawTimeline) {
+            MemoryConfiguration frameSection = new MemoryConfiguration();
+            for (var kv : entry.entrySet())
+                frameSection.set(kv.getKey().toString(), kv.getValue());
 
             // Determine tick offset
             int interpolationTicks;
@@ -104,6 +110,6 @@ public final class KeyframeParser {
         BakedFrame[] frameArray = frames.toArray(new BakedFrame[0]);
         int totalTicks = frameArray[frameArray.length - 1].tickOffset();
         BakedSequence seq = new BakedSequence(frameArray, totalTicks, settings);
-        return new KeyframeDef(name, settings, seq);
+        return new KeyframeDef(name, settings, space, seq);
     }
 }

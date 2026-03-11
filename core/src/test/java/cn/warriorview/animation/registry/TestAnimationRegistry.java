@@ -1,6 +1,7 @@
 package cn.warriorview.animation.registry;
 
 import cn.warriorview.animation.api.AnimationType;
+import cn.warriorview.animation.api.Space;
 import cn.warriorview.animation.data.*;
 import cn.warriorview.animation.definition.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +29,7 @@ class TestAnimationRegistry {
     private KeyframeDef createDummyKeyframe(String name) {
         var frame = new BakedFrame(0, 0, 0, TransformSnapshot.IDENTITY);
         var seq = new BakedSequence(new BakedFrame[]{frame}, 0, DisplaySettings.DEFAULT);
-        return new KeyframeDef(name, DisplaySettings.DEFAULT, seq);
+        return new KeyframeDef(name, DisplaySettings.DEFAULT, Space.WORLD, seq);
     }
 
     @Test

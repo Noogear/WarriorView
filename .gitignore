@@ -5,3 +5,7 @@
 /core/bin
 /api/bin
 core/ScriptDump.class
+/core/run-test
+/server-test
+/docs
+/buildSrc

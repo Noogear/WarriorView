@@ -1,6 +1,7 @@
 package cn.warriorview.animation.definition;
 
 import cn.warriorview.animation.api.AnimationType;
+import cn.warriorview.animation.api.Space;
 import cn.warriorview.animation.data.DisplaySettings;
 
 /**
@@ -23,6 +24,11 @@ public record PresetDef(
     @Override
     public AnimationType type() {
         return AnimationType.PRESET;
+    }
+
+    @Override
+    public Space space() {
+        return resolved.space();
     }
 
     @Override

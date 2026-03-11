@@ -1,6 +1,7 @@
 package cn.warriorview.animation.definition;
 
 import cn.warriorview.animation.api.AnimationType;
+import cn.warriorview.animation.api.Space;
 import cn.warriorview.animation.data.*;
 import gloomlib.math.api.MathEngine;
 import org.junit.jupiter.api.DisplayName;
@@ -29,7 +30,7 @@ class TestAnimationDefinitions {
             var f0 = new BakedFrame(0, 0, 0, snap0);
             var f1 = new BakedFrame(10, 0, 10, snap1);
             var seq = new BakedSequence(new BakedFrame[]{f0, f1}, 10, DisplaySettings.DEFAULT);
-            return new KeyframeDef(name, DisplaySettings.DEFAULT, seq);
+            return new KeyframeDef(name, DisplaySettings.DEFAULT, Space.WORLD, seq);
         }
 
         @Test
@@ -88,7 +89,7 @@ class TestAnimationDefinitions {
 
         private EquationDef createLinearRise() {
             return new EquationDef(
-                    "linear_rise", DisplaySettings.DEFAULT,
+                    "linear_rise", DisplaySettings.DEFAULT, Space.WORLD,
                     20, 1,
                     MathEngine.compile("0", EquationDef.VARS),           // posX
                     MathEngine.compile("t * 0.05", EquationDef.VARS),    // posY
@@ -154,7 +155,7 @@ class TestAnimationDefinitions {
         @DisplayName("bake() tickOffset 按 sampleInterval 递增")
         void bakeTickOffsets() {
             var def = new EquationDef(
-                    "sampled", DisplaySettings.DEFAULT,
+                    "sampled", DisplaySettings.DEFAULT, Space.WORLD,
                     10, 2,    // sampleInterval=2
                     MathEngine.compile("0", EquationDef.VARS),
                     MathEngine.compile("0", EquationDef.VARS),
@@ -180,7 +181,7 @@ class TestAnimationDefinitions {
         @DisplayName("bake() r 变量影响位置")
         void bakeWithRandVariable() {
             var def = new EquationDef(
-                    "random", DisplaySettings.DEFAULT,
+                    "random", DisplaySettings.DEFAULT, Space.WORLD,
                     5, 1,
                     MathEngine.compile("r * 2", EquationDef.VARS),  // posX depends on r
                     MathEngine.compile("0", EquationDef.VARS),
@@ -204,7 +205,7 @@ class TestAnimationDefinitions {
         @DisplayName("bake() 不透明度表达式正确")
         void bakeOpacity() {
             var def = new EquationDef(
-                    "fading", DisplaySettings.DEFAULT,
+                    "fading", DisplaySettings.DEFAULT, Space.WORLD,
                     10, 1,
                     MathEngine.compile("0", EquationDef.VARS),
                     MathEngine.compile("0", EquationDef.VARS),
@@ -227,7 +228,7 @@ class TestAnimationDefinitions {
         @DisplayName("bake() 负不透明度映射为 -1（默认）")
         void bakeNegativeOpacity() {
             var def = new EquationDef(
-                    "neg_op", DisplaySettings.DEFAULT,
+                    "neg_op", DisplaySettings.DEFAULT, Space.WORLD,
                     1, 1,
                     MathEngine.compile("0", EquationDef.VARS),
                     MathEngine.compile("0", EquationDef.VARS),
@@ -248,7 +249,7 @@ class TestAnimationDefinitions {
         @DisplayName("bake() 欧拉角转四元数正确（90度旋转）")
         void bakeEulerToQuaternion() {
             var def = new EquationDef(
-                    "rotation", DisplaySettings.DEFAULT,
+                    "rotation", DisplaySettings.DEFAULT, Space.WORLD,
                     1, 1,
                     MathEngine.compile("0", EquationDef.VARS),
                     MathEngine.compile("0", EquationDef.VARS),
@@ -340,7 +341,7 @@ class TestAnimationDefinitions {
         private KeyframeDef createSimpleKeyframe() {
             var frame = new BakedFrame(0, 0, 0, TransformSnapshot.IDENTITY);
             var seq = new BakedSequence(new BakedFrame[]{frame}, 10, DisplaySettings.DEFAULT);
-            return new KeyframeDef("base", DisplaySettings.DEFAULT, seq);
+            return new KeyframeDef("base", DisplaySettings.DEFAULT, Space.WORLD, seq);
         }
     }
 
@@ -351,7 +352,7 @@ class TestAnimationDefinitions {
     void sealedPermits() {
         // 通过 instanceof 验证密封层次
         AnimationDef keyframe = new KeyframeDef("k",
-                DisplaySettings.DEFAULT,
+                DisplaySettings.DEFAULT, Space.WORLD,
                 new BakedSequence(new BakedFrame[0], 0, DisplaySettings.DEFAULT));
 
         assertTrue(keyframe instanceof KeyframeDef);

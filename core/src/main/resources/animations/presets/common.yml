@@ -47,49 +47,7 @@ preset:
         opacity: 0%
 
   # ----------------------------------------------------------
-  # 预设 2：爆炸弹跳（大暴击特效）
-  # ----------------------------------------------------------
-  bounce_explode:
-    type: keyframe
-    settings:
-      billboard: center
-      text-shadow: true
-      background: "transparent"
-      view-range: 32
-      offset:
-        x: "r * 0.8 - 0.4"
-        y: "0"
-        z: "r * 0.8 - 0.4"
-
-    timeline:
-      - time: 0
-        size: 0.3
-        opacity: 0%
-
-      # 快速弹出
-      - duration: 3
-        size: 2.0
-        opacity: 100%
-
-      # 回弹缩小
-      - duration: 3
-        size: 1.2
-        move:
-          up: 0.05
-
-      # 略微放大维持
-      - duration: 2
-        size: 1.4
-
-      # 上浮淡出
-      - duration: 20
-        size: 0.8
-        move:
-          up: 0.6
-        opacity: 0%
-
-  # ----------------------------------------------------------
-  # 预设 3：螺旋上升（方程式，适合特殊技能特效）
+  # 预设 2：螺旋上升（方程式，适合特殊技能特效）
   # ----------------------------------------------------------
   spiral_rise:
     type: equation

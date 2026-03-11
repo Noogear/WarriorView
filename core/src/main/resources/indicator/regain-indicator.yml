@@ -4,51 +4,69 @@
 # 每个顶层键对应一个 RegainReason 枚举名（自动匹配），匹配不到时回退到 default。
 # 配置字段与伤害指示器一致，完整字段列表请参见 damage-indicator.yml 的注释头。
 #
+# Tag 来源：RegainReason.name()
+#   REGEN / SATIATED / EATING / MAGIC / MAGIC_REGEN /
+#   ENDER_CRYSTAL / WITHER_SPAWN / WITHER / CUSTOM
+#
 # 可用字段简表：
 #   text-format / decimal-places / position / animation / billboard /
 #   see-through / text-shadow / background / view-range / teleport-duration /
 #   brightness / shadow-radius / shadow-strength / glow-color / line-width /
 #   only-player / number-format / char-replace
+#
+# 动画参考：
+#   gentle_rise      — 温柔上浮，适合自然恢复
+#   decelerate_float — 减速上浮，饱食/轻微恢复
+#   float_fade       — 弹跳上浮淡出，进食恢复
+#   heartbeat_pulse  — 心跳脉冲，魔法治疗
+#   spiral_rise      — 螺旋上升，特殊恢复
+#   pulse_flash      — 脉冲闪烁，自定义
 # ──────────────────────────────────────────────────────────────────────────────
 
-# 全局恢复兜底配置
+# ======================== 全局恢复兜底 ========================
 default:
   text-format: "<green>+{damage}"
   position: AIM
-  animation: critical_hit
+  animation: gentle_rise
   billboard: CENTER
-  see-through: false
+  see-through: true
   text-shadow: true
-  background: 0x40000000
+  background: 0x00000000
   view-range: 32.0
   only-player: false
 
-# 自然恢复（满饱食度缓慢回血）
+# ======================== 自然恢复 ========================
+
+# 自然回血（饱食度 > 18 时缓慢恢复）
 REGEN:
   text-format: "<green>+{damage}"
   position: AIM
-  animation: critical_hit
+  animation: gentle_rise
 
-# 饱食恢复
+# 饱食恢复（饱食度 = 20 时的快速恢复）
 SATIATED:
   text-format: "<dark_green>+{damage}"
   position: AIM
-  animation: critical_hit
+  animation: decelerate_float
 
-# 进食
+# 进食恢复（直接吃食物）
 EATING:
   text-format: "<green>🍖 +{damage}"
   position: AIM
-  animation: critical_hit
+  animation: float_fade
 
-# 药水 / 魔法恢复
+# ======================== 魔法恢复 ========================
+
+# 瞬间治疗药水（splash / 喝下）
 MAGIC:
   text-format: "<light_purple>✦ +{damage}"
   position: AIM
-  animation: critical_hit
+  animation: heartbeat_pulse
 
-# 魔法恢复（瞬间）
+# 生命恢复药水效果（持续性 HoT）
 MAGIC_REGEN:
   text-format: "<light_purple>✦ +{damage}"
   position: AIM
-  animation: critical_hit
+  animation: heartbeat_pulse
+
+

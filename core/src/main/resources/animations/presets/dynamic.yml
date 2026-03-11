@@ -1,0 +1,328 @@
+# ============================================================
+#  WarriorView — 动感动画预设库
+#  包含弹跳、冲击、旋转、变形等富有动感的动画效果
+#  适合暴击、技能命中等需要视觉强调的场景
+#
+#  所有预设均为 keyframe 类型，通过多阶段关键帧实现复杂运动
+#  通过 `type: preset` + `id: 预设名` 引用
+#
+#  要点回顾：
+#    move     — 增量位移（叠加到上一帧位置）
+#    size     — 绝对缩放；{width, height} 可做非均匀缩放
+#    tilt     — Z 轴旋转（绝对角度）；{left: N} = 逆时针 N°
+#    translation — 绝对位置（优先于 move）
+# ============================================================
+
+preset:
+
+  # ----------------------------------------------------------
+  # spring_bounce — 弹簧弹跳
+  # 效果：快速弹起后回落再弹回，如同弹簧的阻尼振动
+  # 适用：暴击伤害、反击伤害、弹性击退
+  # 轨迹：垂直弹跳（上冲 → 回弹 → 稳定 → 淡出）
+  #
+  # move 是增量的，所以位置变化：
+  #   0→6t:  y += 0.6（弹到最高）
+  #   6→11t: y += -0.2 = 0.4（回弹向下）
+  #   11→15t: y += 0.1 = 0.5（小幅回升）
+  #   15→35t: y += 0.3 = 0.8（缓慢上浮）
+  # ----------------------------------------------------------
+  spring_bounce:
+    type: keyframe
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.5 - 0.25"
+        y: 0
+        z: "r * 0.5 - 0.25"
+
+    timeline:
+      - time: 0
+        size: 1.0
+        opacity: 100%
+
+      # 快速弹至最高点（过冲 0.6 格）
+      - duration: 6
+        size: 1.2
+        move: { up: 0.6 }
+
+      # 回弹向下 0.2 格
+      - duration: 5
+        size: 0.9
+        move: { down: 0.2 }
+
+      # 小幅向上稳定
+      - duration: 4
+        size: 1.0
+        move: { up: 0.1 }
+
+      # 缓慢上浮并淡出
+      - duration: 20
+        move: { up: 0.3 }
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # rubber_squash — 橡皮挤压
+  # 效果：非均匀缩放模拟 Q弹的挤压拉伸（Squash & Stretch）
+  # 适用：趣味性伤害显示、卡通风格服务器
+  # 轨迹：轻微上浮，核心通过变形传达冲击力
+  #
+  # size 使用 {width, height} 实现非均匀缩放：
+  #   width  → 控制 X/Z 轴（水平方向）
+  #   height → 控制 Y 轴（垂直方向）
+  # ----------------------------------------------------------
+  rubber_squash:
+    type: keyframe
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.4 - 0.2"
+        y: "r * 0.15"
+        z: "r * 0.4 - 0.2"
+
+    timeline:
+      - time: 0
+        size: { width: 1.0, height: 1.0 }
+        opacity: 100%
+
+      # 挤压：宽扁状（被锤扁的感觉）
+      - duration: 4
+        size: { width: 1.4, height: 0.6 }
+        move: { up: 0.05 }
+
+      # 拉伸：窄高状（反弹伸长）
+      - duration: 4
+        size: { width: 0.7, height: 1.5 }
+        move: { up: 0.15 }
+
+      # 回弹到接近正常
+      - duration: 4
+        size: { width: 1.1, height: 0.9 }
+        move: { up: 0.1 }
+
+      # 恢复正常大小，上浮淡出
+      - duration: 18
+        size: { width: 1.0, height: 1.0 }
+        move: { up: 0.3 }
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # drop_rebound — 坠落反弹
+  # 效果：从高处坠落到锚点后弹起，模拟重力反弹
+  # 适用：摔落伤害、重力/砸击攻击、陨石打击
+  # 轨迹：高处 → 落地 → 弹起 → 稳定 → 淡出
+  #
+  # 使用 raw `translation` 设定绝对位置（非增量）
+  # translation: [x, y, z] 直接指定当前帧的世界偏移量
+  # ----------------------------------------------------------
+  drop_rebound:
+    type: keyframe
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.5 - 0.25"
+        y: 0
+        z: "r * 0.5 - 0.25"
+
+    timeline:
+      # 起始：高处 0.8 格，透明（还未出现）
+      - time: 0
+        translation: [0, 0.8, 0]
+        size: 1.0
+        opacity: 0%
+
+      # 快速下落到底部（y=0），同时淡入
+      - duration: 5
+        translation: [0, 0, 0]
+        size: 1.3
+        opacity: 100%
+
+      # 弹起 0.3 格
+      - duration: 5
+        translation: [0, 0.3, 0]
+        size: 0.9
+
+      # 再次回落并稳定
+      - duration: 4
+        translation: [0, 0.15, 0]
+        size: 1.0
+
+      # 上浮淡出
+      - duration: 18
+        translation: [0, 0.55, 0]
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # slam_down — 下砸冲击
+  # 效果：从大尺寸快速缩小砸下，带有冲击感
+  # 适用：重击/锤击伤害、雷击、TNT 爆炸冲击
+  # 轨迹：急速下坠 → 轻微回弹 → 缓慢上浮
+  #
+  # 利用 size 2.0→1.0 的快速缩小配合 down 移动
+  # 营造从天而降的重量感
+  # ----------------------------------------------------------
+  slam_down:
+    type: keyframe
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.6 - 0.3"
+        y: 0
+        z: "r * 0.6 - 0.3"
+
+    timeline:
+      # 起始：大尺寸，半透明（正在"砸下来"）
+      - time: 0
+        size: 2.0
+        opacity: 50%
+
+      # 快速砸下并缩小到正常，完全显现
+      - duration: 3
+        size: 1.0
+        move: { down: 0.3 }
+        opacity: 100%
+
+      # 微微回弹
+      - duration: 3
+        size: 1.1
+        move: { up: 0.05 }
+
+      # 缓慢上浮淡出
+      - duration: 24
+        size: 0.9
+        move: { up: 0.45 }
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # tilt_sway — 钟摆摇晃
+  # 效果：文字像钟摆一样左右摇晃后稳定消失
+  # 适用：眩晕/混乱状态伤害、醉酒效果
+  # 轨迹：上浮 + Z 轴旋转摆动
+  #
+  # tilt 是绝对角度（非增量）：
+  #   tilt: {left: 15}  → 当前帧 Z 轴逆时针旋转 15°
+  #   tilt: {right: 15} → 当前帧 Z 轴顺时针旋转 15°
+  # 客户端在帧之间自动插值旋转角度
+  # ----------------------------------------------------------
+  tilt_sway:
+    type: keyframe
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.3 - 0.15"
+        y: "r * 0.15"
+        z: "r * 0.3 - 0.15"
+
+    timeline:
+      - time: 0
+        size: 1.0
+        opacity: 100%
+
+      # 向左倾斜 15°
+      - duration: 5
+        tilt: { left: 15 }
+        move: { up: 0.08 }
+
+      # 摆到右侧 15°（从左 15° 插值到右 15°，总摆幅 30°）
+      - duration: 10
+        tilt: { right: 15 }
+        move: { up: 0.12 }
+
+      # 回摆到接近中心（左 3°）
+      - duration: 5
+        tilt: { left: 3 }
+        move: { up: 0.05 }
+
+      # 上浮淡出（保持轻微 3° 左倾，自然感）
+      - duration: 15
+        move: { up: 0.25 }
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # sidestep_slide — 侧滑闪避（视角坐标）
+  # 效果：文字向攻击者左方水平滑出后上浮消失
+  # 适用：格挡/闪避/侧步反击、偏斜攻击
+  # 轨迹：水平侧滑（无垂直位移）→ 上浮淡出
+  #
+  # 与 arc_toss（basic.yml）对比：
+  #   arc_toss       → 斜向飞出（右+上），适合攻击反馈
+  #   sidestep_slide → 水平侧滑（纯左移），适合闪避反馈
+  # ----------------------------------------------------------
+  sidestep_slide:
+    type: keyframe
+    space: view
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: 0
+        y: "r * 0.1"
+        z: "r * 0.2 - 0.1"
+
+    timeline:
+      - time: 0
+        size: 1.0
+        opacity: 100%
+
+      # 快速水平左滑
+      - duration: 8
+        size: 1.1
+        move: { left: 0.4 }
+        opacity: 100%
+
+      # 停止侧滑，上浮淡出
+      - duration: 14
+        size: 0.9
+        move: { up: 0.3 }
+        opacity: 0%
+
+  # ----------------------------------------------------------
+  # zoom_in — 缩放聚焦
+  # 效果：从极小瞬间放大到正常尺寸，镜头拉近感
+  # 适用：暴击文字、BOSS 特殊攻击、称号获得提示
+  # 轨迹：原地放大 + 轻微上浮
+  #
+  # 0.1 → 1.3 → 1.0 的缩放序列：
+  # 极小起始产生"远处飞来"的视觉效果
+  # ----------------------------------------------------------
+  zoom_in:
+    type: keyframe
+    settings:
+      billboard: center
+      text-shadow: true
+      background: "transparent"
+      offset:
+        x: "r * 0.3 - 0.15"
+        y: "r * 0.1"
+        z: "r * 0.3 - 0.15"
+
+    timeline:
+      # 起始：极小且透明
+      - time: 0
+        size: 0.1
+        opacity: 0%
+
+      # 瞬间放大并过冲到 1.3 倍
+      - duration: 4
+        size: 1.3
+        opacity: 100%
+
+      # 回弹到正常大小
+      - duration: 4
+        size: 1.0
+
+      # 轻微上浮淡出
+      - duration: 22
+        move: { up: 0.3 }
+        opacity: 0%

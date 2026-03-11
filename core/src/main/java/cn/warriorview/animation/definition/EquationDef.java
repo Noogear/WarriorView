@@ -1,6 +1,7 @@
 package cn.warriorview.animation.definition;
 
 import cn.warriorview.animation.api.AnimationType;
+import cn.warriorview.animation.api.Space;
 import cn.warriorview.animation.data.BakedFrame;
 import cn.warriorview.animation.data.BakedSequence;
 import cn.warriorview.animation.data.DisplaySettings;
@@ -36,6 +37,7 @@ import gloomlib.math.api.MathEngine;
 public record EquationDef(
         String                name,
         DisplaySettings       settings,
+        Space                 space,
         int                   durationTicks,
         int                   sampleInterval,
         MathEngine.CompiledMathExpression posX,
@@ -111,6 +113,56 @@ public record EquationDef(
             );
 
             frames[i] = new BakedFrame(tickOffset, 0, sampleInterval, snap);
+        }
+
+        return new BakedSequence(frames, durationTicks, settings);
+    }
+
+    /**
+     * 视角空间专用烘焙：在求值循环内直接旋转 tx/tz，省去 {@link cn.warriorview.animation.data.BakedSequence#rotateXZ}
+     * 产生的额外一轮分配。相比先 {@link #bake} 再 rotateXZ，帧数组只分配一次。
+     * <p>
+     * 仅由 {@code AnimationPlayer} 在 {@code space == VIEW} 时调用。
+     *
+     * @param r   per-instance random in [0, 1)
+     * @param cos {@code cos(-attackerYawRad)}
+     * @param sin {@code sin(-attackerYawRad)}
+     */
+    public BakedSequence bakeRotated(double r, float cos, float sin) {
+        int count = Math.max(1, (durationTicks / sampleInterval) + 1);
+        BakedFrame[] frames = new BakedFrame[count];
+        double[] args = {0.0, r};
+        float[] qBuf = new float[4];
+
+        for (int i = 0; i < count; i++) {
+            int tickOffset = i * sampleInterval;
+            args[0] = tickOffset;
+
+            float txV = (float) posX.evaluate(args);
+            float ty  = (float) posY.evaluate(args);
+            float tzV = (float) posZ.evaluate(args);
+            // 内联 view→world 旋转：省去中间 BakedSequence 分配
+            float tx =  txV * cos + tzV * sin;
+            float tz = -txV * sin + tzV * cos;
+
+            float sx = (float) scaleX.evaluate(args);
+            float sy = (float) scaleY.evaluate(args);
+            float sz = (float) scaleZ.evaluate(args);
+
+            float rx = (float) rotX.evaluate(args);
+            float ry = (float) rotY.evaluate(args);
+            float rz = (float) rotZ.evaluate(args);
+            eulerToQuaternion(rx, ry, rz, qBuf);
+
+            double opD = opacity.evaluate(args);
+            byte opB = opD < 0 ? (byte) -1 : (byte) Math.min(127, (int) opD);
+
+            frames[i] = new BakedFrame(tickOffset, 0, sampleInterval, new TransformSnapshot(
+                    tx, ty, tz,
+                    sx, sy, sz,
+                    0f, 0f, 0f, 1f,
+                    qBuf[0], qBuf[1], qBuf[2], qBuf[3],
+                    opB));
         }
 
         return new BakedSequence(frames, durationTicks, settings);

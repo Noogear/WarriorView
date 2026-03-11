@@ -87,13 +87,16 @@ public class Main extends JavaPlugin implements WarriorView {
         this.indicatorConfigLoader.load();
         if (pluginConfig.timingLog) Log.info("[Timing] indicators loaded in {} ms", System.currentTimeMillis() - t0);
 
-        // ── 指示器引擎（仅负责 quit 清理 + 引擎 tick，事件绑定由脚本驱动）──
+        // ── 指示器引擎（事件驱动异步处理：onIndicator 仅拍发参数，所有计算在 RapidTransientScheduler 第一帧执行）──
         this.indicatorHandler = new IndicatorHandler(
                 animationConfig.getPlayer(),
                 indicatorConfigLoader,
-                pluginConfig.indicator.maxDistance);
+                pluginConfig.indicator.maxDistance,
+                animationScheduler);
         getServer().getPluginManager().registerEvents(indicatorHandler, this);
-        animationScheduler.dispatchTimer(indicatorHandler::engineTick, 1L, 1L);
+        // 低频定时器：仅用于空闲期（无战斗事件）的断线玩家清理。
+        // 活跃战斗期间 processBatch 会内联处理 quitQueue，无延迟。
+        animationScheduler.dispatchTimer(indicatorHandler::drainQuits, 5L, 5L);
 
         // ── 脚本系统（在动画系统就绪后初始化，action 需要 API） ─────────
         t0 = System.currentTimeMillis();
