@@ -67,6 +67,9 @@ public class IndicatorHandler implements Listener {
      */
     private final AtomicBoolean batchScheduled = new AtomicBoolean(false);
 
+    /** 同 {@link #batchScheduled}，用于 {@link #drainQuits} 的去重派发。 */
+    private final AtomicBoolean quitScheduled = new AtomicBoolean(false);
+
     /** Reusable scratch Location for {@link #processBatch()} — safe because it runs on a single scheduler thread. */
     private final Location _scratchLoc = new Location(null, 0, 0, 0);
 
@@ -146,15 +149,19 @@ public class IndicatorHandler implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent e) {
         quitQueue.relaxedOffer(e.getPlayer());
+        // 事件驱动：CAS 保证同批退出只派发一次 drain 任务。
+        // 战斗期间 processBatch Phase 0 已内联处理 quitQueue，此处为空闲期兜底。
+        if (quitScheduled.compareAndSet(false, true)) {
+            scheduler.dispatchNow(this::drainQuits);
+        }
     }
 
-    // ── Quit-only drain (low-frequency timer, covers idle periods with no combat) ──
-
     /**
-     * 仅清理退出玩家的观察者引用。由低频定时器驱动，覆盖无战斗事件时的空闲场景。
-     * {@link #processBatch} 中也会完整执行一次，避免战斗期间引用积压。
+     * 清理退出玩家的观察者引用。由 {@link #onQuit} 事件驱动触发一次性任务，
+     * {@link #processBatch} Phase 0 中也会内联执行一次。
      */
-    public void drainQuits() {
+    private void drainQuits() {
+        quitScheduled.set(false);
         Player q;
         while ((q = quitQueue.poll()) != null) {
             animationPlayer.removeViewer(q);

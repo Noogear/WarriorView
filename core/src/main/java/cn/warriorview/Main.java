@@ -20,6 +20,9 @@ import cn.warriorview.formatter.CharReplaceRegistry;
 import cn.warriorview.formatter.NumberFormatRegistry;
 import cn.warriorview.util.RapidTransientScheduler;
 
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.server.ServerLoadEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import cn.warriorview.api.manager.IndicatorManager;
@@ -94,22 +97,25 @@ public class Main extends JavaPlugin implements WarriorView {
                 pluginConfig.indicator.maxDistance,
                 animationScheduler);
         getServer().getPluginManager().registerEvents(indicatorHandler, this);
-        // 低频定时器：仅用于空闲期（无战斗事件）的断线玩家清理。
-        // 活跃战斗期间 processBatch 会内联处理 quitQueue，无延迟。
-        animationScheduler.dispatchTimer(indicatorHandler::drainQuits, 5L, 5L);
 
         // ── 脚本系统（在动画系统就绪后初始化，action 需要 API） ─────────
-        t0 = System.currentTimeMillis();
         this.scriptManager = new BukkitScriptManager(this);
 
-        // ── API 门面 ─────────────────────────────────────────────────────
+        // ── API 门面 ─────────────────────────────────────────
         this.animationManager = new AnimationManagerImpl(animationConfig, indicatorHandler);
 
-        // 先注册 API，再加载脚本（脚本 action 可能调用 API）
         WarriorViewAPI.register(this);
         WarriorViewCommand.register(this);
-        this.scriptManager.reloadScripts();
-        if (pluginConfig.timingLog) Log.info("[Timing] scripts loaded in {} ms", System.currentTimeMillis() - t0);
+
+        // ── 延迟加载脚本：等待所有插件 onEnable() 完成，确保 payload 和 Action 全部就绪 ──
+        getServer().getPluginManager().registerEvents(new Listener() {
+            @EventHandler
+            public void onServerLoad(ServerLoadEvent event) {
+                long scriptT0 = System.currentTimeMillis();
+                scriptManager.reloadScripts();
+                if (pluginConfig.timingLog) Log.info("[Timing] scripts loaded in {} ms", System.currentTimeMillis() - scriptT0);
+            }
+        }, this);
 
         Log.info("WarriorView v{} 已启用", getVersion());
     }

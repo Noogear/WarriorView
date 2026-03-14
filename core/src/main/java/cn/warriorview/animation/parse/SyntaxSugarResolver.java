@@ -33,6 +33,15 @@ public final class SyntaxSugarResolver {
 
     private SyntaxSugarResolver() {}
 
+    // --- Delta tracking indices for +/- and % easing modifiers ---
+    static final int D_MOVE_UP = 0, D_MOVE_DOWN = 1, D_MOVE_RIGHT = 2, D_MOVE_LEFT = 3,
+                     D_MOVE_FWD = 4, D_MOVE_BWD = 5,
+                     D_TILT_LEFT = 6, D_TILT_RIGHT = 7,
+                     D_SPIN_LEFT = 8, D_SPIN_RIGHT = 9,
+                     D_SIZE = 10, D_SIZE_H = 11,
+                     D_OPACITY = 12;
+    static final int DELTA_COUNT = 13;
+
     /**
      * Resolves a keyframe YAML section into a {@link TransformSnapshot} by merging
      * sugar fields and raw-NMS fields on top of {@code base}.
@@ -42,6 +51,20 @@ public final class SyntaxSugarResolver {
      * @return the fully-resolved {@link TransformSnapshot} for this frame
      */
     public static TransformSnapshot resolve(TransformSnapshot base, ConfigurationSection section) {
+        return resolve(base, section, new float[DELTA_COUNT]);
+    }
+
+    /**
+     * Resolves a keyframe YAML section into a {@link TransformSnapshot}, tracking
+     * per-property deltas for {@code +N}, {@code -N}, {@code +N%}, {@code -N%} modifiers.
+     *
+     * @param base    the previous frame's snapshot
+     * @param section the YAML section for this keyframe entry
+     * @param deltas  mutable delta array carried across frames (length = {@link #DELTA_COUNT})
+     * @return the fully-resolved {@link TransformSnapshot} for this frame
+     */
+    public static TransformSnapshot resolve(TransformSnapshot base, ConfigurationSection section,
+                                             float[] deltas) {
         // Start from the base
         float tx = base.tx(), ty = base.ty(), tz = base.tz();
         float sx = base.sx(), sy = base.sy(), sz = base.sz();
@@ -95,29 +118,32 @@ public final class SyntaxSugarResolver {
         // move: (incremental offset applied on top of base translation)
         ConfigurationSection move = section.getConfigurationSection("move");
         if (move != null) {
-            ty += (float) move.getDouble("up",       0);
-            ty -= (float) move.getDouble("down",     0);
-            tx += (float) move.getDouble("right",    0);
-            tx -= (float) move.getDouble("left",     0);
-            tz -= (float) move.getDouble("forward",  0);
-            tz += (float) move.getDouble("backward", 0);
+            ty += resolveSugarValue(move, "up",       deltas, D_MOVE_UP);
+            ty -= resolveSugarValue(move, "down",     deltas, D_MOVE_DOWN);
+            tx += resolveSugarValue(move, "right",    deltas, D_MOVE_RIGHT);
+            tx -= resolveSugarValue(move, "left",     deltas, D_MOVE_LEFT);
+            tz -= resolveSugarValue(move, "forward",  deltas, D_MOVE_FWD);
+            tz += resolveSugarValue(move, "backward", deltas, D_MOVE_BWD);
         }
 
         // size:
         Object sizeVal = section.get("size");
-        if (sizeVal instanceof Number num) {
-            float s = num.floatValue();
+        if (sizeVal instanceof ConfigurationSection sizeSection) {
+            Object wVal = sizeSection.get("width");
+            if (wVal != null) { float w = resolveAbsolute(wVal, sx, deltas, D_SIZE);  sx = w; sz = w; }
+            Object hVal = sizeSection.get("height");
+            if (hVal != null) { sy = resolveAbsolute(hVal, sy, deltas, D_SIZE_H); }
+        } else if (sizeVal != null) {
+            float s = resolveAbsolute(sizeVal, sx, deltas, D_SIZE);
+            deltas[D_SIZE_H] = s - sy;
             sx = s; sy = s; sz = s;
-        } else if (sizeVal instanceof ConfigurationSection sizeSection) {
-            float w = (float) sizeSection.getDouble("width",  sx);
-            float h = (float) sizeSection.getDouble("height", sy);
-            sx = w; sy = h; sz = w;
         }
 
         // tilt: (Z-axis rotation via right_rotation quaternion)
         ConfigurationSection tilt = section.getConfigurationSection("tilt");
         if (tilt != null) {
-            float degrees = (float) (tilt.getDouble("left", 0) - tilt.getDouble("right", 0));
+            float degrees = resolveSugarValue(tilt, "left", deltas, D_TILT_LEFT)
+                          - resolveSugarValue(tilt, "right", deltas, D_TILT_RIGHT);
             float[] q = eulerToQuaternion(0f, 0f, degrees);
             rrx = q[0]; rry = q[1]; rrz = q[2]; rrw = q[3];
         }
@@ -125,7 +151,8 @@ public final class SyntaxSugarResolver {
         // spin: (Y-axis rotation via right_rotation quaternion, combined with tilt if present)
         ConfigurationSection spin = section.getConfigurationSection("spin");
         if (spin != null) {
-            float degrees = (float) (spin.getDouble("left", 0) - spin.getDouble("right", 0));
+            float degrees = resolveSugarValue(spin, "left", deltas, D_SPIN_LEFT)
+                          - resolveSugarValue(spin, "right", deltas, D_SPIN_RIGHT);
             float[] q = eulerToQuaternion(0f, degrees, 0f);
             // compose with existing right rotation
             float[] combined = multiplyQuaternion(
@@ -136,18 +163,116 @@ public final class SyntaxSugarResolver {
         }
 
         // opacity:
-        String opacityStr = section.getString("opacity");
-        if (opacityStr != null) {
+        Object opacityRaw = section.get("opacity");
+        if (opacityRaw instanceof Number num) {
+            byte newOp = (byte) Math.max(0, Math.min(127, num.intValue()));
+            deltas[D_OPACITY] = (float) ((newOp & 0xFF) - (opacity & 0xFF));
+            opacity = newOp;
+        } else if (opacityRaw instanceof String opacityStr) {
             opacityStr = opacityStr.trim();
-            if (opacityStr.endsWith("%")) {
-                double pct = Double.parseDouble(opacityStr.substring(0, opacityStr.length() - 1));
-                opacity = (byte) Math.round(pct / 100.0 * 127);
-            } else {
-                opacity = (byte) Integer.parseInt(opacityStr);
+            if (!opacityStr.isEmpty()) {
+                char first = opacityStr.charAt(0);
+                if (first == '+' || first == '-') {
+                    // Delta modifier: +N, -N, +N%, -N%
+                    float newDelta = applyDeltaModifier(opacityStr, deltas[D_OPACITY]);
+                    if (!Float.isNaN(newDelta)) {
+                        deltas[D_OPACITY] = newDelta;
+                        int newVal = Math.round((opacity & 0xFF) + newDelta);
+                        opacity = (byte) Math.max(0, Math.min(127, newVal));
+                    }
+                } else if (opacityStr.endsWith("%")) {
+                    double pct = Double.parseDouble(opacityStr.substring(0, opacityStr.length() - 1));
+                    byte newOp = (byte) Math.round(pct / 100.0 * 127);
+                    deltas[D_OPACITY] = (float) ((newOp & 0xFF) - (opacity & 0xFF));
+                    opacity = newOp;
+                } else {
+                    byte newOp = (byte) Integer.parseInt(opacityStr);
+                    deltas[D_OPACITY] = (float) ((newOp & 0xFF) - (opacity & 0xFF));
+                    opacity = newOp;
+                }
             }
         }
 
         return new TransformSnapshot(tx, ty, tz, sx, sy, sz, lrx, lry, lrz, lrw, rrx, rry, rrz, rrw, opacity);
+    }
+
+    // -------------------------------------------------------------------------
+    // Delta modifier helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Parses a delta modifier string ({@code +N}, {@code -N}, {@code +N%}, {@code -N%})
+     * and returns the new delta based on {@code prevDelta}.
+     * Returns {@link Float#NaN} if the string is malformed.
+     */
+    private static float applyDeltaModifier(String str, float prevDelta) {
+        try {
+            if (str.endsWith("%")) {
+                float pct = Float.parseFloat(str.substring(0, str.length() - 1));
+                return prevDelta * (1f + pct / 100f);
+            } else {
+                return prevDelta + Float.parseFloat(str);
+            }
+        } catch (NumberFormatException e) {
+            return Float.NaN;
+        }
+    }
+
+    /**
+     * Resolves a sugar sub-key that may be a delta modifier.
+     * Used for additive fields where the value itself IS the delta (move, tilt, spin).
+     * <ul>
+     *   <li>{@code 0.3} (Number) → absolute delta</li>
+     *   <li>{@code "+0.1"} (String) → prevDelta + 0.1</li>
+     *   <li>{@code "-0.1"} (String) → prevDelta − 0.1</li>
+     *   <li>{@code "+30%"} (String) → prevDelta × 1.3</li>
+     *   <li>{@code "-40%"} (String) → prevDelta × 0.6</li>
+     * </ul>
+     */
+    private static float resolveSugarValue(ConfigurationSection section, String key,
+                                            float[] deltas, int idx) {
+        Object raw = section.get(key);
+        if (raw == null) return 0f;
+        if (raw instanceof Number num) {
+            float v = num.floatValue();
+            deltas[idx] = v;
+            return v;
+        }
+        String str = raw.toString().trim();
+        if (str.isEmpty()) return 0f;
+        char first = str.charAt(0);
+        if (first != '+' && first != '-') {
+            try { float v = Float.parseFloat(str); deltas[idx] = v; return v; }
+            catch (NumberFormatException e) { return 0f; }
+        }
+        float newDelta = applyDeltaModifier(str, deltas[idx]);
+        if (Float.isNaN(newDelta)) return 0f;
+        deltas[idx] = newDelta;
+        return newDelta;
+    }
+
+    /**
+     * Resolves a value for an absolute-target field (size components).
+     * Tracks delta as {@code newValue − prevBase} for subsequent modifier frames.
+     */
+    private static float resolveAbsolute(Object raw, float prevBase,
+                                          float[] deltas, int idx) {
+        if (raw instanceof Number num) {
+            float v = num.floatValue();
+            deltas[idx] = v - prevBase;
+            return v;
+        }
+        String str = raw.toString().trim();
+        if (str.isEmpty()) return prevBase;
+        char first = str.charAt(0);
+        if (first != '+' && first != '-') {
+            try { float v = Float.parseFloat(str); deltas[idx] = v - prevBase; return v; }
+            catch (NumberFormatException e) { return prevBase; }
+        }
+        float newDelta = applyDeltaModifier(str, deltas[idx]);
+        if (Float.isNaN(newDelta)) return prevBase;
+        deltas[idx] = newDelta;
+        return prevBase + newDelta;
     }
 
     // -------------------------------------------------------------------------

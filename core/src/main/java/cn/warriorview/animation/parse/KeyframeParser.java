@@ -67,6 +67,7 @@ public final class KeyframeParser {
 
         List<BakedFrame> frames = new ArrayList<>(rawTimeline.size());
         TransformSnapshot prev = TransformSnapshot.IDENTITY;
+        float[] deltas = new float[SyntaxSugarResolver.DELTA_COUNT];
         int currentTick = 0;
 
         for (Map<?, ?> entry : rawTimeline) {
@@ -86,7 +87,7 @@ public final class KeyframeParser {
             }
 
             // Resolve transform via sugar + raw fields
-            TransformSnapshot snap = SyntaxSugarResolver.resolve(prev, frameSection);
+            TransformSnapshot snap = SyntaxSugarResolver.resolve(prev, frameSection, deltas);
             prev = snap;
 
             // Zero-delta deduplication: skip frames whose transform is identical to the

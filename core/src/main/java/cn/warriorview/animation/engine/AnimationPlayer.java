@@ -329,6 +329,9 @@ public final class AnimationPlayer {
             AnimationInstance inst = active.get(i);
             evictFrom(inst, player);
             if (inst.viewerCount == 0) {
+                if (!inst.sharedFrames) {
+                    TextDisplayPackets.evictFrameCache(inst.sequence.frames());
+                }
                 active.remove(i); // reverse order: safe
             }
         }

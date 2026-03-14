@@ -20,6 +20,8 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.plugin.java.PluginClassLoader;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,7 +31,6 @@ import java.nio.file.Files;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -105,6 +106,14 @@ public class BukkitScriptManager implements ScriptHost, ScriptManager {
                         ? String.valueOf(rootMap.get("id"))
                         : file.getName();
                 rootMap.put("id", scriptId);
+
+                // 预检 payload 类可用性：识别来源插件，未启用则跳过
+                String eventClassName = rootMap.containsKey("event")
+                        ? String.valueOf(rootMap.get("event"))
+                        : null;
+                if (eventClassName != null && !checkPayloadAvailable(eventClassName, file.getName())) {
+                    continue;
+                }
 
                 injector.inject(rootMap);
                 loadedIds.add(scriptId);
@@ -196,6 +205,43 @@ public class BukkitScriptManager implements ScriptHost, ScriptManager {
     }
 
     // ── 文件工具 ────────────────────────────────────────────────────────
+
+    /**
+     * 预检 payload 类是否已加载，同时通过 ClassLoader 识别来源插件。
+     * <p>
+     * 若类不存在或宿主插件未启用，打印详细诊断信息并返回 {@code false}——
+     * 调用方应跳过该脚本而非让编译管线抛 {@link ClassNotFoundException}。
+     *
+     * @param className 完全限定的事件类名（来自 YAML {@code event} 字段）
+     * @param fileName  脚本文件名（仅用于日志）
+     * @return {@code true} 表示可以编译；{@code false} 表示应跳过
+     */
+    private boolean checkPayloadAvailable(String className, String fileName) {
+        try {
+            Class<?> clazz = Class.forName(className);
+            ClassLoader cl = clazz.getClassLoader();
+
+            // Paper 的插件类均由 PluginClassLoader 加载
+            if (cl instanceof PluginClassLoader pcl) {
+                JavaPlugin owner = pcl.getPlugin();
+                if (owner != null && !owner.isEnabled()) {
+                    Log.warn("[EventMapping] {} — payload '{}' belongs to plugin '{}' which is NOT enabled. Skipping.",
+                            fileName, className, owner.getName());
+                    return false;
+                }
+            }
+            return true;
+        } catch (ClassNotFoundException e) {
+            // 尝试从已注册插件的描述中推测可能的来源
+            String packageHint = className.contains(".")
+                    ? className.substring(0, className.lastIndexOf('.'))
+                    : className;
+            Log.warn("[EventMapping] {} — payload class '{}' not found. "
+                            + "Ensure the plugin providing this event (package: {}) is installed and loaded before WarriorView. Skipping.",
+                    fileName, className, packageHint);
+            return false;
+        }
+    }
 
     private static boolean containsYaml(File dir) {
         File[] files = dir.listFiles(f -> f.getName().endsWith(".yml") || f.getName().endsWith(".yaml"));
