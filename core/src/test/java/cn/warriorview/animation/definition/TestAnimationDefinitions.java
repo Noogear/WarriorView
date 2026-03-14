@@ -152,7 +152,7 @@ class TestAnimationDefinitions {
         }
 
         @Test
-        @DisplayName("bake() tickOffset 按 sampleInterval 递增")
+        @DisplayName("bake() tickOffset: frame[0]=0, frame[i]=START of segment")
         void bakeTickOffsets() {
             var def = new EquationDef(
                     "sampled", DisplaySettings.DEFAULT, Space.WORLD,
@@ -172,9 +172,14 @@ class TestAnimationDefinitions {
             BakedFrame[] frames = seq.frames();
             // count = max(1, 10/2+1) = 6
             assertEquals(6, frames.length);
-            for (int i = 0; i < frames.length; i++) {
-                assertEquals(i * 2, frames[i].tickOffset(), "Frame " + i);
-            }
+            // frame[0] = initial state at spawn (tick 0)
+            // frame[i>0] = target sent at start of segment = (i-1)*sampleInterval
+            assertEquals(0, frames[0].tickOffset(), "Frame 0 (initial)");
+            assertEquals(0, frames[1].tickOffset(), "Frame 1 (first target, sent at spawn)");
+            assertEquals(2, frames[2].tickOffset(), "Frame 2");
+            assertEquals(4, frames[3].tickOffset(), "Frame 3");
+            assertEquals(6, frames[4].tickOffset(), "Frame 4");
+            assertEquals(8, frames[5].tickOffset(), "Frame 5");
         }
 
         @Test

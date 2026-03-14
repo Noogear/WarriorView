@@ -87,6 +87,10 @@ public class IndicatorConfig extends ConfigurationPart {
                 .deserialize(textFormat.replace("{damage}", VALUE_SENTINEL));
         if (ctx == null) return;
         animationDef = animation != null ? ctx.animationRegistry().get(animation) : null;
+        if (animation != null && animationDef == null) {
+            cn.warriorview.util.Log.warn("[IndicatorConfig] Animation '{}' not found in registry. "
+                    + "Check animations/ directory for missing preset files.", animation);
+        }
         formatter = ctx.numberFormatRegistry().buildFormatter(
                 numberFormat, ctx.charReplaceRegistry(), charReplace, decimalPlaces);
     }

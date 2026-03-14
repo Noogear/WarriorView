@@ -84,8 +84,13 @@ public record EquationDef(
         float[] qBuf = new float[4];
 
         for (int i = 0; i < count; i++) {
-            int tickOffset = i * sampleInterval;
-            args[0] = tickOffset;
+            int evalTick = i * sampleInterval;  // evaluate expressions at this tick
+            // Send frame at the START of its interpolation segment so the
+            // MC client can interpolate toward this target over sampleInterval ticks.
+            // frame[0] = initial state at spawn; frame[1..n] = first target sent
+            // at the same tick as the previous frame's evaluation tick.
+            int sendTick = i == 0 ? 0 : (i - 1) * sampleInterval;
+            args[0] = evalTick;
 
             float tx = (float) posX.evaluate(args);
             float ty = (float) posY.evaluate(args);
@@ -112,7 +117,7 @@ public record EquationDef(
                     opB
             );
 
-            frames[i] = new BakedFrame(tickOffset, 0, sampleInterval, snap);
+            frames[i] = new BakedFrame(sendTick, 0, sampleInterval, snap);
         }
 
         return new BakedSequence(frames, durationTicks, settings);
@@ -135,8 +140,9 @@ public record EquationDef(
         float[] qBuf = new float[4];
 
         for (int i = 0; i < count; i++) {
-            int tickOffset = i * sampleInterval;
-            args[0] = tickOffset;
+            int evalTick = i * sampleInterval;
+            int sendTick = i == 0 ? 0 : (i - 1) * sampleInterval;
+            args[0] = evalTick;
 
             float txV = (float) posX.evaluate(args);
             float ty  = (float) posY.evaluate(args);
@@ -157,7 +163,7 @@ public record EquationDef(
             double opD = opacity.evaluate(args);
             byte opB = opD < 0 ? (byte) -1 : (byte) Math.min(127, (int) opD);
 
-            frames[i] = new BakedFrame(tickOffset, 0, sampleInterval, new TransformSnapshot(
+            frames[i] = new BakedFrame(sendTick, 0, sampleInterval, new TransformSnapshot(
                     tx, ty, tz,
                     sx, sy, sz,
                     0f, 0f, 0f, 1f,

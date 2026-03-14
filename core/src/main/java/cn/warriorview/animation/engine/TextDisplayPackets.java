@@ -217,7 +217,8 @@ public final class TextDisplayPackets {
                 new EntityData(11, EntityDataTypes.VECTOR3F,  new Vector3f(s.tx(), s.ty(), s.tz())),
                 new EntityData(12, EntityDataTypes.VECTOR3F,  new Vector3f(s.sx(), s.sy(), s.sz())),
                 new EntityData(13, EntityDataTypes.QUATERNION, new Quaternion4f(s.lrx(), s.lry(), s.lrz(), s.lrw())),
-                new EntityData(14, EntityDataTypes.QUATERNION, new Quaternion4f(s.rrx(), s.rry(), s.rrz(), s.rrw()))
+                new EntityData(14, EntityDataTypes.QUATERNION, new Quaternion4f(s.rrx(), s.rry(), s.rrz(), s.rrw())),
+                new EntityData(26, EntityDataTypes.BYTE,      s.textOpacity() < 0 ? (byte) -1 : s.textOpacity())
         );
     }
 
@@ -230,11 +231,10 @@ public final class TextDisplayPackets {
         byte styleFlags = 0;
         if (settings.textShadow())  styleFlags |= 0x01;
         if (settings.seeThrough())  styleFlags |= 0x02;
-        byte opacity = first.snapshot().textOpacity() < 0 ? (byte) -1 : first.snapshot().textOpacity();
 
         List<EntityData<?>> frameMeta = frameMetaOf(first);
         List<EntityData<?>> out = new ArrayList<>(frameMeta.size() + 12);
-        out.addAll(frameMeta);                                          // reuse cached transform entries
+        out.addAll(frameMeta);                                          // includes transform + opacity (index 26)
         out.add(new EntityData(10, EntityDataTypes.INT,           settings.teleportDuration()));
         out.add(new EntityData(15, EntityDataTypes.BYTE,          settings.billboard().protocolId()));
         if (settings.brightness() >= 0) {
@@ -249,7 +249,6 @@ public final class TextDisplayPackets {
         out.add(new EntityData(23, EntityDataTypes.ADV_COMPONENT, text));
         out.add(new EntityData(24, EntityDataTypes.INT,           settings.lineWidth()));
         out.add(new EntityData(25, EntityDataTypes.INT,           settings.backgroundColor()));
-        out.add(new EntityData(26, EntityDataTypes.BYTE,          opacity));
         out.add(new EntityData(27, EntityDataTypes.BYTE,          styleFlags));
         return out;
     }

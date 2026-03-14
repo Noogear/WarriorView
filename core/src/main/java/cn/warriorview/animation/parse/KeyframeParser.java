@@ -75,15 +75,17 @@ public final class KeyframeParser {
             for (var kv : entry.entrySet())
                 frameSection.set(kv.getKey().toString(), kv.getValue());
 
-            // Determine tick offset
+            // Determine tick offset – frame is sent at the START of
+            // its interpolation segment so the MC client can interpolate
+            // toward the target transform over `interpolationTicks`.
             int interpolationTicks;
             if (frameSection.contains("time")) {
                 currentTick = frameSection.getInt("time", 0);
                 interpolationTicks = 0; // initial frame – no interpolation delay
             } else {
                 interpolationTicks = frameSection.getInt("duration", 1);
-                // currentTick advances by duration
-                currentTick += interpolationTicks;
+                // currentTick stays: sendTick = start of this segment.
+                // Advance happens AFTER adding the frame.
             }
 
             // Resolve transform via sugar + raw fields
@@ -99,17 +101,21 @@ public final class KeyframeParser {
             //
             // currentTick still advances even when a frame is skipped, which is correct:
             // the hold period is simply absorbed by the previous frame's interpolation.
-            if (!frames.isEmpty() && snap.equals(frames.get(frames.size() - 1).snapshot())) {
-                continue;
+            boolean deduplicated = !frames.isEmpty()
+                    && snap.equals(frames.get(frames.size() - 1).snapshot());
+            if (!deduplicated) {
+                frames.add(new BakedFrame(currentTick, 0, interpolationTicks, snap));
             }
-
-            frames.add(new BakedFrame(currentTick, 0, interpolationTicks, snap));
+            // Always advance currentTick, even for deduplicated frames, so the
+            // next frame's start-of-segment offset is correct.
+            if (interpolationTicks > 0) currentTick += interpolationTicks;
         }
 
         if (frames.isEmpty()) return null;
 
         BakedFrame[] frameArray = frames.toArray(new BakedFrame[0]);
-        int totalTicks = frameArray[frameArray.length - 1].tickOffset();
+        BakedFrame last = frameArray[frameArray.length - 1];
+        int totalTicks = last.tickOffset() + last.interpolationTicks();
         BakedSequence seq = new BakedSequence(frameArray, totalTicks, settings);
         return new KeyframeDef(name, settings, space, seq);
     }

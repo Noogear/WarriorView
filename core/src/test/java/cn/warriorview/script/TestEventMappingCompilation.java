@@ -3,12 +3,8 @@ package cn.warriorview.script;
 import cn.warriorview.action.BuiltinActions;
 import gloomlib.script.api.ScriptHost;
 import gloomlib.script.api.injection.ScriptInjector;
+import gloomlib.script.core.NodeRegistry;
 import gloomlib.script.core.handler.ActionNodeHandler;
-import gloomlib.script.core.handler.CheckNodeHandler;
-import gloomlib.script.core.handler.CompositeCheckHandler;
-import gloomlib.script.core.handler.MathNodeHandler;
-import gloomlib.script.core.handler.ReturnNodeHandler;
-import gloomlib.script.core.ScriptIR.FlowNodeType;
 import gloomlib.script.core.parser.ScriptParser;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -42,12 +38,8 @@ class TestEventMappingCompilation {
 
     @BeforeAll
     static void setup() {
-        // 注册所有 handler（与 BukkitScriptManager 构造时的初始化路径一致）
-        FlowNodeType.registerHandler(FlowNodeType.ACTION, ActionNodeHandler::new);
-        FlowNodeType.registerHandler(FlowNodeType.MATH, MathNodeHandler::new);
-        FlowNodeType.registerHandler(FlowNodeType.RETURN, ReturnNodeHandler::new);
-        CheckNodeHandler.init();
-        CompositeCheckHandler.init();
+        // 注册所有内置 handler
+        NodeRegistry.registerDefaults();
 
         // 注册内置动作（showIndicator）
         ActionNodeHandler.registry().scanAndRegister(BuiltinActions.class);

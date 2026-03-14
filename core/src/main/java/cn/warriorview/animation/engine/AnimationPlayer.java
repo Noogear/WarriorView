@@ -266,9 +266,19 @@ public final class AnimationPlayer {
                     pending.viewers, pending.viewerCount, collector);
             active.add(pending);
 
-            // Accumulate minSleep for newly spawned instances (Phase B contribution).
-            // nextFrameIdx starts at 1 (frame[0] sent at spawn), so we check frame[1].
+            // Immediately send any frames due at the spawn tick (tickOffset <= 0).
+            // After the timing fix, frame[1] has tickOffset=0 (same as frame[0])
+            // and carries the first interpolation target the client should start
+            // interpolating toward right away.
             BakedFrame[] spawnFrames = pending.sequence.frames();
+            while (pending.nextFrameIdx < spawnFrames.length
+                    && spawnFrames[pending.nextFrameIdx].tickOffset() <= 0) {
+                collector.collect(pending.viewers, pending.viewerCount,
+                        pending.framePkts[pending.nextFrameIdx]);
+                pending.nextFrameIdx++;
+            }
+
+            // Accumulate minSleep for newly spawned instances (Phase B contribution).
             if (pending.nextFrameIdx < spawnFrames.length) {
                 long sleep = spawnFrames[pending.nextFrameIdx].tickOffset() - pending.age;
                 if (sleep < minSleep) minSleep = sleep;
@@ -302,8 +312,10 @@ public final class AnimationPlayer {
             return;
         }
 
-        long nextWake = Math.max(1L, minSleep);
-        TaskHandle h = scheduler.dispatchLater(this::tick, nextWake);
+        // Wake every tick so age++ accurately tracks game ticks.
+        // Sleeping for minSleep>1 would desync age from real time because
+        // age only increments once per tick() call, not by the sleep duration.
+        TaskHandle h = scheduler.dispatchLater(this::tick, 1L);
         tickHandleRef.set(h);
     }
 

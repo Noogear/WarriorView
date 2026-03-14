@@ -244,7 +244,11 @@ public final class AnimationFileLoader {
     private void copyDefaultResources(File targetDir) {
         String[] defaults = {
                 "animations/default.yml",
-                "animations/presets/common.yml"
+                "animations/examples.yml",
+                "animations/presets/basic.yml",
+                "animations/presets/common.yml",
+                "animations/presets/dynamic.yml",
+                "animations/presets/equation.yml"
         };
         for (String resource : defaults) {
             File dest = new File(plugin.getDataFolder(), resource);

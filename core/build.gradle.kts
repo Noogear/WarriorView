@@ -151,12 +151,24 @@ tasks.register("checkIntegrationTestResults") {
             )
         }
         val log = logFile.readText()
+        val logLines = log.lines()
+
+        // 检查 WarriorView 自身的 ERROR 级别日志
+        val errorPattern = Regex("""\[WarriorView].*ERROR""", RegexOption.IGNORE_CASE)
+        val pluginErrors = logLines.filter { errorPattern.containsMatchIn(it) }
+
         when {
             "[INTEGRATION_TEST] ALL_PASS" in log -> {
+                if (pluginErrors.isNotEmpty()) {
+                    val summary = pluginErrors.take(10).joinToString("\n  ")
+                    throw GradleException(
+                        "[Integration Test] 功能测试通过，但检测到 ${pluginErrors.size} 条 ERROR 日志:\n  $summary"
+                    )
+                }
                 logger.lifecycle("[Integration Test] ✓ 全部通过")
             }
             "[INTEGRATION_TEST] FAIL" in log -> {
-                val failMsg = log.lines()
+                val failMsg = logLines
                     .firstOrNull { "[INTEGRATION_TEST] FAIL" in it }
                     ?: "（原因未知）"
                 throw GradleException("[Integration Test] 失败: $failMsg")

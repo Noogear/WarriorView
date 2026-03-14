@@ -268,7 +268,7 @@ preset:
     math:
       position:
         x: "t * $h_speed"                          # 水平匀速
-        y: "t * $v_speed - t ** 2 * $gravity"      # 抛物线
+        y: "t * $v_speed - t ^ 2 * $gravity"      # 抛物线
         z: "0"
       scale:
         x: "max(0.3, 1.2 - t * 0.02)"

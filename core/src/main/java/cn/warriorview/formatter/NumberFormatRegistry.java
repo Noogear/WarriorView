@@ -170,6 +170,9 @@ public final class NumberFormatRegistry implements NumberFormatManager {
      */
     public ValueFormatter buildFormatter(String nfName, CharReplaceRegistry crr, String crName, int decimalPlaces) {
         CompactNumberFormatter compact  = nfName != null ? store.get(nfName) : null;
+        if (nfName != null && compact == null) {
+            cn.warriorview.util.Log.warn("[NumberFormat] Rule '{}' not found in registry. Check number-format.yml.", nfName);
+        }
         CharReplacer           replacer = crr.get(crName);
 
         final boolean hasFmt     = compact != null;

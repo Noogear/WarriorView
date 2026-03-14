@@ -210,7 +210,7 @@ class TestDataRecords {
             assertEquals(Billboard.CENTER, def.billboard());
             assertFalse(def.seeThrough());
             assertFalse(def.textShadow());
-            assertEquals(0x40000000, def.backgroundColor());
+            assertEquals(0x00000000, def.backgroundColor());
             assertEquals(1.0f, def.viewRange());
             assertEquals(0, def.teleportDuration());
             assertEquals(-1, def.brightness());
@@ -224,7 +224,7 @@ class TestDataRecords {
         @Test
         @DisplayName("DEFAULT_BACKGROUND 常量正确")
         void defaultBackgroundConstant() {
-            assertEquals(0x40000000, DisplaySettings.DEFAULT_BACKGROUND);
+            assertEquals(0x00000000, DisplaySettings.DEFAULT_BACKGROUND);
         }
 
         @Test

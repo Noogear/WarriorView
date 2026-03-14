@@ -156,7 +156,12 @@ public final class CharReplaceRegistry implements CharReplaceManager {
     /** 按名称查找替换规则；找不到则返回 {@link CharReplacer#NONE}。 */
     CharReplacer get(String name) {
         if (name == null || name.isEmpty()) return CharReplacer.NONE;
-        return store.getOrDefault(name, CharReplacer.NONE);
+        CharReplacer result = store.get(name);
+        if (result == null) {
+            cn.warriorview.util.Log.warn("[CharReplace] Rule '{}' not found in registry. Check char-replace.yml.", name);
+            return CharReplacer.NONE;
+        }
+        return result;
     }
 
     // ── 文件工具 ────────────────────────────────────────────────────────────
