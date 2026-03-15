@@ -14,7 +14,6 @@
 #   decimal-places     : 伤害数值保留的小数位数（int，默认 1）
 #   position           : 生成位置算法 —— AIM / SURFACE / IMPACT / SOURCE_ORIGIN / TARGET_EYE / TARGET_BOTTOM
 #   animation          : 关联的动画定义名称（在 animations/ 目录中定义）
-#   billboard          : TextDisplay 朝向约束 —— CENTER / VERTICAL / HORIZONTAL / FIXED
 #   see-through        : 是否穿透方块渲染（布尔值，默认 false）
 #   text-shadow        : 是否显示文字阴影（布尔值，默认 true）
 #   background         : ARGB 背景颜色（0xAARRGGBB 格式或十进制整数，0x00000000 = 完全透明）
@@ -52,7 +51,6 @@ default:
   text-format: "<white>{damage}"
   position: AIM
   animation: decelerate_float
-  billboard: CENTER
   see-through: true
   text-shadow: true
   background: 0x00000000

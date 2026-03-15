@@ -20,8 +20,10 @@ public final class AnimationConfig {
 
     public AnimationConfig(JavaPlugin plugin, RapidTransientScheduler scheduler) {
         this.registry = new AnimationRegistry();
-        this.player   = new AnimationPlayer(scheduler); // self-managed via RapidTransientScheduler
+        this.player   = new AnimationPlayer(scheduler);
         this.loader   = new AnimationFileLoader(plugin);
+        // 所有到期帧回调执行完后统一 flush → 保留 bundle 合并
+        scheduler.setPostTickHook(player.collector()::flush);
     }
 
     /** (Re-)loads all animation files and rebuilds the registry. */

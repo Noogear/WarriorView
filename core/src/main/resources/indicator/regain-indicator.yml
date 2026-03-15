@@ -28,7 +28,6 @@ default:
   text-format: "<green>+{damage}"
   position: AIM
   animation: gentle_rise
-  billboard: CENTER
   see-through: true
   text-shadow: true
   background: 0x00000000

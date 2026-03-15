@@ -72,8 +72,15 @@ public final class KeyframeParser {
 
         for (Map<?, ?> entry : rawTimeline) {
             MemoryConfiguration frameSection = new MemoryConfiguration();
-            for (var kv : entry.entrySet())
-                frameSection.set(kv.getKey().toString(), kv.getValue());
+            for (var kv : entry.entrySet()) {
+                String key = kv.getKey().toString();
+                Object value = kv.getValue();
+                if (value instanceof Map<?, ?> map) {
+                    frameSection.createSection(key, map);
+                } else {
+                    frameSection.set(key, value);
+                }
+            }
 
             // Determine tick offset – frame is sent at the START of
             // its interpolation segment so the MC client can interpolate
@@ -104,11 +111,20 @@ public final class KeyframeParser {
             boolean deduplicated = !frames.isEmpty()
                     && snap.equals(frames.get(frames.size() - 1).snapshot());
             if (!deduplicated) {
+                // MC client always processes start_interpolation when the field is
+                // explicitly included in the metadata packet.  Value 0 means
+                // "start interpolation at current client tick" (= immediately).
+                // We send index 8 in every frame, so delay=0 is correct.
                 frames.add(new BakedFrame(currentTick, 0, interpolationTicks, snap));
             }
             // Always advance currentTick, even for deduplicated frames, so the
             // next frame's start-of-segment offset is correct.
-            if (interpolationTicks > 0) currentTick += interpolationTicks;
+            // Use max(1) to guarantee a 1-tick gap between frames; without this,
+            // an initial frame with interpolationTicks=0 would leave currentTick
+            // at 0, causing the next frame to share the same tick as the spawn
+            // packet — the MC client may fail to interpolate when spawn + first
+            // transform update arrive in the same network flush.
+            currentTick += Math.max(interpolationTicks, 1);
         }
 
         if (frames.isEmpty()) return null;

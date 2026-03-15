@@ -240,7 +240,7 @@ public class IndicatorHandler implements Listener {
                 Component text = formatDamage(ind.damage, ind.config);
 
                 // 使用 IndicatorConfig 的显示属性覆盖动画定义的默认值
-                DisplaySettings settings = ind.config.toDisplaySettings(def.settings().offset());
+                DisplaySettings settings = ind.config.toDisplaySettings(def.settings());
                 animationPlayer.play(def, _scratchLoc, text, settings, ind.attackerYaw, ind.viewers, ind.viewerCount);
             }
         }

@@ -30,7 +30,7 @@ preset:
   spring_bounce:
     type: keyframe
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       offset:
@@ -58,10 +58,10 @@ preset:
         size: 1.0
         move: { up: 0.1 }
 
-      # 缓慢上浮并淡出
+      # 缓慢上浮并淡出（1% 避免 MC 将 0 解读为不透明）
       - duration: 20
         move: { up: 0.3 }
-        opacity: 0%
+        opacity: 1%
 
   # ----------------------------------------------------------
   # rubber_squash — 橡皮挤压
@@ -76,7 +76,7 @@ preset:
   rubber_squash:
     type: keyframe
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       offset:
@@ -122,7 +122,7 @@ preset:
   drop_rebound:
     type: keyframe
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       offset:
@@ -170,7 +170,7 @@ preset:
   slam_down:
     type: keyframe
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       offset:
@@ -299,7 +299,7 @@ preset:
   zoom_in:
     type: keyframe
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       offset:

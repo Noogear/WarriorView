@@ -211,6 +211,11 @@ public final class TextDisplayPackets {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static List<EntityData<?>> buildFrameMetaList(BakedFrame frame) {
         TransformSnapshot s = frame.snapshot();
+        // MC client treats text_opacity=0 the same as -1 ("use default" = fully opaque).
+        // Clamp 0 → 1 so "fully transparent" is actually near-transparent, not a flash.
+        byte op = s.textOpacity();
+        if (op == 0) op = 1;
+        else if (op < 0) op = -1;
         return List.of(
                 new EntityData(8,  EntityDataTypes.INT,       frame.interpolationDelay()),
                 new EntityData(9,  EntityDataTypes.INT,       frame.interpolationTicks()),
@@ -218,7 +223,7 @@ public final class TextDisplayPackets {
                 new EntityData(12, EntityDataTypes.VECTOR3F,  new Vector3f(s.sx(), s.sy(), s.sz())),
                 new EntityData(13, EntityDataTypes.QUATERNION, new Quaternion4f(s.lrx(), s.lry(), s.lrz(), s.lrw())),
                 new EntityData(14, EntityDataTypes.QUATERNION, new Quaternion4f(s.rrx(), s.rry(), s.rrz(), s.rrw())),
-                new EntityData(26, EntityDataTypes.BYTE,      s.textOpacity() < 0 ? (byte) -1 : s.textOpacity())
+                new EntityData(26, EntityDataTypes.BYTE,      op)
         );
     }
 

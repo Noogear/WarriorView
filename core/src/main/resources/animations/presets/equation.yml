@@ -110,7 +110,7 @@ preset:
   decelerate_float:
     type: equation
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       offset:
@@ -218,7 +218,7 @@ preset:
   heartbeat_pulse:
     type: equation
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       offset:

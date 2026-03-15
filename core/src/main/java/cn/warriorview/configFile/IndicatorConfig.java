@@ -3,7 +3,6 @@ package cn.warriorview.configFile;
 import cn.warriorview.animation.api.Billboard;
 import cn.warriorview.animation.api.IndicatorSpawnStrategy;
 import cn.warriorview.animation.data.DisplaySettings;
-import cn.warriorview.animation.data.OffsetExpr;
 import cn.warriorview.animation.definition.AnimationDef;
 import cn.warriorview.formatter.ValueFormatter;
 
@@ -99,12 +98,15 @@ public class IndicatorConfig extends ConfigurationPart {
 
     /**
      * 将本配置的静态属性合并到一个 {@link DisplaySettings}。
-     * 偏移表达式由调用方从 {@link #animationDef} 中取得并传入。
+     * billboard 与 offset 始终取自动画定义（动画知道自身的坐标空间需求），
+     * 其余外观属性由本配置覆盖。
+     *
+     * @param animSettings 动画定义自带的 {@link DisplaySettings}
      */
-    public DisplaySettings toDisplaySettings(OffsetExpr offset) {
-        return new DisplaySettings(billboard, seeThrough, textShadow,
+    public DisplaySettings toDisplaySettings(DisplaySettings animSettings) {
+        return new DisplaySettings(animSettings.billboard(), seeThrough, textShadow,
                 background, viewRange, teleportDuration, brightness,
-                shadowRadius, shadowStrength, glowColor, lineWidth, offset);
+                shadowRadius, shadowStrength, glowColor, lineWidth, animSettings.offset());
     }
 
     /**

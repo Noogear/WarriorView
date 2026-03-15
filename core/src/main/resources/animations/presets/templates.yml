@@ -47,7 +47,7 @@ preset:
       spread: 0.5
 
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       offset:
@@ -100,7 +100,7 @@ preset:
       spread: 0.5
 
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       offset:

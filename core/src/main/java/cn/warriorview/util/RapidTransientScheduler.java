@@ -66,6 +66,9 @@ public final class RapidTransientScheduler {
     @SuppressWarnings("FieldMayBeFinal")
     private volatile ScheduledTask driverTask = null;
 
+    /** 每 tick 所有到期任务执行完毕后调用的钩子（用于 PacketCollector flush 等批处理）。 */
+    private volatile Runnable postTickHook;
+
     /**
      * 使用默认配置初始化调度器
      *
@@ -143,6 +146,17 @@ public final class RapidTransientScheduler {
     }
 
     /**
+     * 设置 post-tick 钩子：在每次 {@link #tick()} 处理完所有到期任务后、
+     * 空闲检测前同步调用。适用于包收集器 flush 等需要等待同 tick 所有
+     * 任务执行完毕的批处理操作。
+     *
+     * @param hook 钩子回调，{@code null} 移除
+     */
+    public void setPostTickHook(Runnable hook) {
+        this.postTickHook = hook;
+    }
+
+    /**
      * 关闭并清理所有任务
      */
     public void shutdown() {
@@ -208,6 +222,9 @@ public final class RapidTransientScheduler {
                 chainPushBacklog(pending);
             }
         }
+
+        Runnable hook = postTickHook;
+        if (hook != null) hook.run();
 
         if (quota < maxTasksPerTick || (int) TOTAL_COUNT_VH.getOpaque(this) > 0
                 || BACKLOG_HEAD_VH.getOpaque(this) != null) {

@@ -9,7 +9,6 @@ import cn.warriorview.animation.definition.KeyframeDef;
 import cn.warriorview.animation.definition.PresetDef;
 import cn.warriorview.animation.api.Space;
 
-import io.netty.util.internal.shaded.org.jctools.queues.MpscUnboundedArrayQueue;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 
 import net.kyori.adventure.text.Component;
@@ -19,85 +18,55 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 import cn.warriorview.util.RapidTransientScheduler;
-import cn.warriorview.util.RapidTransientScheduler.TaskHandle;
 
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEntityMetadata;
 
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Tick-driven orchestrator for TextDisplay animation instances.
+ * Scheduler-driven orchestrator for TextDisplay animation instances.
  *
  * <h3>Architecture overview</h3>
  * <pre>
- *  ┌─────────────────────────────────────────────────────────────────────┐
- *  │ Main / event thread(s)                                              │
- *  │   play(def, anchor, text, viewers)  ─── MPSC queue ──►             │
- *  ├─────────────────────────────────────────────────────────────────────┤
- *  │ Single engine thread  (called once per tick from IndicatorHandler)  │
- *  │   tick()                                                            │
- *  │     1. Advance active instances → frameInto(…, collector)          │
- *  │     2. Destroy finished instances → destroyInto(…, collector)      │
- *  │     3. Drain pending queue → spawnInto(…, collector)              │
- *  │     4. collector.flush()  ← one Bundle per player, all animations  │
- *  └─────────────────────────────────────────────────────────────────────┘
+ *  play(def, anchor, text, viewers)
+ *    └── scheduler.dispatchNow(spawnCallback)
+ *          ├── spawn entity + send immediate frames (tickOffset ≤ 0) via collector
+ *          ├── schedule first delayed frame (inst itself is Runnable, chain-dispatches)
+ *          └── scheduler.dispatchLater(destroyCallback, totalTicks + 2)
+ *
+ *  scheduler.tick()  (RapidTransientScheduler)
+ *    ├── processChain  →  AnimationInstance.run() → collector.collect()
+ *    └── postTickHook  →  collector.flush()  ← one Bundle per player
  * </pre>
  *
- * <h3>Flyweight + Bundle merge</h3>
- * Packet wrapper objects are built once per frame and stored <em>by pointer</em>
- * in every relevant viewer's mailbox inside {@link PacketCollector}.  When
- * {@link #tick} ends, the collector sends one
- * {@link com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBundle
- * BUNDLE_DELIMITER-wrapped} sequence per player — regardless of how many
- * concurrent animations contributed packets this tick.
+ * <p>All timing is delegated to {@link RapidTransientScheduler}: no manual age
+ * counting, no per-tick frame comparison loops.  Each instance chain-dispatches
+ * itself as a {@link Runnable} for the next frame, so the time-wheel holds at
+ * most <b>1</b> TransientTask per instance at any time — zero lambda allocation
+ * on the frame path.</p>
  *
- * <h3>Zero-GC notes</h3>
- * <ul>
- *   <li>Keyframe {@link BakedSequence} is shared across all instances: zero copy.</li>
- *   <li>Equation {@link BakedSequence} is allocated once at spawn time per instance.</li>
- *   <li>{@link TextDisplayPackets#frameInto} uses a {@code ThreadLocal} pool for
- *       the transform {@code EntityData[]} array.</li>
- *   <li>The {@link PacketCollector}'s {@code ObjectArrayList} mailboxes are cleared
- *       (not replaced) each tick, so no repeated allocation.</li>
- * </ul>
+ * <p>Bundle merge is preserved via {@link PacketCollector}: frame callbacks
+ * {@code collect()} packets, and the scheduler's {@code postTickHook} calls
+ * {@code collector.flush()} once all callbacks for the tick have completed.</p>
  */
 public final class AnimationPlayer {
 
-    // ── Cross-thread handoff ──────────────────────────────────────────────────
-    /** Lock-free MPSC queue: any thread enqueues via {@link #play}, engine thread drains. */
-    private final MpscUnboundedArrayQueue<AnimationInstance> pendingSpawn =
-            new MpscUnboundedArrayQueue<>(256);
-
-    // ── Engine-thread-only state ──────────────────────────────────────────────
-    /** All currently active animation instances. Single-consumer, no synchronisation needed. */
+    /** All currently active animation instances. Scheduler-thread-only. */
     private final ObjectArrayList<AnimationInstance> active = new ObjectArrayList<>(64);
 
-    /** Accumulates packets for this tick; flushed at the end of {@link #tick}. */
+    /** Accumulates packets per tick; flushed by scheduler's postTickHook. */
     private final PacketCollector collector = new PacketCollector();
 
-    // ── Self-managed schedule ─────────────────────────────────────────────────
-    /** Scheduler that drives {@link #tick()} while animations are active. */
+    /** Scheduler that drives all animation lifecycle callbacks. */
     private final RapidTransientScheduler scheduler;
 
-    /**
-     * Handle for the next scheduled {@link #tick()} invocation, or {@code null} when idle.
-     * Written atomically by any thread via {@link #wakeUp()}; reset at the start of
-     * each {@link #tick()} call.
-     */
-    private final AtomicReference<TaskHandle> tickHandleRef = new AtomicReference<>(null);
-
-    // ── Constructor ───────────────────────────────────────────────────────────
-
-    /**
-     * @param scheduler the scheduler used to self-drive {@link #tick()} while
-     *                  animations are active.  The engine goes idle automatically
-     *                  when the active list is empty; {@link #play} re-wakes it.
-     */
     public AnimationPlayer(RapidTransientScheduler scheduler) {
         this.scheduler = scheduler;
     }
+
+    /** Returns the collector so the scheduler's postTickHook can flush it. */
+    public PacketCollector collector() { return collector; }
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -189,11 +158,12 @@ public final class AnimationPlayer {
         //   1. EquationDef（始终 per-instance）
         //   2. KeyframeDef + VIEW（rotateXZ 产生 per-instance 拷贝，不能用共享标识判断）
         boolean sharedSeq = concrete instanceof KeyframeDef && !viewSpace;
-        pendingSpawn.relaxedOffer(
-                new AnimationInstance(entityId, entityUid, seq, spawnAt, text,
-                        settingsOverride, viewers, viewerCount,
-                        sharedSeq));
-        wakeUp();
+
+        AnimationInstance inst = new AnimationInstance(
+                entityId, entityUid, seq, spawnAt, text,
+                settingsOverride, viewers, viewerCount, sharedSeq,
+                scheduler, collector);
+        scheduler.dispatchNow(() -> spawnInstance(inst));
     }
 
     /** Convenience overload: uses all entries in {@code viewers}. */
@@ -202,216 +172,110 @@ public final class AnimationPlayer {
     }
 
     /**
-     * Advances the animation engine by one tick.
-     *
-     * <p>Must be called once per tick from a <em>single dedicated engine thread</em>.
-     * The sequence is:</p>
-     * <ol>
-     *   <li>Advance all active instances: send any transform frames due this tick.</li>
-     *   <li>Destroy instances whose total duration has elapsed.</li>
-     *   <li>Drain the pending queue: spawn newly enqueued instances.</li>
-     *   <li>Flush the {@link PacketCollector} → one Bundle per player for steps 1–3.</li>
-     * </ol>
-     */
-    public void tick() {
-        // Consumed — will be reset below when we reschedule.
-        tickHandleRef.set(null);
-
-        // ── Phase A: advance active instances; flush destroy for cancelled ────
-        // minSleep tracks time-to-next-frame across all instances, accumulated here
-        // (Phase A for existing, Phase B for new spawns) to eliminate the old Phase D scan.
-        long minSleep = Long.MAX_VALUE;
-        for (int i = active.size() - 1; i >= 0; i--) {
-            AnimationInstance inst = active.get(i);
-
-            if (inst.cancelled) {
-                // dispatchLater fired: send destroy packet now and evict.
-                TextDisplayPackets.destroyInto(
-                        inst.entityId, inst.viewers, inst.viewerCount, collector);
-                if (!inst.sharedFrames) TextDisplayPackets.evictFrameCache(inst.sequence.frames());
-                active.remove(i);
-                continue;
-            }
-
-            inst.age++;
-
-            // Send all frames whose absolute tick-offset has arrived this tick.
-            // framePkts[] was pre-built at spawn: zero allocations in the hot loop.
-            BakedFrame[] frames = inst.sequence.frames();
-            while (inst.nextFrameIdx < frames.length
-                    && frames[inst.nextFrameIdx].tickOffset() <= inst.age) {
-                collector.collect(inst.viewers, inst.viewerCount,
-                        inst.framePkts[inst.nextFrameIdx]);
-                inst.nextFrameIdx++;
-            }
-
-            // Accumulate minSleep — replaces the separate Phase D scan.
-            if (inst.nextFrameIdx < frames.length) {
-                long sleep = frames[inst.nextFrameIdx].tickOffset() - inst.age;
-                if (sleep < minSleep) minSleep = sleep;
-            }
-        }
-
-        // ── Phase B: spawn pending instances ─────────────────────────────────
-        // Newly spawned instances are processed AFTER advancing existing ones so
-        // their age stays at 0 until the next tick.
-        AnimationInstance pending;
-        while ((pending = pendingSpawn.poll()) != null) {
-            DisplaySettings spawnSettings = pending.settingsOverride != null
-                    ? pending.settingsOverride
-                    : pending.sequence.settings();
-            TextDisplayPackets.spawnInto(
-                    pending.entityId, pending.entityUid, pending.spawnAt,
-                    pending.text, spawnSettings, pending.sequence.frames()[0],
-                    pending.viewers, pending.viewerCount, collector);
-            active.add(pending);
-
-            // Immediately send any frames due at the spawn tick (tickOffset <= 0).
-            // After the timing fix, frame[1] has tickOffset=0 (same as frame[0])
-            // and carries the first interpolation target the client should start
-            // interpolating toward right away.
-            BakedFrame[] spawnFrames = pending.sequence.frames();
-            while (pending.nextFrameIdx < spawnFrames.length
-                    && spawnFrames[pending.nextFrameIdx].tickOffset() <= 0) {
-                collector.collect(pending.viewers, pending.viewerCount,
-                        pending.framePkts[pending.nextFrameIdx]);
-                pending.nextFrameIdx++;
-            }
-
-            // Accumulate minSleep for newly spawned instances (Phase B contribution).
-            if (pending.nextFrameIdx < spawnFrames.length) {
-                long sleep = spawnFrames[pending.nextFrameIdx].tickOffset() - pending.age;
-                if (sleep < minSleep) minSleep = sleep;
-            }
-
-            // ── Option 3: precise destroy via dispatchLater ───────────────────
-            // Schedules the destroy exactly when the animation finishes, eliminating
-            // the per-tick age comparison that was previously in Phase A.
-            final AnimationInstance inst = pending;
-            final long destroyAfter = inst.sequence.totalTicks() + 2L;
-            scheduler.dispatchLater(() -> {
-                inst.cancelled = true;
-                wakeUp(); // ensure tick() runs on the same scheduler thread to flush the destroy packet
-            }, destroyAfter);
-        }
-
-        // ── Phase C: flush — one Bundle per player ────────────────────────────
-        collector.flush();
-
-        // ── Phase D: idle sleep + frame-precise wakeup ────────────────────────
-        if (active.isEmpty() && pendingSpawn.isEmpty()) {
-            // No active animations: enter idle.  wakeUp() will restart us when play() enqueues.
-            return;
-        }
-
-        // minSleep was accumulated during Phase A (existing instances) and Phase B (new spawns);
-        // no second scan needed.
-        if (minSleep == Long.MAX_VALUE) {
-            // All living instances are fully animated; waiting for dispatchLater destroys.
-            // Do not schedule a tick now — wakeUp() from those callbacks will do it.
-            return;
-        }
-
-        // Wake every tick so age++ accurately tracks game ticks.
-        // Sleeping for minSleep>1 would desync age from real time because
-        // age only increments once per tick() call, not by the sleep duration.
-        TaskHandle h = scheduler.dispatchLater(this::tick, 1L);
-        tickHandleRef.set(h);
-    }
-
-    /**
-     * Notifies the engine that {@code player} has quit.
-     *
-     * <p>Two things happen immediately on the engine thread:</p>
-     * <ol>
-     *   <li>The player's mailbox is removed from {@link PacketCollector} so no
-     *       further packets are queued for them.</li>
-     *   <li>The player is evicted from every active {@link AnimationInstance}'s
-     *       {@code viewers[]} array.  Instances whose viewer count drops to zero
-     *       are removed from the active list — there is nothing left to animate for.</li>
-     * </ol>
-     *
-     * <p>This is <em>event-driven</em> (fires only on actual disconnect) rather than
-     * polling every N ticks, so the steady-state cost is zero.</p>
+     * Evicts a disconnected player from all active animation instances.
+     * Must be called from the scheduler thread.
      */
     public void removeViewer(Player player) {
         collector.remove(player);
-        // Evict from all active instances; remove instances that become viewerless.
         for (int i = active.size() - 1; i >= 0; i--) {
             AnimationInstance inst = active.get(i);
             evictFrom(inst, player);
             if (inst.viewerCount == 0) {
-                if (!inst.sharedFrames) {
-                    TextDisplayPackets.evictFrameCache(inst.sequence.frames());
-                }
-                active.remove(i); // reverse order: safe
+                destroyInstance(inst);
             }
         }
     }
 
-    /**
-     * Ensures {@link #tick()} will be called on the scheduler's next available tick.
-     * Safe to call from <em>any</em> thread.  If a tick is already scheduled this is a no-op.
-     */
-    private void wakeUp() {
-        if (tickHandleRef.get() == null) {
-            TaskHandle h = scheduler.dispatchNow(this::tick);
-            if (!tickHandleRef.compareAndSet(null, h)) {
-                h.cancel(); // another caller beat us to it
-            }
+    // ── Spawn / destroy lifecycle ─────────────────────────────────────────────
+
+    /** Called on the scheduler thread via {@code dispatchNow}. */
+    private void spawnInstance(AnimationInstance inst) {
+        if (inst.viewerCount == 0) return;
+        active.add(inst);
+
+        BakedFrame[] frames = inst.sequence.frames();
+        DisplaySettings spawnSettings = inst.settingsOverride != null
+                ? inst.settingsOverride : inst.sequence.settings();
+
+        // Spawn entity with frame[0]
+        TextDisplayPackets.spawnInto(inst.entityId, inst.entityUid, inst.spawnAt,
+                inst.text, spawnSettings, frames[0],
+                inst.viewers, inst.viewerCount, collector);
+
+        // Send all frames due at spawn tick (tickOffset <= 0) immediately
+        while (inst.nextFrameIdx < frames.length
+                && frames[inst.nextFrameIdx].tickOffset() <= 0) {
+            collector.collect(inst.viewers, inst.viewerCount,
+                    inst.framePkts[inst.nextFrameIdx]);
+            inst.nextFrameIdx++;
         }
+
+        // Kick off the chain-dispatch for remaining frames
+        if (inst.nextFrameIdx < frames.length) {
+            long delay = frames[inst.nextFrameIdx].tickOffset();
+            scheduler.dispatchLater(inst, delay > 0 ? delay : 1);
+        }
+
+        // Schedule destroy: +1 tick after nominal end.
+        // With interpolation_delay=0, the last frame's interpolation completes
+        // exactly at totalTicks; +1 gives the client one tick of buffer to
+        // finish rendering before the entity is removed.
+        scheduler.dispatchLater(() -> destroyInstance(inst),
+                inst.sequence.totalTicks() + 1L);
+    }
+
+    /** Destroys and cleans up an animation instance. Idempotent. */
+    private void destroyInstance(AnimationInstance inst) {
+        if (inst.destroyed) return;
+        inst.destroyed = true;
+        if (inst.viewerCount > 0) {
+            TextDisplayPackets.destroyInto(
+                    inst.entityId, inst.viewers, inst.viewerCount, collector);
+        }
+        if (!inst.sharedFrames) {
+            TextDisplayPackets.evictFrameCache(inst.sequence.frames());
+        }
+        active.remove(inst);
     }
 
     // ── Internal types ────────────────────────────────────────────────────────
 
     /**
-     * Mutable bookkeeping for a single active animation playthrough.
-     * Engine-thread-only after enqueue; no synchronisation needed.
+     * Bookkeeping for a single animation playthrough.
+     * <p>Implements {@link Runnable}: the {@link #run()} method is the chain-dispatch
+     * frame callback.  The instance itself is passed to {@code dispatchLater(this, delta)}
+     * so the time-wheel holds at most <b>1</b> TransientTask per instance, and zero
+     * lambda objects are allocated on the frame-advance path.</p>
      */
-    static final class AnimationInstance {
+    static final class AnimationInstance implements Runnable {
 
         final int              entityId;
         final UUID             entityUid;
         final BakedSequence    sequence;
         final Location         spawnAt;
         final Component        text;
-        /** 非 null 时覆盖 {@code sequence.settings()} 的显示属性。 */
         final DisplaySettings  settingsOverride;
         final Player[]         viewers;
-        int                    viewerCount; // mutable: reduced by cullViewers() on disconnect
-
-        /**
-         * True when the {@link BakedFrame} array is globally shared (load-time keyframe + WORLD space).
-         * False when frames are per-instance (equation, or keyframe + VIEW rotated clone).
-         * Controls whether {@link TextDisplayPackets#evictFrameCache} is called on destroy.
-         */
+        int                    viewerCount;
         final boolean          sharedFrames;
 
-        /** Ticks elapsed since this instance was spawned.  0 on the spawn tick. */
-        int age          = 0;
+        /** Pre-built metadata packets, index-aligned with {@code sequence.frames()}. */
+        final WrapperPlayServerEntityMetadata[] framePkts;
+
         /** Index of the next frame yet to be sent.  Frame[0] is sent at spawn time. */
         int nextFrameIdx = 1;
+        boolean destroyed;
 
-        /**
-         * Set to {@code true} by the {@code dispatchLater} destroy callback.
-         * {@link #tick()} detects this flag in Phase A, sends the destroy packet,
-         * and evicts the instance from the active list.
-         */
-        boolean cancelled = false;
-
-        /**
-         * Pre-built metadata packets for every frame (index-aligned with
-         * {@code sequence.frames()}).  Built once at spawn time so the tick loop
-         * can hand a cached pointer to {@link PacketCollector#collect} instead of
-         * allocating a new {@link WrapperPlayServerEntityMetadata} on each advance.
-         */
-        final WrapperPlayServerEntityMetadata[] framePkts;
+        private final RapidTransientScheduler scheduler;
+        private final PacketCollector collector;
 
         AnimationInstance(int entityId, UUID entityUid, BakedSequence sequence,
                           Location spawnAt, Component text,
                           DisplaySettings settingsOverride,
                           Player[] viewers, int viewerCount,
-                          boolean sharedFrames) {
+                          boolean sharedFrames,
+                          RapidTransientScheduler scheduler,
+                          PacketCollector collector) {
             this.entityId         = entityId;
             this.entityUid        = entityUid;
             this.sequence         = sequence;
@@ -421,8 +285,31 @@ public final class AnimationPlayer {
             this.viewers          = viewers;
             this.viewerCount      = viewerCount;
             this.sharedFrames     = sharedFrames;
-            // Pre-build frame packets at spawn so tick() needs zero per-frame allocations.
+            this.scheduler        = scheduler;
+            this.collector        = collector;
             this.framePkts = TextDisplayPackets.buildFramePackets(entityId, sequence.frames());
+        }
+
+        /**
+         * Chain-dispatch frame callback: sends the current frame (and any
+         * consecutive frames at the same tick offset), then schedules itself
+         * for the next frame's delta delay.  Zero lambda allocation.
+         */
+        @Override
+        public void run() {
+            if (destroyed || viewerCount == 0) return;
+            BakedFrame[] frames = sequence.frames();
+            int sentTick = frames[nextFrameIdx].tickOffset();
+            do {
+                collector.collect(viewers, viewerCount, framePkts[nextFrameIdx]);
+                nextFrameIdx++;
+            } while (nextFrameIdx < frames.length
+                     && frames[nextFrameIdx].tickOffset() == sentTick);
+
+            if (nextFrameIdx < frames.length) {
+                long delta = frames[nextFrameIdx].tickOffset() - sentTick;
+                scheduler.dispatchLater(this, delta);
+            }
         }
     }
 

@@ -117,6 +117,8 @@ public record EquationDef(
                     opB
             );
 
+            // delay=0: MC client processes "start interpolation at current tick"
+            // when index 8 is explicitly included in the metadata packet.
             frames[i] = new BakedFrame(sendTick, 0, sampleInterval, snap);
         }
 

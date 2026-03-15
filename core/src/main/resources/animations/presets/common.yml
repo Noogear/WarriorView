@@ -15,7 +15,7 @@ preset:
   float_fade:
     type: keyframe
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       view-range: 24

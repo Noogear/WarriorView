@@ -28,7 +28,7 @@ preset:
   gentle_rise:
     type: keyframe
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       offset:
@@ -59,33 +59,35 @@ preset:
   # ----------------------------------------------------------
   arc_toss:
     type: keyframe
-    space: view                     # 视角坐标：运动跟随攻击者朝向
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       offset:
-        x: "r * 0.3 - 0.15"
+        x: "r * 0.4 - 0.2"
         y: "r * 0.15"
-        z: "r * 0.3 - 0.15"
+        z: "r * 0.4 - 0.2"
 
     timeline:
-      # 起始：略小
+      # 起始：正常大小，完全不透明
       - time: 0
-        size: 0.8
-        opacity: 100%
-
-      # 快速飞向攻击者的右上方，放大至 1.2 倍
-      - duration: 8
-        size: 1.2
-        move: { right: 0.15, up: 0.25 }
-        opacity: 100%
-
-      # 继续飞行但逐渐减速，回到正常大小，渐隐
-      - duration: 17
         size: 1.0
-        move: { right: 0.25, up: 0.15 }
-        opacity: 0%
+        opacity: 100%
+
+      # 快速上浮 0.5 格，略微淡出
+      - duration: 8
+        move: { up: 0.5 }
+        opacity: 75%
+
+      # 中速上浮 0.4 格，继续淡出
+      - duration: 10
+        move: { up: 0.4 }
+        opacity: 40%
+
+      # 缓慢上浮 0.3 格，淡出至近透明（防止消失闪烁）
+      - duration: 12
+        move: { up: 0.3 }
+        opacity: 5%
 
   # ----------------------------------------------------------
   # scatter_pop — 四散弹出
@@ -99,7 +101,7 @@ preset:
   scatter_pop:
     type: keyframe
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       view-range: 28
@@ -179,7 +181,7 @@ preset:
   linger_fade:
     type: keyframe
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       offset:
@@ -213,7 +215,7 @@ preset:
   grow_dissolve:
     type: keyframe
     settings:
-      billboard: center
+      billboard: vertical
       text-shadow: true
       background: "transparent"
       offset:
