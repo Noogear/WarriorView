@@ -121,9 +121,10 @@ class TestAnimationDefinitions {
         void bakeFrameCount() {
             var def = createLinearRise();
             BakedSequence seq = def.bake(0.0);
-            // count = max(1, 20/1 + 1) = 21
-            assertEquals(21, seq.frames().length);
-            assertEquals(20, seq.totalTicks());
+            // count = max(1, 20/1 + 1) = 21, +1 sentinel = 22
+            assertEquals(22, seq.frames().length);
+            // lastFrame.tickOffset = 1+(20-1)*1 = 20, sentinel = 20+1 = 21, total = 21+2 = 23
+            assertEquals(23, seq.totalTicks());
         }
 
         @Test
@@ -170,16 +171,18 @@ class TestAnimationDefinitions {
             );
             BakedSequence seq = def.bake(0.0);
             BakedFrame[] frames = seq.frames();
-            // count = max(1, 10/2+1) = 6
-            assertEquals(6, frames.length);
+            // count = max(1, 10/2+1) = 6, +1 sentinel = 7
+            assertEquals(7, frames.length);
             // frame[0] = initial state at spawn (tick 0)
-            // frame[i>0] = target sent at start of segment = (i-1)*sampleInterval
-            assertEquals(0, frames[0].tickOffset(), "Frame 0 (initial)");
-            assertEquals(0, frames[1].tickOffset(), "Frame 1 (first target, sent at spawn)");
-            assertEquals(2, frames[2].tickOffset(), "Frame 2");
-            assertEquals(4, frames[3].tickOffset(), "Frame 3");
-            assertEquals(6, frames[4].tickOffset(), "Frame 4");
-            assertEquals(8, frames[5].tickOffset(), "Frame 5");
+            // frame[i>0] = sendTick = 1 + (i-1)*sampleInterval
+            assertEquals(0,  frames[0].tickOffset(), "Frame 0 (initial)");
+            assertEquals(1,  frames[1].tickOffset(), "Frame 1 (first target, tick 1)");
+            assertEquals(3,  frames[2].tickOffset(), "Frame 2");
+            assertEquals(5,  frames[3].tickOffset(), "Frame 3");
+            assertEquals(7,  frames[4].tickOffset(), "Frame 4");
+            assertEquals(9,  frames[5].tickOffset(), "Frame 5");
+            // sentinel hold frame at 9 + sampleInterval = 11
+            assertEquals(11, frames[6].tickOffset(), "Sentinel hold frame");
         }
 
         @Test
@@ -230,7 +233,7 @@ class TestAnimationDefinitions {
         }
 
         @Test
-        @DisplayName("bake() 负不透明度映射为 -1（默认）")
+        @DisplayName("bake() 负不透明度钳位为 1（近透明）")
         void bakeNegativeOpacity() {
             var def = new EquationDef(
                     "neg_op", DisplaySettings.DEFAULT, Space.WORLD,
@@ -247,7 +250,8 @@ class TestAnimationDefinitions {
                     MathEngine.compile("-1", EquationDef.VARS)
             );
             BakedSequence seq = def.bake(0.0);
-            assertEquals((byte) -1, seq.frames()[0].snapshot().textOpacity());
+            // Negative opacity clamps to 1 (near-transparent), not -1 (MC fully opaque)
+            assertEquals((byte) 1, seq.frames()[0].snapshot().textOpacity());
         }
 
         @Test

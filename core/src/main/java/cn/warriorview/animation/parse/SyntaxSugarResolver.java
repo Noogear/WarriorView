@@ -110,7 +110,8 @@ public final class SyntaxSugarResolver {
             }
         }
         if (section.contains("text_opacity")) {
-            opacity = (byte) section.getInt("text_opacity", opacity & 0xFF);
+            int rawOp = section.getInt("text_opacity", opacity & 0xFF);
+            opacity = (byte) (rawOp < 0 ? -1 : Math.min(127, rawOp));
         }
 
         // --- Syntax sugar ---
@@ -182,11 +183,11 @@ public final class SyntaxSugarResolver {
                     }
                 } else if (opacityStr.endsWith("%")) {
                     double pct = Double.parseDouble(opacityStr.substring(0, opacityStr.length() - 1));
-                    byte newOp = (byte) Math.round(pct / 100.0 * 127);
+                    byte newOp = (byte) Math.max(0, Math.min(127, (int) Math.round(pct / 100.0 * 127)));
                     deltas[D_OPACITY] = (float) ((newOp & 0xFF) - (opacity & 0xFF));
                     opacity = newOp;
                 } else {
-                    byte newOp = (byte) Integer.parseInt(opacityStr);
+                    byte newOp = (byte) Math.max(0, Math.min(127, Integer.parseInt(opacityStr)));
                     deltas[D_OPACITY] = (float) ((newOp & 0xFF) - (opacity & 0xFF));
                     opacity = newOp;
                 }

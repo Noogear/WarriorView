@@ -1,6 +1,7 @@
 package cn.warriorview.configFile;
 
 import cn.warriorview.animation.engine.AnimationPlayer;
+import cn.warriorview.animation.engine.TextDisplayPackets;
 import cn.warriorview.animation.load.AnimationFileLoader;
 import cn.warriorview.animation.registry.AnimationRegistry;
 import cn.warriorview.util.RapidTransientScheduler;
@@ -28,6 +29,10 @@ public final class AnimationConfig {
 
     /** (Re-)loads all animation files and rebuilds the registry. */
     public void reload() {
+        // Clear static packet caches BEFORE loading so stale BakedFrame / DisplaySettings
+        // objects from the old definitions are released.  The load pass will re-populate
+        // them via KeyframeParser.preWarmFrameCache() and lazy settingsMetaOf().
+        TextDisplayPackets.clearCaches();
         loader.load(registry);
     }
 

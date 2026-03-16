@@ -75,6 +75,17 @@ public final class TextDisplayPackets {
     private static final IdentityHashMap<BakedFrame, List<EntityData<?>>> FRAME_META_CACHE =
             new IdentityHashMap<>();
 
+    /**
+     * Per-settings metadata cache: {@link DisplaySettings} identity → pre-built immutable
+     * {@link EntityData} list containing all settings-derived metadata (indices 10, 15–19,
+     * 22, 24, 25, 27).  Text (index 23) is excluded because it varies per instance.
+     *
+     * <p>Populated lazily on first use; entries persist for the plugin lifetime since
+     * {@link DisplaySettings} instances are long-lived (one per animation definition).</p>
+     */
+    private static final IdentityHashMap<DisplaySettings, List<EntityData<?>>> SETTINGS_META_CACHE =
+            new IdentityHashMap<>();
+
     private TextDisplayPackets() {}
 
     // -------------------------------------------------------------------------
@@ -208,14 +219,41 @@ public final class TextDisplayPackets {
         for (BakedFrame f : frames) FRAME_META_CACHE.remove(f);
     }
 
+    /**
+     * Pre-warms the frame metadata cache for a shared (long-lived) frame array.
+     * Called at load time for {@link cn.warriorview.animation.definition.KeyframeDef}
+     * so the first {@code play()} incurs zero lazy-build overhead.
+     *
+     * @param frames immutable frame array owned by a shared {@link cn.warriorview.animation.data.BakedSequence}
+     */
+    public static void preWarmFrameCache(BakedFrame[] frames) {
+        for (BakedFrame f : frames) frameMetaOf(f);
+    }
+
+    /**
+     * Clears all static caches.  Must be called before a config reload so that
+     * stale {@link BakedFrame} and {@link DisplaySettings} objects from the old
+     * animation definitions can be garbage-collected.
+     *
+     * <p>After the reload, {@link #preWarmFrameCache} repopulates the frame cache
+     * for newly-parsed keyframe animations, and {@link #settingsMetaOf} lazily
+     * rebuilds settings entries on first use.</p>
+     */
+    public static void clearCaches() {
+        FRAME_META_CACHE.clear();
+        SETTINGS_META_CACHE.clear();
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static List<EntityData<?>> buildFrameMetaList(BakedFrame frame) {
         TransformSnapshot s = frame.snapshot();
-        // MC client treats text_opacity=0 the same as -1 ("use default" = fully opaque).
-        // Clamp 0 → 1 so "fully transparent" is actually near-transparent, not a flash.
+        // MC client treats text_opacity 0 and -1 (255 unsigned) as "use default"
+        // = fully opaque.  Clamp 0 and equation-underflow negatives (e.g. -7 from
+        // "127 - t*3" past the end) to 1 (near-transparent) so the entity fades
+        // out instead of flashing back to full opacity.  Only explicit -1 (meaning
+        // "use default") is preserved.
         byte op = s.textOpacity();
-        if (op == 0) op = 1;
-        else if (op < 0) op = -1;
+        if (op != -1 && op <= 0) op = 1;
         return List.of(
                 new EntityData(8,  EntityDataTypes.INT,       frame.interpolationDelay()),
                 new EntityData(9,  EntityDataTypes.INT,       frame.interpolationTicks()),
@@ -227,34 +265,50 @@ public final class TextDisplayPackets {
         );
     }
 
+    /**
+     * Returns the cached immutable settings metadata for the given {@link DisplaySettings},
+     * building and caching it on first access.
+     */
+    private static List<EntityData<?>> settingsMetaOf(DisplaySettings settings) {
+        return SETTINGS_META_CACHE.computeIfAbsent(settings, TextDisplayPackets::buildSettingsMetaList);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static List<EntityData<?>> buildSettingsMetaList(DisplaySettings settings) {
+        byte styleFlags = 0;
+        if (settings.textShadow())  styleFlags |= 0x01;
+        if (settings.seeThrough())  styleFlags |= 0x02;
+
+        ArrayList<EntityData<?>> list = new ArrayList<>(10);
+        list.add(new EntityData(10, EntityDataTypes.INT,   settings.teleportDuration()));
+        list.add(new EntityData(15, EntityDataTypes.BYTE,  settings.billboard().protocolId()));
+        if (settings.brightness() >= 0) {
+            list.add(new EntityData(16, EntityDataTypes.INT, settings.brightness()));
+        }
+        list.add(new EntityData(17, EntityDataTypes.FLOAT, settings.viewRange()));
+        list.add(new EntityData(18, EntityDataTypes.FLOAT, settings.shadowRadius()));
+        list.add(new EntityData(19, EntityDataTypes.FLOAT, settings.shadowStrength()));
+        if (settings.glowColorOverride() != 0) {
+            list.add(new EntityData(22, EntityDataTypes.INT, settings.glowColorOverride()));
+        }
+        list.add(new EntityData(24, EntityDataTypes.INT,   settings.lineWidth()));
+        list.add(new EntityData(25, EntityDataTypes.INT,   settings.backgroundColor()));
+        list.add(new EntityData(27, EntityDataTypes.BYTE,  styleFlags));
+        return List.copyOf(list);
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static List<EntityData<?>> buildInitialMeta(
             Component text,
             DisplaySettings settings,
             BakedFrame first
     ) {
-        byte styleFlags = 0;
-        if (settings.textShadow())  styleFlags |= 0x01;
-        if (settings.seeThrough())  styleFlags |= 0x02;
-
         List<EntityData<?>> frameMeta = frameMetaOf(first);
-        List<EntityData<?>> out = new ArrayList<>(frameMeta.size() + 12);
-        out.addAll(frameMeta);                                          // includes transform + opacity (index 26)
-        out.add(new EntityData(10, EntityDataTypes.INT,           settings.teleportDuration()));
-        out.add(new EntityData(15, EntityDataTypes.BYTE,          settings.billboard().protocolId()));
-        if (settings.brightness() >= 0) {
-            out.add(new EntityData(16, EntityDataTypes.INT,        settings.brightness()));
-        }
-        out.add(new EntityData(17, EntityDataTypes.FLOAT,         settings.viewRange()));
-        out.add(new EntityData(18, EntityDataTypes.FLOAT,         settings.shadowRadius()));
-        out.add(new EntityData(19, EntityDataTypes.FLOAT,         settings.shadowStrength()));
-        if (settings.glowColorOverride() != 0) {
-            out.add(new EntityData(22, EntityDataTypes.INT,        settings.glowColorOverride()));
-        }
-        out.add(new EntityData(23, EntityDataTypes.ADV_COMPONENT, text));
-        out.add(new EntityData(24, EntityDataTypes.INT,           settings.lineWidth()));
-        out.add(new EntityData(25, EntityDataTypes.INT,           settings.backgroundColor()));
-        out.add(new EntityData(27, EntityDataTypes.BYTE,          styleFlags));
+        List<EntityData<?>> settingsMeta = settingsMetaOf(settings);
+        List<EntityData<?>> out = new ArrayList<>(frameMeta.size() + settingsMeta.size() + 1);
+        out.addAll(frameMeta);       // transform + opacity (index 26)
+        out.addAll(settingsMeta);    // cached settings entries (indices 10,15–19,22,24,25,27)
+        out.add(new EntityData(23, EntityDataTypes.ADV_COMPONENT, text)); // per-instance text
         return out;
     }
 

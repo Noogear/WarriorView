@@ -6,6 +6,7 @@ import cn.warriorview.animation.data.BakedSequence;
 import cn.warriorview.animation.data.DisplaySettings;
 import cn.warriorview.animation.data.TransformSnapshot;
 import cn.warriorview.animation.definition.KeyframeDef;
+import cn.warriorview.animation.engine.TextDisplayPackets;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.MemoryConfiguration;
 
@@ -129,9 +130,30 @@ public final class KeyframeParser {
 
         if (frames.isEmpty()) return null;
 
+        // Frame[0]: delay=1 so the MC client registers the entity at its spawn
+        // position before interpolation begins (it has no prior state to lerp from).
+        BakedFrame f0 = frames.get(0);
+        if (f0.interpolationDelay() < 1) {
+            frames.set(0, new BakedFrame(f0.tickOffset(), 1, f0.interpolationTicks(), f0.snapshot()));
+        }
+
+        // Sentinel hold frame: duplicates the last real frame's state to keep the
+        // MC client's interpolation system active, preventing text_opacity from
+        // resetting to default (fully opaque) before the destroy packet arrives.
+        BakedFrame lastReal = frames.get(frames.size() - 1);
+        int sentinelTick = lastReal.tickOffset() + lastReal.interpolationTicks();
+        frames.add(new BakedFrame(sentinelTick, 0,
+                BakedFrame.SENTINEL_HOLD_TICKS, lastReal.snapshot()));
+
         BakedFrame[] frameArray = frames.toArray(new BakedFrame[0]);
         BakedFrame last = frameArray[frameArray.length - 1];
         int totalTicks = last.tickOffset() + last.interpolationTicks();
+
+        // Pre-warm the per-frame EntityData cache so the first play() incurs
+        // zero lazy-build overhead.  Safe to call here because plugin loading
+        // completes before the scheduler thread starts consuming the cache.
+        TextDisplayPackets.preWarmFrameCache(frameArray);
+
         BakedSequence seq = new BakedSequence(frameArray, totalTicks, settings);
         return new KeyframeDef(name, settings, space, seq);
     }

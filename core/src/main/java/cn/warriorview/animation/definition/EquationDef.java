@@ -32,7 +32,7 @@ import gloomlib.math.api.MathEngine;
  * @param rotX           rotation axis-X expression (t, r) → degrees (converted internally)
  * @param rotY           rotation axis-Y expression (t, r) → degrees
  * @param rotZ           rotation axis-Z expression (t, r) → degrees
- * @param opacity        text-opacity expression (t, r) → [0, 127]; -1 = default
+ * @param opacity        text-opacity expression (t, r) → clamped to [1, 127]
  */
 public record EquationDef(
         String                name,
@@ -76,7 +76,7 @@ public record EquationDef(
     @Override
     public BakedSequence bake(double r) {
         int count = Math.max(1, (durationTicks / sampleInterval) + 1);
-        BakedFrame[] frames = new BakedFrame[count];
+        BakedFrame[] frames = new BakedFrame[count + 1]; // +1 for sentinel hold frame
 
         // Reuse argument array across iterations: args[0] = t (updated per loop), args[1] = r (constant)
         double[] args = {0.0, r};
@@ -84,12 +84,12 @@ public record EquationDef(
         float[] qBuf = new float[4];
 
         for (int i = 0; i < count; i++) {
-            int evalTick = i * sampleInterval;  // evaluate expressions at this tick
-            // Send frame at the START of its interpolation segment so the
-            // MC client can interpolate toward this target over sampleInterval ticks.
-            // frame[0] = initial state at spawn; frame[1..n] = first target sent
-            // at the same tick as the previous frame's evaluation tick.
-            int sendTick = i == 0 ? 0 : (i - 1) * sampleInterval;
+            int evalTick = i * sampleInterval;
+            // frame[0] at tick 0 establishes the initial state (with delay=1 so the
+            // client has 1 tick to register it before interpolation begins).
+            // frame[1+] must arrive AFTER frame[0]'s delay expires (tick ≥ 1),
+            // otherwise they land in the same Bundle and overwrite delay=1 → 0.
+            int sendTick = i == 0 ? 0 : 1 + (i - 1) * sampleInterval;
             args[0] = evalTick;
 
             float tx = (float) posX.evaluate(args);
@@ -107,7 +107,9 @@ public record EquationDef(
             eulerToQuaternion(rx, ry, rz, qBuf);
 
             double opD = opacity.evaluate(args);
-            byte opB = opD < 0 ? (byte) -1 : (byte) Math.min(127, (int) opD);
+            // Clamp to [1, 127]: values ≤ 0 become 1 (near-transparent) instead of
+            // -1 (MC "use default" = fully opaque), preventing end-of-animation flash.
+            byte opB = (byte) Math.max(1, Math.min(127, (int) opD));
 
             TransformSnapshot snap = new TransformSnapshot(
                     tx, ty, tz,
@@ -117,12 +119,19 @@ public record EquationDef(
                     opB
             );
 
-            // delay=0: MC client processes "start interpolation at current tick"
-            // when index 8 is explicitly included in the metadata packet.
-            frames[i] = new BakedFrame(sendTick, 0, sampleInterval, snap);
+            // frame[0]: delay=1 so the MC client registers the entity at its spawn
+            // position for one tick before interpolation begins (no prior state to lerp from).
+            frames[i] = new BakedFrame(sendTick, i == 0 ? 1 : 0, sampleInterval, snap);
         }
 
-        return new BakedSequence(frames, durationTicks, settings);
+        // Sentinel hold frame: duplicates the last real frame's state with active
+        // interpolation so the MC client doesn't reset text_opacity to default
+        // (fully opaque) before the destroy packet arrives.
+        int sentinelTick = frames[count - 1].tickOffset() + sampleInterval;
+        frames[count] = new BakedFrame(sentinelTick, 0,
+                BakedFrame.SENTINEL_HOLD_TICKS, frames[count - 1].snapshot());
+        int totalTicks = sentinelTick + BakedFrame.SENTINEL_HOLD_TICKS;
+        return new BakedSequence(frames, totalTicks, settings);
     }
 
     /**
@@ -137,13 +146,13 @@ public record EquationDef(
      */
     public BakedSequence bakeRotated(double r, float cos, float sin) {
         int count = Math.max(1, (durationTicks / sampleInterval) + 1);
-        BakedFrame[] frames = new BakedFrame[count];
+        BakedFrame[] frames = new BakedFrame[count + 1]; // +1 for sentinel hold frame
         double[] args = {0.0, r};
         float[] qBuf = new float[4];
 
         for (int i = 0; i < count; i++) {
             int evalTick = i * sampleInterval;
-            int sendTick = i == 0 ? 0 : (i - 1) * sampleInterval;
+            int sendTick = i == 0 ? 0 : 1 + (i - 1) * sampleInterval;
             args[0] = evalTick;
 
             float txV = (float) posX.evaluate(args);
@@ -163,9 +172,9 @@ public record EquationDef(
             eulerToQuaternion(rx, ry, rz, qBuf);
 
             double opD = opacity.evaluate(args);
-            byte opB = opD < 0 ? (byte) -1 : (byte) Math.min(127, (int) opD);
+            byte opB = (byte) Math.max(1, Math.min(127, (int) opD));
 
-            frames[i] = new BakedFrame(sendTick, 0, sampleInterval, new TransformSnapshot(
+            frames[i] = new BakedFrame(sendTick, i == 0 ? 1 : 0, sampleInterval, new TransformSnapshot(
                     tx, ty, tz,
                     sx, sy, sz,
                     0f, 0f, 0f, 1f,
@@ -173,7 +182,11 @@ public record EquationDef(
                     opB));
         }
 
-        return new BakedSequence(frames, durationTicks, settings);
+        int sentinelTick = frames[count - 1].tickOffset() + sampleInterval;
+        frames[count] = new BakedFrame(sentinelTick, 0,
+                BakedFrame.SENTINEL_HOLD_TICKS, frames[count - 1].snapshot());
+        int totalTicks = sentinelTick + BakedFrame.SENTINEL_HOLD_TICKS;
+        return new BakedSequence(frames, totalTicks, settings);
     }
 
     /** Converts ZYX Euler angles (degrees) to a quaternion, writing result into {@code out[0..3]} (x,y,z,w). */

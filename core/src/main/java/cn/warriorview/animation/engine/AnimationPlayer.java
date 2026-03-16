@@ -106,8 +106,11 @@ public final class AnimationPlayer {
         AnimationDef concrete = unwrap(def);
         double r = ThreadLocalRandom.current().nextDouble();
 
-        // Evaluate per-instance random offset (always from animation definition)
-        DisplaySettings effective = settingsOverride != null ? settingsOverride : concrete.settings();
+        // Resolve effective settings: explicit override > PresetDef settings > concrete def settings.
+        // unwrap() strips PresetDef wrappers, so def.settings() preserves the outermost
+        // preset's overrides (billboard, background, view-range, etc.) that would otherwise
+        // be lost when we access concrete.settings().
+        DisplaySettings effective = settingsOverride != null ? settingsOverride : def.settings();
         float[] offsetBuf = new float[3];
         effective.offset().evaluateInto(r, offsetBuf);
 
@@ -161,7 +164,7 @@ public final class AnimationPlayer {
 
         AnimationInstance inst = new AnimationInstance(
                 entityId, entityUid, seq, spawnAt, text,
-                settingsOverride, viewers, viewerCount, sharedSeq,
+                effective, viewers, viewerCount, sharedSeq,
                 scheduler, collector);
         scheduler.dispatchNow(() -> spawnInstance(inst));
     }
@@ -194,12 +197,11 @@ public final class AnimationPlayer {
         active.add(inst);
 
         BakedFrame[] frames = inst.sequence.frames();
-        DisplaySettings spawnSettings = inst.settingsOverride != null
-                ? inst.settingsOverride : inst.sequence.settings();
 
-        // Spawn entity with frame[0]
+        // Spawn entity with frame[0] — inst.settingsOverride is always set
+        // (resolved in play() from explicit override / PresetDef / concrete def).
         TextDisplayPackets.spawnInto(inst.entityId, inst.entityUid, inst.spawnAt,
-                inst.text, spawnSettings, frames[0],
+                inst.text, inst.settingsOverride, frames[0],
                 inst.viewers, inst.viewerCount, collector);
 
         // Send all frames due at spawn tick (tickOffset <= 0) immediately
@@ -215,13 +217,11 @@ public final class AnimationPlayer {
             long delay = frames[inst.nextFrameIdx].tickOffset();
             scheduler.dispatchLater(inst, delay > 0 ? delay : 1);
         }
-
-        // Schedule destroy: +1 tick after nominal end.
-        // With interpolation_delay=0, the last frame's interpolation completes
-        // exactly at totalTicks; +1 gives the client one tick of buffer to
-        // finish rendering before the entity is removed.
+        // totalTicks includes the sentinel hold frame appended at bake time.
+        // The sentinel keeps the MC client's interpolation active for 2 extra ticks
+        // after the last real frame, preventing text_opacity reset before destroy.
         scheduler.dispatchLater(() -> destroyInstance(inst),
-                inst.sequence.totalTicks() + 1L);
+                inst.sequence.totalTicks());
     }
 
     /** Destroys and cleans up an animation instance. Idempotent. */

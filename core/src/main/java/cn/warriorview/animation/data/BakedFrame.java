@@ -16,4 +16,12 @@ public record BakedFrame(
         int              interpolationDelay,
         int              interpolationTicks,
         TransformSnapshot snapshot
-) {}
+) {
+    /**
+     * Ticks for the sentinel "hold" frame appended at the end of every animation.
+     * The sentinel duplicates the last real frame's transform to keep the MC client's
+     * interpolation system active, preventing {@code text_opacity} from resetting to
+     * default (fully opaque) before the destroy packet arrives.
+     */
+    public static final int SENTINEL_HOLD_TICKS = 2;
+}

@@ -97,16 +97,30 @@ public class IndicatorConfig extends ConfigurationPart {
     // ── 便捷方法 ────────────────────────────────────────────────────────────
 
     /**
-     * 将本配置的静态属性合并到一个 {@link DisplaySettings}。
-     * billboard 与 offset 始终取自动画定义（动画知道自身的坐标空间需求），
-     * 其余外观属性由本配置覆盖。
+     * 以本配置的字段为底，用动画定义中非默认的字段局部覆盖，生成最终
+     * {@link DisplaySettings}。
      *
-     * @param animSettings 动画定义自带的 {@link DisplaySettings}
+     * <p>优先级：animation 显式值 &gt; IndicatorConfig 值 &gt; IndicatorConfig 默认值。</p>
+     * <p>{@code billboard} 与 {@code offset} 始终取自动画定义（动画知道自身的坐标空间需求）。</p>
+     *
+     * @param anim 动画定义自带的 {@link DisplaySettings}
      */
-    public DisplaySettings toDisplaySettings(DisplaySettings animSettings) {
-        return new DisplaySettings(animSettings.billboard(), seeThrough, textShadow,
-                background, viewRange, teleportDuration, brightness,
-                shadowRadius, shadowStrength, glowColor, lineWidth, animSettings.offset());
+    public DisplaySettings toDisplaySettings(DisplaySettings anim) {
+        DisplaySettings d = DisplaySettings.DEFAULT;
+        return new DisplaySettings(
+                anim.billboard(),                                                         // 始终取动画
+                anim.seeThrough()      != d.seeThrough()      ? anim.seeThrough()      : seeThrough,
+                anim.textShadow()      != d.textShadow()      ? anim.textShadow()      : textShadow,
+                anim.backgroundColor() != d.backgroundColor() ? anim.backgroundColor() : background,
+                anim.viewRange()       != d.viewRange()       ? anim.viewRange()       : viewRange,
+                anim.teleportDuration()!= d.teleportDuration()? anim.teleportDuration(): teleportDuration,
+                anim.brightness()      != d.brightness()      ? anim.brightness()      : brightness,
+                anim.shadowRadius()    != d.shadowRadius()    ? anim.shadowRadius()    : shadowRadius,
+                anim.shadowStrength()  != d.shadowStrength()  ? anim.shadowStrength()  : shadowStrength,
+                anim.glowColorOverride() != d.glowColorOverride() ? anim.glowColorOverride() : glowColor,
+                anim.lineWidth()       != d.lineWidth()       ? anim.lineWidth()       : lineWidth,
+                anim.offset()                                                             // 始终取动画
+        );
     }
 
     /**
