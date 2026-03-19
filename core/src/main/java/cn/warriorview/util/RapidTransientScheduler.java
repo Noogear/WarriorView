@@ -9,8 +9,10 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 高性能、无锁 (Lock-free) 瞬态任务调度器
- * 专为大量、短生命周期的游戏任务设计，极低 GC 压力。
+ * 高性能无锁瞬态任务调度器，基于时间轮 (Timing Wheel) + 对象池实现。
+ * <p>
+ * 专为大量、短生命周期的游戏任务设计，极低 GC 压力与调度开销。
+ * 支持一次性任务、延迟任务、周期任务，以及不参与空闲休眠计数的守护任务。
  */
 public final class RapidTransientScheduler {
 
@@ -25,6 +27,9 @@ public final class RapidTransientScheduler {
     private static final VarHandle DRIVER_VH;
     private static final VarHandle POOL_ROVER_VH;
     private static final VarHandle IDLE_TICKS_VH;
+    
+    // 守护任务链表头指针的 VarHandle
+    private static final VarHandle DAEMON_HEAD_VH;
 
     static {
         try {
@@ -38,6 +43,7 @@ public final class RapidTransientScheduler {
             DRIVER_VH = l.findVarHandle(RapidTransientScheduler.class, "driverTask", ScheduledTask.class);
             POOL_ROVER_VH = l.findVarHandle(RapidTransientScheduler.class, "poolRover", int.class);
             IDLE_TICKS_VH = l.findVarHandle(RapidTransientScheduler.class, "idleTicks", int.class);
+            DAEMON_HEAD_VH = l.findVarHandle(RapidTransientScheduler.class, "daemonHead", DaemonTask.class);
         } catch (ReflectiveOperationException e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -65,12 +71,16 @@ public final class RapidTransientScheduler {
     private volatile int idleTicks = 0;
     @SuppressWarnings("FieldMayBeFinal")
     private volatile ScheduledTask driverTask = null;
+    
+    // 守护任务无锁单向链表头指针
+    @SuppressWarnings("FieldMayBeFinal")
+    private volatile DaemonTask daemonHead = null;
 
-    /** 每 tick 所有到期任务执行完毕后调用的钩子（用于 PacketCollector flush 等批处理）。 */
     private volatile Runnable postTickHook;
 
     /**
-     * 使用默认配置初始化调度器
+     * 使用默认参数初始化调度器。
+     * <p>(wheelSize=64, poolCapacity=1024, maxTasksPerTick=500, idleThreshold=600)</p>
      *
      * @param plugin 插件实例
      */
@@ -105,7 +115,46 @@ public final class RapidTransientScheduler {
     }
 
     /**
-     * 立即执行任务（下一 Tick）
+     * 添加一个长期的守护任务 (默认每 1 Tick 执行一次)。
+     *
+     * @param task 要执行的守护任务
+     * @return 任务控制句柄
+     */
+    public TaskHandle dispatchDaemon(Runnable task) {
+        return dispatchDaemon(task, 1, 1);
+    }
+
+    /**
+     * 添加一个长期的守护任务，支持初始延迟与执行间隔。
+     * <p>
+     * 守护任务在每 Tick 最优先执行，但不参与空闲计数，
+     * 不会阻止调度器休眠，也不会在调度器休眠时主动唤醒它。
+     *
+     * @param task   要执行的守护任务
+     * @param delay  初始延迟 Tick 数（基于调度器活跃 Tick，≤0 视为 1）
+     * @param period 执行周期间隔 Tick 数（≤0 视为 1）
+     * @return 任务控制句柄
+     */
+    public TaskHandle dispatchDaemon(Runnable task, long delay, long period) {
+        long actualDelay = delay <= 0 ? 1 : delay;
+        long actualPeriod = period <= 0 ? 1 : period;
+        // 目标时间 = 当前已流逝活跃 Tick + 延迟
+        long target = (long) TICK_VH.getOpaque(this) + actualDelay;
+
+        DaemonTask newDaemon = new DaemonTask(task, actualPeriod, target);
+        DaemonTask oldHead;
+        
+        // 无锁 CAS 压入链表头 (Treiber Stack 算法)
+        do {
+            oldHead = (DaemonTask) DAEMON_HEAD_VH.getVolatile(this);
+            newDaemon.next = oldHead;
+        } while (!DAEMON_HEAD_VH.compareAndSet(this, oldHead, newDaemon));
+        
+        return newDaemon;
+    }
+
+    /**
+     * 在下一 Tick 立即执行一次性任务。
      *
      * @param task 要执行的任务
      * @return 任务控制句柄
@@ -115,10 +164,10 @@ public final class RapidTransientScheduler {
     }
 
     /**
-     * 延迟执行任务
+     * 延迟指定 Tick 数后执行一次性任务。
      *
      * @param task  要执行的任务
-     * @param ticks 延迟的 Tick 数
+     * @param ticks 延迟 Tick 数，≤0 时等同于 {@link #dispatchNow(Runnable)}
      * @return 任务控制句柄
      */
     public TaskHandle dispatchLater(Runnable task, long ticks) {
@@ -129,11 +178,11 @@ public final class RapidTransientScheduler {
     }
 
     /**
-     * 循环执行任务
+     * 按固定周期循环执行任务。
      *
      * @param task   要执行的任务
-     * @param delay  首次执行前的延迟 Tick 数
-     * @param period 执行周期间隔 Tick 数
+     * @param delay  首次执行前的延迟 Tick 数，≤0 视为 1
+     * @param period 执行周期间隔 Tick 数，必须 &gt; 0
      * @return 任务控制句柄
      */
     public TaskHandle dispatchTimer(Runnable task, long delay, long period) {
@@ -202,7 +251,13 @@ public final class RapidTransientScheduler {
     }
 
     private void tick() {
+        // 统一提取当前时间 (now)，对时间轮和守护任务采用一致的基准
         long now = (long) TICK_VH.getAndAdd(this, 1L) + 1;
+
+        // 1. 优先处理并执行所有长期守护任务
+        processDaemons(now);
+
+        // 2. 时间轮槽位与积压任务处理
         int slot = (int) (now & wheelMask);
         int quota = maxTasksPerTick;
 
@@ -226,11 +281,49 @@ public final class RapidTransientScheduler {
         Runnable hook = postTickHook;
         if (hook != null) hook.run();
 
+        // 3. 休眠检测 (守护任务绝对不计入总数判断，保障休眠策略不变)
         if (quota < maxTasksPerTick || (int) TOTAL_COUNT_VH.getOpaque(this) > 0
                 || BACKLOG_HEAD_VH.getOpaque(this) != null) {
             IDLE_TICKS_VH.setVolatile(this, 0);
         } else if ((int) IDLE_TICKS_VH.getAndAdd(this, 1) + 1 >= idleThreshold) {
             trySleep();
+        }
+    }
+
+    // ==========================================
+    // 守护任务处理
+    // ==========================================
+    private void processDaemons(long now) {
+        DaemonTask curr = (DaemonTask) DAEMON_HEAD_VH.getVolatile(this);
+        DaemonTask prev = null;
+
+        while (curr != null) {
+            DaemonTask next = curr.next;
+
+            if (curr.cancelled) {
+                if (prev == null) {
+                    // 头节点取消，CAS 摘除；若失败说明有新节点并发插入到头部，
+                    // 将其保留为中间节点，下一 Tick 会从 else 分支安全摘除。
+                    if (!DAEMON_HEAD_VH.compareAndSet(this, curr, next)) {
+                        prev = curr;
+                    }
+                } else {
+                    // 中间节点由单线程遍历，直接修改 prev.next 即可
+                    prev.next = next;
+                }
+            } else {
+                if (now >= curr.targetTick) {
+                    try {
+                        curr.task.run();
+                    } catch (Throwable t) {
+                        Log.error("Daemon task execution exception", t);
+                    }
+                    // 更新下一次的目标时间（基于当前活跃时间锚定，防休眠后追赶风暴）
+                    curr.targetTick = now + curr.period;
+                }
+                prev = curr;
+            }
+            curr = next;
         }
     }
 
@@ -263,7 +356,7 @@ public final class RapidTransientScheduler {
 
         boolean error = false;
         try {
-            task.command.run();
+            task.task.run();
         } catch (Throwable t) {
             error = true;
             Log.error("Task execution exception", t);
@@ -335,6 +428,7 @@ public final class RapidTransientScheduler {
                 oldTask.cancel();
             }
 
+            // 二次验证防并发边缘情况
             if ((int) TOTAL_COUNT_VH.getOpaque(this) > 0 || BACKLOG_HEAD_VH.getOpaque(this) != null) {
                 ensureStarted();
             }
@@ -344,6 +438,7 @@ public final class RapidTransientScheduler {
     private void clearAll() {
         BACKLOG_HEAD_VH.setRelease(this, null);
         TOTAL_COUNT_VH.setRelease(this, 0);
+        DAEMON_HEAD_VH.setRelease(this, null); // 释放守护任务链表，防止内存泄漏
         for (int i = 0; i < wheel.length; i++) {
             WHEEL_VH.setRelease(wheel, i, null);
         }
@@ -369,24 +464,49 @@ public final class RapidTransientScheduler {
 
     private static final class TransientTask implements TaskHandle {
         TransientTask next;
-        Runnable command;
+        Runnable task;
         long period;
         long targetTick;
         volatile boolean cancelled;
 
-        void init(Runnable c, long p, long t) {
-            this.command = c;
-            this.period = p;
-            this.targetTick = t;
+        void init(Runnable task, long period, long targetTick) {
+            this.task = task;
+            this.period = period;
+            this.targetTick = targetTick;
             this.cancelled = false;
         }
 
         void reset() {
-            this.command = null;
+            this.task = null;
             this.period = 0;
             this.targetTick = 0;
             this.cancelled = false;
             this.next = null;
+        }
+
+        @Override
+        public void cancel() {
+            cancelled = true;
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return cancelled;
+        }
+    }
+
+    private static final class DaemonTask implements TaskHandle {
+        final Runnable task;
+        final long period;
+        long targetTick;
+        volatile boolean cancelled;
+        DaemonTask next;
+
+        DaemonTask(Runnable task, long period, long targetTick) {
+            this.task = task;
+            this.period = period;
+            this.targetTick = targetTick;
+            this.cancelled = false;
         }
 
         @Override

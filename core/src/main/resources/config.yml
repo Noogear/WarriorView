@@ -22,6 +22,12 @@ scheduler:
   # 30 秒 = 600 ticks（2 tick = 100ms → 600 tick = 30s）
   idle-threshold: 600
 
+# Plugin integrations
+integrations:
+  placeholderapi:
+    enabled: true
+  luckperms:
+    enabled: true
 # ── 调试 ──────────────────────────────────────────────────────────────────────
 # 是否在控制台输出每次重载的耗时日志
 timing-log: true
