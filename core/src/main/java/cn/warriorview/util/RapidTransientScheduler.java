@@ -54,6 +54,8 @@ public final class RapidTransientScheduler {
     private final int poolMask;
     private final int maxTasksPerTick;
     private final int idleThreshold;
+    /** 有积压时配额倍率：有效 quota = maxTasksPerTick × backlogBurstMultiplier，用于快速消耗积压链。 */
+    private final int backlogBurstMultiplier;
     private final TransientTask[] wheel;
     private final TransientTask[] pool;
 
@@ -80,16 +82,16 @@ public final class RapidTransientScheduler {
 
     /**
      * 使用默认参数初始化调度器。
-     * <p>(wheelSize=64, poolCapacity=1024, maxTasksPerTick=500, idleThreshold=600)</p>
+     * <p>(wheelSize=64, poolCapacity=1024, maxTasksPerTick=500, idleThreshold=600, backlogBurstMultiplier=3)</p>
      *
      * @param plugin 插件实例
      */
     public RapidTransientScheduler(JavaPlugin plugin) {
-        this(plugin, 64, 1024, 500, 600);
+        this(plugin, 64, 1024, 500, 600, 3);
     }
 
     /**
-     * 自定义配置初始化调度器
+     * 自定义配置初始化调度器（向后兼容，backlogBurstMultiplier 默认 3）
      *
      * @param plugin          插件实例
      * @param wheelSize       时间轮大小 (需为 2 的幂次方)
@@ -99,15 +101,34 @@ public final class RapidTransientScheduler {
      */
     public RapidTransientScheduler(JavaPlugin plugin, int wheelSize, int poolCapacity, int maxTasksPerTick,
             int idleThreshold) {
+        this(plugin, wheelSize, poolCapacity, maxTasksPerTick, idleThreshold, 3);
+    }
+
+    /**
+     * 全参数构造器
+     *
+     * @param plugin                插件实例
+     * @param wheelSize             时间轮大小 (需为 2 的幂次方)
+     * @param poolCapacity          对象池容量 (需为 2 的幂次方)
+     * @param maxTasksPerTick       每 Tick 最大执行数（正常配额）
+     * @param idleThreshold         空闲多少 Tick 后休眠
+     * @param backlogBurstMultiplier 有积压时配额倍率（≥1），用于快速消耗积压链
+     */
+    public RapidTransientScheduler(JavaPlugin plugin, int wheelSize, int poolCapacity, int maxTasksPerTick,
+            int idleThreshold, int backlogBurstMultiplier) {
         if (Integer.bitCount(wheelSize) != 1) {
             throw new IllegalArgumentException("wheelSize must be a power of 2");
         }
         if (Integer.bitCount(poolCapacity) != 1) {
             throw new IllegalArgumentException("poolCapacity must be a power of 2");
         }
+        if (backlogBurstMultiplier < 1) {
+            throw new IllegalArgumentException("backlogBurstMultiplier must be >= 1");
+        }
         this.plugin = Objects.requireNonNull(plugin);
         this.maxTasksPerTick = maxTasksPerTick;
         this.idleThreshold = idleThreshold;
+        this.backlogBurstMultiplier = backlogBurstMultiplier;
         this.wheel = new TransientTask[wheelSize];
         this.pool = new TransientTask[poolCapacity];
         this.wheelMask = wheelSize - 1;
@@ -266,9 +287,14 @@ public final class RapidTransientScheduler {
 
         // 2. 时间轮槽位与积压任务处理
         int slot = (int) (now & wheelMask);
-        int quota = maxTasksPerTick;
 
         TransientTask backlog = (TransientTask) BACKLOG_HEAD_VH.getAndSet(this, null);
+        // 自适应配额：有积压时扩大倍率，优先消耗积压链，避免雪球滚大
+        int initialQuota = (backlog != null)
+                ? (int) Math.min((long) maxTasksPerTick * backlogBurstMultiplier, Integer.MAX_VALUE)
+                : maxTasksPerTick;
+        int quota = initialQuota;
+
         if (backlog != null) {
             quota = processChain(backlog, now, quota);
         }
@@ -289,7 +315,7 @@ public final class RapidTransientScheduler {
         if (hook != null) hook.run();
 
         // 3. 休眠检测 (守护任务绝对不计入总数判断，保障休眠策略不变)
-        if (quota < maxTasksPerTick || (int) TOTAL_COUNT_VH.getOpaque(this) > 0
+        if (quota < initialQuota || (int) TOTAL_COUNT_VH.getOpaque(this) > 0
                 || BACKLOG_HEAD_VH.getOpaque(this) != null) {
             IDLE_TICKS_VH.setVolatile(this, 0);
         } else if ((int) IDLE_TICKS_VH.getAndAdd(this, 1) + 1 >= idleThreshold) {
@@ -335,6 +361,11 @@ public final class RapidTransientScheduler {
     }
 
     private int processChain(TransientTask head, long now, int quota) {
+        // Pre-scan chain tail once so that backlog push (if quota overflows) is O(1) CAS
+        // instead of O(remaining) pointer walk inside chainPushBacklog.
+        TransientTask chainTail = head;
+        while (chainTail.next != null) chainTail = chainTail.next;
+
         TransientTask curr = head;
         while (curr != null && quota > 0) {
             TransientTask next = curr.next;
@@ -345,7 +376,9 @@ public final class RapidTransientScheduler {
             curr = next;
         }
         if (curr != null) {
-            chainPushBacklog(curr);
+            // chainTail is still the tail of the remaining [curr..chainTail] sub-chain
+            // because only processed tasks had their .next nulled.
+            chainPushBacklog(curr, chainTail);
         }
         return quota;
     }
@@ -391,11 +424,15 @@ public final class RapidTransientScheduler {
         while (tail.next != null) {
             tail = tail.next;
         }
+        chainPushBacklog(chainHead, tail);
+    }
 
+    /** O(1) variant — caller has already pre-computed the tail. */
+    private void chainPushBacklog(TransientTask chainHead, TransientTask chainTail) {
         TransientTask oldHead;
         do {
             oldHead = (TransientTask) BACKLOG_HEAD_VH.getVolatile(this);
-            tail.next = oldHead;
+            chainTail.next = oldHead;
         } while (!BACKLOG_HEAD_VH.compareAndSet(this, oldHead, chainHead));
     }
 

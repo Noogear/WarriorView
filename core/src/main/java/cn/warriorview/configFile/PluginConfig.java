@@ -24,6 +24,11 @@ public class PluginConfig extends ConfigurationFile {
         public int maxTasksPerTick = 500;
         /** 连续空闲多少 tick 后进入休眠。 */
         public int idleThreshold = 600;
+        /**
+         * 积压消耗倍率：检测到积压时，有效配额 = maxTasksPerTick × backlogBurstMultiplier。
+         * 设为 1 等同于关闭自适应。
+         */
+        public int backlogBurstMultiplier = 3;
     }
 
     // ── 变体系统 ─────────────────────────────────────────────────────────

@@ -44,6 +44,7 @@ public class MessageConfig extends ConfigurationFile {
     }
 
     public static class ListMessages extends ConfigurationPart {
+        public String usage            = "<yellow>用法: <gray>/wv list <white><actions|mappings|indicators|animations>";
         /** 占位符: {@code <count>} */
         public String actionsHeader    = "<green>已注册动作 <gray>(<count>)";
         public String mappingsHeader   = "<green>事件映射脚本 <gray>(<count>)";

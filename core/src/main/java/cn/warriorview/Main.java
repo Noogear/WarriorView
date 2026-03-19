@@ -76,7 +76,7 @@ public class Main extends JavaPlugin implements WarriorView {
         var sched = pluginConfig.scheduler;
         // wheel-size=64, pool-capacity=1024 为内部固定参数，不暴露给配置文件
         this.animationScheduler = new RapidTransientScheduler(this,
-                64, 1024, sched.maxTasksPerTick, sched.idleThreshold);
+                64, 1024, sched.maxTasksPerTick, sched.idleThreshold, sched.backlogBurstMultiplier);
         this.animationConfig    = new AnimationConfig(this, animationScheduler);
         this.animationConfig.reload();
         if (pluginConfig.timingLog) Log.info("[Timing] animations loaded in {} ms", System.currentTimeMillis() - t0);

@@ -16,3 +16,21 @@ dependencies:
     PlaceholderAPI:
       load: BEFORE
       required: false
+
+permissions:
+  warriorview.admin:
+    description: "所有 WarriorView 命令权限（包含 reload、list、info）"
+    default: op
+    children:
+      warriorview.reload: true
+      warriorview.list: true
+      warriorview.info: true
+  warriorview.reload:
+    description: "重载 WarriorView 配置"
+    default: op
+  warriorview.list:
+    description: "列出 WarriorView 配置项"
+    default: op
+  warriorview.info:
+    description: "查看 WarriorView 插件信息"
+    default: op

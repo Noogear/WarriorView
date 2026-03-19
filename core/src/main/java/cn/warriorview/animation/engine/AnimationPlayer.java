@@ -165,8 +165,10 @@ public final class AnimationPlayer {
         AnimationInstance inst = new AnimationInstance(
                 entityId, entityUid, seq, spawnAt, text,
                 effective, viewers, viewerCount, sharedSeq,
-                scheduler, collector);
-        scheduler.dispatchNow(() -> spawnInstance(inst));
+                scheduler, collector, this);
+        // inst itself acts as the spawn Runnable (run() handles dual-mode via spawned flag)
+        // — eliminates the per-play() lambda allocation.
+        scheduler.dispatchNow(inst);
     }
 
     /** Convenience overload: uses all entries in {@code viewers}. */
@@ -194,6 +196,7 @@ public final class AnimationPlayer {
     /** Called on the scheduler thread via {@code dispatchNow}. */
     private void spawnInstance(AnimationInstance inst) {
         if (inst.viewerCount == 0) return;
+        inst.listIndex = active.size();
         active.add(inst);
 
         BakedFrame[] frames = inst.sequence.frames();
@@ -220,8 +223,7 @@ public final class AnimationPlayer {
         // totalTicks includes the sentinel hold frame appended at bake time.
         // The sentinel keeps the MC client's interpolation active for 2 extra ticks
         // after the last real frame, preventing text_opacity reset before destroy.
-        scheduler.dispatchLater(() -> destroyInstance(inst),
-                inst.sequence.totalTicks());
+        scheduler.dispatchLater(inst.destroyTask, inst.sequence.totalTicks());
     }
 
     /** Destroys and cleans up an animation instance. Idempotent. */
@@ -235,7 +237,18 @@ public final class AnimationPlayer {
         if (!inst.sharedFrames) {
             TextDisplayPackets.evictFrameCache(inst.sequence.frames());
         }
-        active.remove(inst);
+        // O(1) swap-remove: move the last element into inst's slot, then shrink.
+        int idx = inst.listIndex;
+        inst.listIndex = -1;
+        int last = active.size() - 1;
+        if (idx >= 0 && idx <= last) {
+            if (idx != last) {
+                AnimationInstance tail = active.get(last);
+                active.set(idx, tail);
+                tail.listIndex = idx;
+            }
+            active.remove(last); // no-shift remove: ObjectArrayList fast-path for last index
+        }
     }
 
     // ── Internal types ────────────────────────────────────────────────────────
@@ -266,8 +279,25 @@ public final class AnimationPlayer {
         int nextFrameIdx = 1;
         boolean destroyed;
 
+        /**
+         * Position of this instance in {@link AnimationPlayer#active}.
+         * Maintained by {@link AnimationPlayer} for O(1) swap-remove.
+         * Scheduler-thread-only; -1 means not currently in the list.
+         */
+        int listIndex = -1;
+
         private final RapidTransientScheduler scheduler;
         private final PacketCollector collector;
+        private final AnimationPlayer player;
+
+        /**
+         * Pre-allocated destroy callback — captured once at construction, reused by
+         * {@link AnimationPlayer#spawnInstance}. Avoids a per-spawn lambda allocation.
+         */
+        final Runnable destroyTask;
+
+        /** False until the first {@link #run()} call, which performs the spawn. */
+        private boolean spawned = false;
 
         AnimationInstance(int entityId, UUID entityUid, BakedSequence sequence,
                           Location spawnAt, Component text,
@@ -275,7 +305,8 @@ public final class AnimationPlayer {
                           Player[] viewers, int viewerCount,
                           boolean sharedFrames,
                           RapidTransientScheduler scheduler,
-                          PacketCollector collector) {
+                          PacketCollector collector,
+                          AnimationPlayer player) {
             this.entityId         = entityId;
             this.entityUid        = entityUid;
             this.sequence         = sequence;
@@ -287,16 +318,28 @@ public final class AnimationPlayer {
             this.sharedFrames     = sharedFrames;
             this.scheduler        = scheduler;
             this.collector        = collector;
+            this.player           = player;
+            this.destroyTask      = () -> player.destroyInstance(this);
             this.framePkts = TextDisplayPackets.buildFramePackets(entityId, sequence.frames());
         }
 
         /**
-         * Chain-dispatch frame callback: sends the current frame (and any
-         * consecutive frames at the same tick offset), then schedules itself
-         * for the next frame's delta delay.  Zero lambda allocation.
+         * Dual-mode Runnable:
+         * <ul>
+         *   <li>First call ({@code !spawned}): performs entity spawn, replaces the
+         *       per-{@code play()} lambda that was previously allocated.</li>
+         *   <li>Subsequent calls: chain-dispatch frame callback — sends the current
+         *       frame(s) and reschedules for the next delta.</li>
+         * </ul>
+         * Zero lambda allocation on either path.
          */
         @Override
         public void run() {
+            if (!spawned) {
+                spawned = true;
+                player.spawnInstance(this);
+                return;
+            }
             if (destroyed || viewerCount == 0) return;
             BakedFrame[] frames = sequence.frames();
             int sentTick = frames[nextFrameIdx].tickOffset();

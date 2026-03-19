@@ -33,7 +33,9 @@ import static cn.warriorview.configFile.MessageConfig.of;
  */
 public final class WarriorViewCommand {
 
-    private static final String PERMISSION = "warriorview.admin";
+    static final String PERM_RELOAD = "warriorview.reload";
+    static final String PERM_LIST   = "warriorview.list";
+    static final String PERM_INFO   = "warriorview.info";
 
     private WarriorViewCommand() {}
 
@@ -53,10 +55,13 @@ public final class WarriorViewCommand {
     @SuppressWarnings("UnstableApiUsage")
     private static LiteralCommandNode<CommandSourceStack> buildCommand() {
         return Commands.literal("warriorview")
-                .requires(src -> src.getSender().hasPermission(PERMISSION))
+                .requires(src -> src.getSender().hasPermission(PERM_RELOAD)
+                        || src.getSender().hasPermission(PERM_LIST)
+                        || src.getSender().hasPermission(PERM_INFO))
 
                 // ── reload ──────────────────────────────────────────
                 .then(Commands.literal("reload")
+                        .requires(src -> src.getSender().hasPermission(PERM_RELOAD))
                         .then(Commands.literal("all").executes(ctx -> {
                             reload(ctx.getSource(), "all");
                             return Command.SINGLE_SUCCESS;
@@ -85,6 +90,12 @@ public final class WarriorViewCommand {
 
                 // ── list ────────────────────────────────────────────
                 .then(Commands.literal("list")
+                        .requires(src -> src.getSender().hasPermission(PERM_LIST))
+                        .executes(ctx -> {
+                            MessageConfig msg = ((cn.warriorview.Main) WarriorViewAPI.getProvider()).getMessageConfig();
+                            ctx.getSource().getSender().sendMessage(msg.format(msg.list.usage));
+                            return Command.SINGLE_SUCCESS;
+                        })
                         .then(Commands.literal("actions").executes(ctx -> {
                             listActions(ctx.getSource());
                             return Command.SINGLE_SUCCESS;
@@ -104,14 +115,18 @@ public final class WarriorViewCommand {
                 )
 
                 // ── info ────────────────────────────────────────────
-                .then(Commands.literal("info").executes(ctx -> {
+                .then(Commands.literal("info")
+                        .requires(src -> src.getSender().hasPermission(PERM_INFO))
+                        .executes(ctx -> {
                     showInfo(ctx.getSource());
                     return Command.SINGLE_SUCCESS;
                 }))
 
-                // ── 无子命令时显示 info ─────────────────────────────
+                // ── 无子命令时显示 info ─────────────────────────
                 .executes(ctx -> {
-                    showInfo(ctx.getSource());
+                    if (ctx.getSource().getSender().hasPermission(PERM_INFO)) {
+                        showInfo(ctx.getSource());
+                    }
                     return Command.SINGLE_SUCCESS;
                 })
                 .build();

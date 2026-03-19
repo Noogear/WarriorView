@@ -25,7 +25,8 @@ import java.util.function.UnaryOperator;
  */
 public final class IndicatorConfigLoader implements IndicatorManager {
 
-    private final DirectoryConfiguration<IndicatorConfig> config;
+    private final DirectoryConfiguration.Builder<IndicatorConfig> builder;
+    private DirectoryConfiguration<IndicatorConfig> config;
     private boolean loaded;
 
     public IndicatorConfigLoader(Plugin plugin,
@@ -40,11 +41,10 @@ public final class IndicatorConfigLoader implements IndicatorManager {
                                  NumberFormatRegistry numberFormatRegistry,
                                  CharReplaceRegistry  charReplaceRegistry,
                                  UnaryOperator<String> preprocessor) {
-        this.config = ConfigurationManager.loadDirectory(
-                        IndicatorConfig.class,
-                        new File(plugin.getDataFolder(), "indicator"),
-                        plugin::getResource)
-                .withContext(new IndicatorContext(
+        this.builder = ConfigurationManager
+                .directory(IndicatorConfig.class, new File(plugin.getDataFolder(), "indicator"))
+                .resources(plugin::getResource)
+                .context(new IndicatorContext(
                         animationRegistry, numberFormatRegistry, charReplaceRegistry, preprocessor));
     }
 
@@ -70,7 +70,7 @@ public final class IndicatorConfigLoader implements IndicatorManager {
     /** 首次加载（全量读取）。 */
     public void load() {
         try {
-            config.load();
+            config = builder.load();
             loaded = true;
         } catch (Exception e) {
             Log.error("[IndicatorConfig] Failed to load: {}", e.getMessage());

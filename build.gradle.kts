@@ -9,7 +9,7 @@ subprojects {
     apply(plugin = "java")
 
     group = "cn.warriorview"
-    version = "2.0.10"
+    version = "2.0.11"
 
     repositories {
         mavenLocal()
