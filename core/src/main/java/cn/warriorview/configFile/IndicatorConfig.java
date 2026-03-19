@@ -53,6 +53,7 @@ public class IndicatorConfig extends ConfigurationPart {
     public int                    glowColor        = 0;
     public int                    lineWidth        = 200;
     public boolean                onlyPlayer       = true;
+    public double                 maxDistance      = 24.0;
 
     /** YAML 中的动画名称引用，{@link #resolve} 后绑定为 {@link #animationDef}。 */
     public String animation    = null;
@@ -65,6 +66,7 @@ public class IndicatorConfig extends ConfigurationPart {
 
     @Ignore public transient AnimationDef   animationDef;
     @Ignore public transient ValueFormatter formatter = ValueFormatter.NONE;
+    @Ignore public transient double         maxDistanceSq;
 
     /**
      * 加载期用 MiniMessage 预解析的 Component 模板。
@@ -84,6 +86,7 @@ public class IndicatorConfig extends ConfigurationPart {
         // 预解析 MiniMessage 模板：将 {damage} 替换为哨兵字符，后续运行期零解析开销
         cachedTemplate = MiniMessage.miniMessage()
                 .deserialize(textFormat.replace("{damage}", VALUE_SENTINEL));
+        maxDistanceSq = maxDistance * maxDistance;
         if (ctx == null) return;
         animationDef = animation != null ? ctx.animationRegistry().get(animation) : null;
         if (animation != null && animationDef == null) {

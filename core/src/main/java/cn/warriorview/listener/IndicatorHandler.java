@@ -59,8 +59,6 @@ public class IndicatorHandler implements Listener {
     private final IndicatorConfigLoader    configLoader;
     private final RapidTransientScheduler  scheduler;
 
-    private final double maxDistanceSq;
-
     /**
      * 响应式批处理派发标志。CAS 保证每批事件在调度器中只有一个 processBatch 任务排队，
      * 避免重复派发。由主线程写（compareAndSet），由调度器线程重置（set(false)）。
@@ -75,11 +73,9 @@ public class IndicatorHandler implements Listener {
 
     public IndicatorHandler(AnimationPlayer animationPlayer,
                             IndicatorConfigLoader configLoader,
-                            double maxDistance,
                             RapidTransientScheduler scheduler) {
         this.animationPlayer = animationPlayer;
         this.configLoader    = configLoader;
-        this.maxDistanceSq   = maxDistance * maxDistance;
         this.scheduler       = scheduler;
     }
 
@@ -200,7 +196,7 @@ public class IndicatorHandler implements Listener {
                 for (int i = 0; i < event.viewerCount; i++) {
                     Player p = event.viewers[i];
                     double dX = tX - p.getX(), dY = tY - p.getY(), dZ = tZ - p.getZ();
-                    if (dX * dX + dY * dY + dZ * dZ <= maxDistanceSq) {
+                    if (dX * dX + dY * dY + dZ * dZ <= event.config.maxDistanceSq) {
                         if (filtered == null) filtered = new Player[event.viewerCount];
                         filtered[filteredCount++] = p;
                     }

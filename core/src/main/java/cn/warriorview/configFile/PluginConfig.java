@@ -30,15 +30,6 @@ public class PluginConfig extends ConfigurationFile {
         public int idleThreshold = 600;
     }
 
-    // ── 指示器引擎 ──────────────────────────────────────────────────────
-
-    public Indicator indicator = new Indicator();
-
-    public static class Indicator extends ConfigurationPart {
-        /** 指示器可见最大距离（方块数）。 */
-        public double maxDistance = 24.0;
-    }
-
     // ── 调试 ────────────────────────────────────────────────────────────
 
     /** 是否在控制台输出每次重载的耗时。 */

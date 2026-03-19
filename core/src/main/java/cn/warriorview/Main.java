@@ -94,7 +94,6 @@ public class Main extends JavaPlugin implements WarriorView {
         this.indicatorHandler = new IndicatorHandler(
                 animationConfig.getPlayer(),
                 indicatorConfigLoader,
-                pluginConfig.indicator.maxDistance,
                 animationScheduler);
         getServer().getPluginManager().registerEvents(indicatorHandler, this);
 

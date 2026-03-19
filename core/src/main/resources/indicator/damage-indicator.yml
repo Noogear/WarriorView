@@ -25,6 +25,7 @@
 #   glow-color         : 发光颜色覆盖（RGB int，默认 0）
 #   line-width         : 文本最大行宽像素（int，默认 200）
 #   only-player        : 为 true 时仅在来源（source）为玩家时触发指示器（默认 true）
+#   max-distance       : 指示器可见最大距离（方块数，默认 24.0；超出则不发包）
 #   number-format      : 数字量化缩写规则名称（引用 number-format.yml，null = 不缩写）
 #   char-replace       : 字符替换规则名称（引用 char-replace.yml，null = 不替换）
 #
