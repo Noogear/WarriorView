@@ -13,6 +13,7 @@
 #   see-through / text-shadow / background / view-range / teleport-duration /
 #   brightness / shadow-radius / shadow-strength / glow-color / line-width /
 #   only-player / max-distance / number-format / char-replace
+#   text-format 支持嵌入 PAPI 全局占位符（如 %server_name%），加载时一次性解析
 #
 # 动画参考：
 #   gentle_rise      — 温柔上浮，适合自然恢复

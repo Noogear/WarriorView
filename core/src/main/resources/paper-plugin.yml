@@ -10,3 +10,9 @@ dependencies:
     packetevents:
       load: BEFORE
       required: true
+    luckperms:
+      load: BEFORE
+      required: false
+    PlaceholderAPI:
+      load: BEFORE
+      required: false

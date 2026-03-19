@@ -10,7 +10,8 @@
 #   dynamic    → DamageCause.name()（Bukkit 枚举名称：ENTITY_ATTACK 等）
 #
 # 配置字段说明：
-#   text-format        : MiniMessage 模板，{damage} 占位符替换为格式化后的伤害数值
+#   text-format        : MiniMessage 模板，{damage} 占位符替换为格式化后的伤害数值。
+#                        支持嵌入 PAPI 全局占位符（如 %server_name%），加载时一次性解析
 #   decimal-places     : 伤害数值保留的小数位数（int，默认 1）
 #   position           : 生成位置算法 —— AIM / SURFACE / IMPACT / SOURCE_ORIGIN / TARGET_EYE / TARGET_BOTTOM
 #   animation          : 关联的动画定义名称（在 animations/ 目录中定义）
@@ -72,6 +73,20 @@ ENTITY_ATTACK:
   text-format: "<white>{damage}"
   position: AIM
   animation: arc_toss
+
+  # 【权限变体】自上而下匹配，第一个满足权限的变体生效（其余忽略）。
+  # 仅当 only-player: true（默认）时与玩家关联，权限检查始终生效（LuckPerms 可选，未安装时回退到 Bukkit API）。
+  # 未填写的字段自动继承 ENTITY_ATTACK 的配置。
+  # 移除此段或留空 variants: [] 即禁用变体功能（回退到基础配置）。
+  variants:
+    # SVIP 玩家 —— 彩虹文字（优先级高于 VIP，必须放在前面）
+    - permission: "warriorview.indicator.svip"
+      text-format: "<gradient:gold:light_purple>{damage}</gradient>"
+      animation: spring_bounce
+    # VIP 玩家 —— 金色加粗
+    - permission: "warriorview.indicator.vip"
+      text-format: "<gold><bold>⚔ {damage}</bold>"
+      animation: spring_bounce
 
 # 横扫攻击（剑横扫对周围目标的伤害）
 ENTITY_SWEEP_ATTACK:

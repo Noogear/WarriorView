@@ -206,6 +206,13 @@ public final class RapidTransientScheduler {
     }
 
     /**
+     * 返回调度器是否当前处于运行状态（未休眠）。
+     */
+    public boolean isRunning() {
+        return (int) STATE_VH.getAcquire(this) == STATE_RUNNING;
+    }
+
+    /**
      * 关闭并清理所有任务
      */
     public void shutdown() {

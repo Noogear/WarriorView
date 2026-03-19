@@ -9,6 +9,7 @@ plugins {
 
 repositories {
     maven("https://redempt.dev") // Crunch benchmark
+    maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
 }
 
 dependencies {
@@ -23,6 +24,12 @@ dependencies {
 
     // PacketEvents（独立插件，运行时由服务端加载，不 shade）
     compileOnly("com.github.retrooper:packetevents-spigot:2.11.2")
+
+    // LuckPerms（可选集成，运行时由服务端加载，不 shade）
+    compileOnly("net.luckperms:api:5.4")
+
+    // PlaceholderAPI（可选集成，加载期解析全局占位符，不 shade）
+    compileOnly("me.clip:placeholderapi:2.11.6")
 
     // 使得测试可以使用被 PaperAPI 打包进来的依赖
     testImplementation("com.google.guava:guava:33.2.1-jre")

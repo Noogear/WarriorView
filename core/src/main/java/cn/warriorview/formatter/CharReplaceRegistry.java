@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 /**
  * 从 {@code plugins/WarriorView/char-replace.yml} 加载字符替换规则。
@@ -44,12 +45,18 @@ public final class CharReplaceRegistry implements CharReplaceManager {
     private final Plugin plugin;
     private final File   configFile;
     private final FileCache fileCache = new FileCache();
+    private final UnaryOperator<String> preprocessor;
 
     private volatile Map<String, CharReplacer> store = Map.of();
 
     public CharReplaceRegistry(Plugin plugin) {
-        this.plugin     = plugin;
-        this.configFile = new File(plugin.getDataFolder(), RESOURCE_NAME);
+        this(plugin, UnaryOperator.identity());
+    }
+
+    public CharReplaceRegistry(Plugin plugin, UnaryOperator<String> preprocessor) {
+        this.plugin       = plugin;
+        this.configFile   = new File(plugin.getDataFolder(), RESOURCE_NAME);
+        this.preprocessor = preprocessor;
     }
 
     // ── CharReplaceManager API ────────────────────────────────────────────────
@@ -128,7 +135,7 @@ public final class CharReplaceRegistry implements CharReplaceManager {
                 for (var e : rMap.entrySet()) {
                     String keyStr = String.valueOf(e.getKey());
                     if (keyStr.isEmpty()) continue;
-                    String value = String.valueOf(e.getValue());
+                    String value = preprocessor.apply(String.valueOf(e.getValue()));
                     int cp       = keyStr.codePointAt(0);
                     if (cp < 256) {
                         latin[cp] = value;

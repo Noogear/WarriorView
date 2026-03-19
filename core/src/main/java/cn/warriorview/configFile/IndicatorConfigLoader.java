@@ -14,6 +14,7 @@ import org.bukkit.plugin.Plugin;
 import java.io.File;
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 /**
  * 从 {@code plugins/WarriorView/indicator/} 目录加载指示器配置。
@@ -31,12 +32,20 @@ public final class IndicatorConfigLoader implements IndicatorManager {
                                  AnimationRegistry   animationRegistry,
                                  NumberFormatRegistry numberFormatRegistry,
                                  CharReplaceRegistry  charReplaceRegistry) {
+        this(plugin, animationRegistry, numberFormatRegistry, charReplaceRegistry, UnaryOperator.identity());
+    }
+
+    public IndicatorConfigLoader(Plugin plugin,
+                                 AnimationRegistry   animationRegistry,
+                                 NumberFormatRegistry numberFormatRegistry,
+                                 CharReplaceRegistry  charReplaceRegistry,
+                                 UnaryOperator<String> preprocessor) {
         this.config = ConfigurationManager.loadDirectory(
                         IndicatorConfig.class,
                         new File(plugin.getDataFolder(), "indicator"),
                         plugin::getResource)
                 .withContext(new IndicatorContext(
-                        animationRegistry, numberFormatRegistry, charReplaceRegistry));
+                        animationRegistry, numberFormatRegistry, charReplaceRegistry, preprocessor));
     }
 
     // ── IndicatorManager API ────────────────────────────────────────────

@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
 /**
  * 从 {@code plugins/WarriorView/number-format.yml} 加载数字量化缩写规则。
@@ -45,12 +46,18 @@ public final class NumberFormatRegistry implements NumberFormatManager {
     private final Plugin plugin;
     private final File   configFile;
     private final FileCache fileCache = new FileCache();
+    private final UnaryOperator<String> preprocessor;
 
     private volatile Map<String, CompactNumberFormatter> store = Map.of();
 
     public NumberFormatRegistry(Plugin plugin) {
-        this.plugin     = plugin;
-        this.configFile = new File(plugin.getDataFolder(), RESOURCE_NAME);
+        this(plugin, UnaryOperator.identity());
+    }
+
+    public NumberFormatRegistry(Plugin plugin, UnaryOperator<String> preprocessor) {
+        this.plugin       = plugin;
+        this.configFile   = new File(plugin.getDataFolder(), RESOURCE_NAME);
+        this.preprocessor = preprocessor;
     }
 
     // ── NumberFormatManager API ─────────────────────────────────────────────
@@ -131,7 +138,7 @@ public final class NumberFormatRegistry implements NumberFormatManager {
                 for (var e : thresholdMap.entrySet()) {
                     try {
                         thresholds.put(Double.parseDouble(String.valueOf(e.getKey())),
-                                       String.valueOf(e.getValue()));
+                                       preprocessor.apply(String.valueOf(e.getValue())));
                     } catch (NumberFormatException ex) {
                         Log.warn(new Diagnostic(
                                 LoadContext.location(name, String.valueOf(e.getKey())),
