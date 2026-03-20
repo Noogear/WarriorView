@@ -48,6 +48,8 @@ public class Main extends JavaPlugin implements WarriorView {
     private MessageConfig messageConfig;
     private IndicatorHandler indicatorHandler;
     private PlaceholderAPIIntegration papiIntegration;
+    private LuckPermsIntegration lpIntegration;
+    private RapidTransientScheduler.TaskHandle variantPollDaemon;
 
     @Override
     public void onEnable() {
@@ -112,10 +114,10 @@ public class Main extends JavaPlugin implements WarriorView {
         boolean lpLoaded = false;
         if (pluginConfig.integrations.luckperms.enabled) {
             // LP 事件在服务器运行期间触发，indicatorHandler 届时已初始化
-            LuckPermsIntegration lp = LuckPermsIntegration.tryLoad(
+            this.lpIntegration = LuckPermsIntegration.tryLoad(
                     this, uuid -> indicatorHandler.invalidateVariantCache(uuid));
-            if (lp != null) {
-                permChecker = lp.buildChecker();
+            if (lpIntegration != null) {
+                permChecker = lpIntegration.buildChecker();
                 lpLoaded = true;
             }
         }
@@ -127,7 +129,8 @@ public class Main extends JavaPlugin implements WarriorView {
         // Bukkit 回退：无事件驱动失效，注册守护任务按 permissionCacheRefreshTicks（默认 200）轮询刷新变体缓存
         if (!lpLoaded) {
             long pollTicks = pluginConfig.variants.permissionCacheRefreshTicks;
-            animationScheduler.dispatchDaemon(indicatorHandler::pollVariantCache, pollTicks, pollTicks);
+            this.variantPollDaemon = animationScheduler.dispatchDaemon(
+                    indicatorHandler::pollVariantCache, pollTicks, pollTicks);
         }
         getServer().getPluginManager().registerEvents(indicatorHandler, this);
 
@@ -186,12 +189,70 @@ public class Main extends JavaPlugin implements WarriorView {
     @Override public CharReplaceManager  getCharReplaceManager()  { return charReplaceRegistry; }
     @Override public String              getVersion()             { return getPluginMeta().getVersion(); }
 
+    private void reloadPluginConfig() {
+        try {
+            this.pluginConfig = ConfigurationManager.load(PluginConfig.class,
+                    new java.io.File(getDataFolder(), "config.yml"));
+        } catch (Exception e) {
+            Log.error("[PluginConfig] Failed to reload: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 智能集成重载：
+     * <ul>
+     *   <li>PAPI：已有实例则重置解析会话；首次发现 PAPI 已安装则尝试加载（resolver 已烧入注册表，需重启方可完整生效）。</li>
+     *   <li>LP：已有实例则跳过（事件已注册，checker 已生效）；首次发现 LP 已安装则加载并热替换 permChecker。</li>
+     * </ul>
+     */
+    private void reloadIntegrations() {
+        // ── PAPI ──────────────────────────────────────────────────────────────
+        if (papiIntegration != null) {
+            papiIntegration.beginResolveSession();
+        } else if (pluginConfig.integrations.placeholderapi.enabled) {
+            PlaceholderAPIIntegration loaded = PlaceholderAPIIntegration.tryLoad(this);
+            if (loaded != null) {
+                this.papiIntegration = loaded;
+                Log.warn("[Integration] PlaceholderAPI became available on reload. "
+                        + "Resolver is baked into registries — restart for full placeholder support.");
+            }
+        }
+        // ── LP ────────────────────────────────────────────────────────────────
+        if (lpIntegration != null) return; // 已加载：事件已注册，checker 已生效，无需重复
+        if (!pluginConfig.integrations.luckperms.enabled) return;
+        LuckPermsIntegration lp = LuckPermsIntegration.tryLoad(
+                this, uuid -> indicatorHandler.invalidateVariantCache(uuid));
+        if (lp != null) {
+            this.lpIntegration = lp;
+            indicatorHandler.setPermissionChecker(lp.buildChecker());
+            indicatorHandler.clearVariantCache();
+            // LP 激活后不再需要轮询 daemon，在 reloadVariantPollDaemon 中统一取消
+            Log.info("[Integration] LuckPerms integration activated on reload.");
+        }
+    }
+
+    /**
+     * 根据当前集成状态维护 Bukkit 轮询 daemon：
+     * LP 已激活时取消旧 daemon；否则以最新配置值取消旧 daemon 并重新注册。
+     */
+    private void reloadVariantPollDaemon() {
+        if (lpIntegration != null) {
+            if (variantPollDaemon != null) { variantPollDaemon.cancel(); variantPollDaemon = null; }
+            return;
+        }
+        long pollTicks = pluginConfig.variants.permissionCacheRefreshTicks;
+        if (variantPollDaemon != null) variantPollDaemon.cancel();
+        variantPollDaemon = animationScheduler.dispatchDaemon(
+                indicatorHandler::pollVariantCache, pollTicks, pollTicks);
+    }
+
     @Override
     public void reloadAll() {
+        reloadPluginConfig();
+        reloadIntegrations();
+        reloadVariantPollDaemon();
         long t0, total = System.currentTimeMillis();
         boolean timing = pluginConfig.timingLog;
-
-        if (papiIntegration != null) papiIntegration.beginResolveSession();
 
         t0 = System.currentTimeMillis();
         animationManager.reload();
@@ -216,11 +277,12 @@ public class Main extends JavaPlugin implements WarriorView {
 
     @Override
     public Map<String, Boolean> smartReloadAll() {
+        reloadPluginConfig();
+        reloadIntegrations();
+        reloadVariantPollDaemon();
         Map<String, Boolean> result = new LinkedHashMap<>();
         long t0, total = System.currentTimeMillis();
         boolean timing = pluginConfig.timingLog;
-
-        if (papiIntegration != null) papiIntegration.beginResolveSession();
 
         t0 = System.currentTimeMillis();
         boolean animChanged = animationConfig.hasChanges();
