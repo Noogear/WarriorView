@@ -68,7 +68,7 @@ public class IndicatorHandler implements Listener {
     private final AnimationPlayer animationPlayer;
     private final IndicatorConfigLoader configLoader;
     private final RapidTransientScheduler scheduler;
-    private final PermissionChecker permChecker;
+    private volatile PermissionChecker permChecker;
 
     /**
      * 变体解析缓存：{@code playerUUID → (baseConfig → effectiveConfig)}。
@@ -140,6 +140,11 @@ public class IndicatorHandler implements Listener {
         this.configLoader = configLoader;
         this.scheduler = scheduler;
         this.permChecker = permChecker;
+    }
+
+    /** 热替换权限检查器（仅 LP 首次在重载时激活时调用）。调用方负责随后清除变体缓存。 */
+    public void setPermissionChecker(PermissionChecker checker) {
+        this.permChecker = checker;
     }
 
     // ── Main-thread event sinks ───────────────────────────────────────────────
