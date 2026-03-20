@@ -53,11 +53,6 @@ public final class IntegrationManager {
         return papiIntegration != null ? papiIntegration.asResolver() : UnaryOperator.identity();
     }
 
-    /** 返回 PAPI 集成实例（可能为 {@code null}）。 */
-    public PlaceholderAPIIntegration getPapiIntegration() {
-        return papiIntegration;
-    }
-
     /**
      * Phase 2a：尝试加载 LuckPerms 并返回合适的权限检查器，供构建 {@link IndicatorHandler} 使用。
      *
@@ -149,6 +144,14 @@ public final class IntegrationManager {
                     + "Check if the required PAPI expansions are installed.");
         }
         return true;
+    }
+
+    /** 插件禁用时调用：显式取消变体轮询 daemon。 */
+    public void shutdown() {
+        if (variantPollDaemon != null) {
+            variantPollDaemon.cancel();
+            variantPollDaemon = null;
+        }
     }
 
     // ── 内部工具 ───────────────────────────────────────────────────────────────

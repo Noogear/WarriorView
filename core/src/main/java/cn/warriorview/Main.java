@@ -147,6 +147,7 @@ public class Main extends JavaPlugin implements WarriorView {
 
     @Override
     public void onDisable() {
+        if (integrationManager != null) integrationManager.shutdown();
         if (animationScheduler != null) animationScheduler.shutdown();
         if (scriptManager != null)      scriptManager.unloadScripts();
         WarriorViewAPI.unregister();
