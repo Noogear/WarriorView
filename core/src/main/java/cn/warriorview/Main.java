@@ -123,7 +123,6 @@ public class Main extends JavaPlugin implements WarriorView {
         WarriorViewCommand.register(this);
 
         // ── 延迟加载：脚本 + PAPI 未解析占位符重试 ─────────────────────────
-        var papiRef = integrationManager.getPapiIntegration();
         getServer().getPluginManager().registerEvents(new Listener() {
             @EventHandler
             public void onServerLoad(ServerLoadEvent event) {
@@ -131,20 +130,15 @@ public class Main extends JavaPlugin implements WarriorView {
                 scriptManager.reloadScripts();
                 if (pluginConfig.timingLog) Log.info("[Timing] scripts loaded in {} ms", System.currentTimeMillis() - scriptT0);
 
-                if (papiRef != null && papiRef.hasUnresolvedPlaceholders()) {
-                    Log.info("[PlaceholderAPI] Retrying unresolved placeholders after server load...");
-                    papiRef.beginResolveSession();
-                    long papiT0 = System.currentTimeMillis();
+                long papiT0 = System.currentTimeMillis();
+                boolean retried = integrationManager.performPapiRetryReload(() -> {
                     numberFormatRegistry.reload();
                     charReplaceRegistry.reload();
                     indicatorConfigLoader.load();
                     indicatorHandler.clearVariantCache();
-                    if (pluginConfig.timingLog) Log.info("[Timing] PAPI retry reload in {} ms", System.currentTimeMillis() - papiT0);
-                    if (papiRef.hasUnresolvedPlaceholders()) {
-                        Log.warn("[PlaceholderAPI] Some placeholders remain unresolved after retry. "
-                                + "Check if the required PAPI expansions are installed.");
-                    }
-                }
+                });
+                if (retried && pluginConfig.timingLog)
+                    Log.info("[Timing] PAPI retry reload in {} ms", System.currentTimeMillis() - papiT0);
             }
         }, this);
 

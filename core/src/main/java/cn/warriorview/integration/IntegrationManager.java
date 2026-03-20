@@ -132,6 +132,25 @@ public final class IntegrationManager {
         updateDaemon(config, scheduler);
     }
 
+    /**
+     * 服务器全量加载完毕后调用：若 PAPI 存在未解析占位符，重置解析会话并执行 {@code reloadCallback}
+     * 以刷新各注册表，随后检查是否仍有未解析项并输出警告。
+     *
+     * @param reloadCallback 调用方提供的注册表重载逻辑（由 Main 传入）
+     * @return {@code true} 表示执行了重试，调用方可据此记录计时日志
+     */
+    public boolean performPapiRetryReload(Runnable reloadCallback) {
+        if (papiIntegration == null || !papiIntegration.hasUnresolvedPlaceholders()) return false;
+        Log.info("[PlaceholderAPI] Retrying unresolved placeholders after server load...");
+        papiIntegration.beginResolveSession();
+        reloadCallback.run();
+        if (papiIntegration.hasUnresolvedPlaceholders()) {
+            Log.warn("[PlaceholderAPI] Some placeholders remain unresolved after retry. "
+                    + "Check if the required PAPI expansions are installed.");
+        }
+        return true;
+    }
+
     // ── 内部工具 ───────────────────────────────────────────────────────────────
 
     private void updateDaemon(PluginConfig config, RapidTransientScheduler scheduler) {
